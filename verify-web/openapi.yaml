@@ -5,13 +5,13 @@ info:
 paths:
   /health:
     get:
-      summary: Sağlık kontrolü
+      summary: Health check
       responses:
         "200":
           description: ok
   /api/v1/verify:
     post:
-      summary: Manifest doğrula, rozet döndür
+      summary: Verify manifest, return badge
       requestBody:
         required: true
         content:
@@ -29,7 +29,7 @@ paths:
           description: badge + reason + verify_url
   /v/{vid}:
     get:
-      summary: Paylaşılabilir verify linki
+      summary: Shareable verify link
       parameters:
         - name: vid
           in: path

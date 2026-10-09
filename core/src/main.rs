@@ -44,6 +44,21 @@ enum Cmd {
         /// Frame file.
         file: String,
     },
+    /// Embeds the manifest into a JPEG via JUMBF APP11 (C2PA container).
+    Pack {
+        /// JPEG frame file.
+        file: String,
+        /// Manifest JSON file.
+        manifest: String,
+        /// Sealed output path.
+        #[arg(long)]
+        out: String,
+    },
+    /// Extracts the embedded manifest JSON from a packed JPEG.
+    Unpack {
+        /// Packed JPEG file.
+        file: String,
+    },
 }
 
 fn main() {
@@ -53,6 +68,12 @@ fn main() {
         Cmd::Hash { file } => hash_cmd(&file),
         Cmd::Sign { file, device, out } => sign_cmd(&file, &device, out.as_deref()),
         Cmd::Verify { manifest, file } => verify_cmd(&manifest, &file),
+        Cmd::Pack {
+            file,
+            manifest,
+            out,
+        } => pack_cmd(&file, &manifest, &out),
+        Cmd::Unpack { file } => unpack_cmd(&file),
     };
     std::process::exit(kod);
 }
@@ -93,7 +114,7 @@ fn sign_cmd(file: &str, device: &str, out: Option<&str>) -> i32 {
         return 2;
     };
     // build manifest v1
-    let m = create_manifest_v1(&[&b], device, now_ms(), SigAlg::default());
+    let m = create_manifest_v1(&[&b], device, now_ms(), SigAlg::default(), "silver");
     let json = match manifest_to_json(&m) {
         Ok(j) => j,
         Err(e) => {
@@ -141,6 +162,56 @@ fn verify_cmd(manifest_path: &str, file: &str) -> i32 {
         }
         Err(e) => {
             println!("INVALID: {e}");
+            3
+        }
+    }
+}
+
+/// pack command: embed the manifest into the JPEG via JUMBF APP11.
+fn pack_cmd(file: &str, manifest_path: &str, out: &str) -> i32 {
+    let Ok(jpg) = fs::read(file) else {
+        eprintln!("frame read error: {file}");
+        return 2;
+    };
+    let Ok(text) = fs::read_to_string(manifest_path) else {
+        eprintln!("manifest read error: {manifest_path}");
+        return 2;
+    };
+    match rise_core::jumbf::jpeg_embed(&jpg, text.as_bytes()) {
+        Ok(sealed) => {
+            if let Err(e) = fs::write(out, sealed) {
+                eprintln!("write error: {e}");
+                return 2;
+            }
+            println!("packed: {out}");
+            0
+        }
+        Err(e) => {
+            eprintln!("pack error: {e}");
+            2
+        }
+    }
+}
+
+/// unpack command: extract the embedded manifest JSON.
+fn unpack_cmd(file: &str) -> i32 {
+    let Ok(jpg) = fs::read(file) else {
+        eprintln!("frame read error: {file}");
+        return 2;
+    };
+    match rise_core::jumbf::jpeg_extract(&jpg) {
+        Some(jumbf) => match rise_core::jumbf::parse_json_payload(&jumbf) {
+            Ok(payload) => {
+                println!("{}", String::from_utf8_lossy(&payload));
+                0
+            }
+            Err(e) => {
+                eprintln!("jumbf parse error: {e}");
+                2
+            }
+        },
+        None => {
+            eprintln!("no embedded manifest found in: {file}");
             3
         }
     }

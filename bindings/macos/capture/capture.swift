@@ -1,7 +1,7 @@
-// capture.swift — AVCapture ile tek kare yakalar, JPEG yazar.
-// Derleme: swiftc capture.swift -o capture-swift
-// Çalıştırma: ./capture-swift [çıktı-yolu]
-// Öncelik: adında "Rapoo"/"UVC" geçen cihaz, yoksa varsayılan video cihazı.
+// capture.swift — captures a single frame via AVCapture, writes a JPEG.
+// Build: swiftc capture.swift -o capture-swift
+// Run: ./capture-swift [output-path]
+// Priority: a device whose name contains "Rapoo"/"UVC", else the default video device.
 import AVFoundation
 import AppKit
 
@@ -15,13 +15,13 @@ func pickDevice() -> AVCaptureDevice? {
         mediaType: .video, position: .unspecified)
     let devs = session.devices
     if devs.isEmpty { return nil }
-    // Rapoo / USB UVC öncelikli (silver tier: harici kamera)
+    // Rapoo / USB UVC first (silver tier: external camera)
     if let usb = devs.first(where: {
         $0.localizedName.localizedCaseInsensitiveContains("Rapoo")
         || $0.localizedName.localizedCaseInsensitiveContains("UVC")
         || $0.localizedName.localizedCaseInsensitiveContains("USB")
     }) { return usb }
-    // yoksa FaceTime HD, en son ilk bulunan
+    // else FaceTime HD, last resort the first found
     return devs.first(where: {
         $0.localizedName.localizedCaseInsensitiveContains("FaceTime")
     }) ?? devs.first
@@ -29,7 +29,7 @@ func pickDevice() -> AVCaptureDevice? {
 
 switch AVCaptureDevice.authorizationStatus(for: .video) {
 case .notDetermined:
-    // Senkron bekle: ilk çalıştırmada sistem izni sorar.
+    // synchronous wait: the system prompts on first run
     let sem = DispatchSemaphore(value: 0)
     AVCaptureDevice.requestAccess(for: .video) { _ in sem.signal() }
     _ = sem.wait(timeout: .now() + 60)
@@ -37,18 +37,18 @@ default: break
 }
 
 guard AVCaptureDevice.authorizationStatus(for: .video) == .authorized else {
-    fputs("HATA: kamera izni yok. Sistem Ayarları > Gizlilik ve Güvenlik > Kamera'dan izin ver.\n", stderr)
+    fputs("ERROR: no camera permission. System Settings > Privacy & Security > Camera.\n", stderr)
     exit(1)
 }
 
 guard let device = pickDevice() else {
-    fputs("HATA: kamera bulunamadı.\n", stderr)
+    fputs("ERROR: no camera found.\n", stderr)
     exit(1)
 }
-print("Kamera: \(device.localizedName)")
+print("Camera: \(device.localizedName)")
 
 guard let input = try? AVCaptureDeviceInput(device: device) else {
-    fputs("HATA: kamera açılamadı (başka uygulama kullanıyor olabilir).\n", stderr)
+    fputs("ERROR: camera could not be opened (another app may be using it).\n", stderr)
     exit(1)
 }
 
@@ -61,7 +61,7 @@ session.addOutput(photoOut)
 session.startRunning()
 defer { session.stopRunning() }
 
-// Pozlama otursun diye kısa bekle
+// short wait for exposure to settle
 Thread.sleep(forTimeInterval: 1.0)
 
 class Delegate: NSObject, AVCapturePhotoCaptureDelegate {
@@ -79,7 +79,7 @@ photoOut.capturePhoto(with: AVCapturePhotoSettings(), delegate: del)
 _ = del.sem.wait(timeout: .now() + 15)
 
 guard let jpg = del.data else {
-    fputs("HATA: kare alınamadı.\n", stderr)
+    fputs("ERROR: could not capture a frame.\n", stderr)
     exit(1)
 }
 let url = URL(fileURLWithPath: outPath)
@@ -87,8 +87,8 @@ try? FileManager.default.createDirectory(
     at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
 do {
     try jpg.write(to: url)
-    print("Yazıldı: \(outPath) (\(jpg.count) bayt)")
+    print("Written: \(outPath) (\(jpg.count) bytes)")
 } catch {
-    fputs("HATA: yazılamadı: \(error)\n", stderr)
+    fputs("ERROR: could not write: \(error)\n", stderr)
     exit(1)
 }

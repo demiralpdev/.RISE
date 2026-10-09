@@ -7,6 +7,8 @@ use sha2::{Digest, Sha256};
 use std::io::Read;
 use thiserror::Error;
 
+pub mod jumbf;
+
 /// Core error type.
 #[derive(Debug, Error)]
 pub enum RiseError {
@@ -62,6 +64,17 @@ pub struct ManifestV1 {
     pub timestamp_ms: u64,
     /// Anonymous device id.
     pub device_id: String,
+    /// Trust tier: silver, gold-L2, gold-L4 (RISE-01 §5).
+    #[serde(default = "default_assurance")]
+    pub assurance: String,
+    /// RFC 3161 token (None until MS3 wires a TSA).
+    #[serde(default)]
+    pub timestamp_token: Option<String>,
+}
+
+/// Default tier is silver.
+fn default_assurance() -> String {
+    "silver".to_string()
 }
 
 /// SHA256 of the frame bytes (hex).
@@ -106,6 +119,7 @@ pub fn create_manifest_v1(
     device_id: &str,
     timestamp_ms: u64,
     sig_alg: SigAlg,
+    assurance: &str,
 ) -> ManifestV1 {
     // hash every frame
     let frame_hashes: Vec<String> = frames.iter().map(|f| sha256_frame(f)).collect();
@@ -126,6 +140,8 @@ pub fn create_manifest_v1(
         sig_alg,
         timestamp_ms,
         device_id: device_id.to_string(),
+        assurance: assurance.to_string(),
+        timestamp_token: None,
     }
 }
 
@@ -264,6 +280,23 @@ fn hex_encode(bytes: impl AsRef<[u8]>) -> String {
     s
 }
 
+/// FFI: SHA256(raw frame); the caller allocates a 65-byte buffer (64 hex + NUL).
+/// # Safety
+/// The caller must guarantee valid pointers and a 65-byte output buffer per core.h.
+#[no_mangle]
+pub unsafe extern "C" fn rise_hash_frame(bytes: *const u8, len: usize, out_hex65: *mut u8) {
+    if bytes.is_null() || out_hex65.is_null() {
+        return;
+    }
+    let slice = unsafe { std::slice::from_raw_parts(bytes, len) };
+    let hex = sha256_frame(slice);
+    let out = unsafe { std::slice::from_raw_parts_mut(out_hex65, 65) };
+    for (i, b) in hex.as_bytes().iter().take(64).enumerate() {
+        out[i] = *b;
+    }
+    out[64] = 0;
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -302,7 +335,13 @@ mod tests {
         let k1 = b"frame-one";
         let k2 = b"frame-two";
         let k3 = b"frame-three";
-        let m = create_manifest_v1(&[&k1[..], &k2[..], &k3[..]], "device-1", 999, SigAlg::Es256);
+        let m = create_manifest_v1(
+            &[&k1[..], &k2[..], &k3[..]],
+            "device-1",
+            999,
+            SigAlg::Es256,
+            "silver",
+        );
         // version and fields are complete
         assert_eq!(m.rise_version, 1);
         assert_eq!(m.frame_hashes.len(), 3);
@@ -317,7 +356,7 @@ mod tests {
     #[test]
     fn manifest_json_roundtrip() {
         // build + write + read
-        let m = create_manifest_v1(&[&b"a"[..]], "test-device", 123, SigAlg::Ed25519);
+        let m = create_manifest_v1(&[&b"a"[..]], "test-device", 123, SigAlg::Ed25519, "silver");
         let s = manifest_to_json(&m).unwrap();
         // expected field names are present
         assert!(s.contains("rise_version"));
@@ -336,7 +375,7 @@ mod tests {
     #[test]
     fn manifest_v1_empty_frame() {
         // an empty list yields the empty root
-        let m = create_manifest_v1(&[], "d", 0, SigAlg::Es256);
+        let m = create_manifest_v1(&[], "d", 0, SigAlg::Es256, "silver");
         assert!(m.frame_hashes.is_empty());
         assert_eq!(m.merkle_root, sha256_frame(b""));
         assert!(verify_manifest_v1(&m, &[]).is_ok());
