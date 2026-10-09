@@ -1,0 +1,17 @@
+# build çıktıları
+target/
+**/target/
+
+# codegraph / session verisi (symlink + local)
+.codegraph/
+.omo/
+
+# secrets
+secrets/
+.env
+.env.*
+*.pem
+*.key
+
+# OS / editör
+.DS_Store

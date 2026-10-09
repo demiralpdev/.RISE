@@ -1,0 +1,37 @@
+ffmpeg version 8.1.2 Copyright (c) 2000-2026 the FFmpeg developers
+  built with Apple clang version 21.0.0 (clang-2100.0.123.102)
+  configuration: --prefix=/opt/homebrew/Cellar/ffmpeg/8.1.2_1 --enable-shared --enable-pthreads --enable-version3 --cc=clang --host-cflags= --host-ldflags= --enable-ffplay --enable-gpl --enable-libsvtav1 --enable-libopus --enable-libx264 --enable-libmp3lame --enable-libdav1d --enable-libvmaf --enable-libvpx --enable-libx265 --enable-openssl --enable-videotoolbox --enable-audiotoolbox --enable-neon
+  libavutil      60. 26.102 / 60. 26.102
+  libavcodec     62. 28.102 / 62. 28.102
+  libavformat    62. 12.102 / 62. 12.102
+  libavdevice    62.  3.102 / 62.  3.102
+  libavfilter    11. 14.102 / 11. 14.102
+  libswscale      9.  5.102 /  9.  5.102
+  libswresample   6.  3.102 /  6.  3.102
+[AVFoundation indev @ 0x7563018140] Configuration of video device failed, falling back to default.
+[in#0 @ 0x7562c14000] Selected pixel format (yuv420p) is not supported by the input device.
+[in#0 @ 0x7562c14000] Supported pixel formats:
+[in#0 @ 0x7562c14000]   uyvy422
+[in#0 @ 0x7562c14000]   yuyv422
+[in#0 @ 0x7562c14000]   nv12
+[in#0 @ 0x7562c14000]   0rgb
+[in#0 @ 0x7562c14000]   bgr0
+[in#0 @ 0x7562c14000] Overriding selected pixel format to use uyvy422 instead.
+Input #0, avfoundation, from '2':
+  Duration: N/A, start: 39598.500233, bitrate: N/A
+  Stream #0:0: Video: rawvideo (UYVY / 0x59565955), uyvy422, 1280x720, 10.08 tbr, 1000k tbn, start 39598.500233
+Stream mapping:
+  Stream #0:0 -> #0:0 (rawvideo (native) -> mjpeg (native))
+Press [q] to stop, [?] for help
+Output #0, image2, to '../../target/frame-001.jpg':
+  Metadata:
+    encoder         : Lavf62.12.102
+  Stream #0:0: Video: mjpeg, yuv422p(pc, progressive), 1280x720, q=2-31, 200 kb/s, 10.08 fps, 10.08 tbn
+    Metadata:
+      encoder         : Lavc62.28.102 mjpeg
+    Side data:
+      CPB properties: bitrate max/min/avg: 0/0/200000 buffer size: 0 vbv_delay: N/A
+[image2 @ 0x7561ddd180] The specified filename '../../target/frame-001.jpg' does not contain an image sequence pattern or a pattern is invalid.
+[image2 @ 0x7561ddd180] Use a pattern such as %03d for an image sequence or use the -update option (with -frames:v 1 if needed) to write a single image.
+[out#0/image2 @ 0x7563210300] video:36KiB audio:0KiB subtitle:0KiB other streams:0KiB global headers:0KiB muxing overhead: unknown
+frame=    1 fps=0.0 q=2.0 Lsize=N/A time=00:00:00.09 bitrate=N/A speed=1.01x elapsed=0:00:00.09    
