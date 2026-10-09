@@ -21,3 +21,6 @@ __pycache__/
 *.pyc
 .pytest_cache/
 .venv/
+
+# codegraph symlink (file form)
+.codegraph
