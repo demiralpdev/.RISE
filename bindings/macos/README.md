@@ -1,15 +1,15 @@
-# macOS Binding (ince kabuk)
+# macOS Binding (thin shell)
 
-Sorumluluk: kareyi yakala, `core/`'a gönder. İmza mantığı burada yok.
+Responsibility: capture the frame, send it to `core/`. No signing logic here.
 
-- Donanım deposu: Secure Enclave
-- Görev: kamera karesi → core hash/attest çağrısı
-- Gerçek kod yok, sadece iskelet.
+- Hardware store: Secure Enclave
+- Task: camera frame -> core hash/attest call
+- Reference implementation: see `capture/`.
 
 ## Gold-gate checklist
 
-- Secure Enclave anahtar yoksa gold verme.
-- Platform attest zayıfsa gold-L4 yerine gold-L2 veya silver'a düşür.
-- Zayıf attest + sağlam zincir = en fazla gold-L2.
-- Zincir kırık/replay şüphesi = red, binding itiraz etmez.
-- Şüphede rozeti yükseltme, düşür.
+- No gold without a Secure Enclave key.
+- If platform attestation is weak, downgrade from gold-L4 to gold-L2 or silver.
+- Weak attestation + clean chain = gold-L2 at most.
+- Broken chain / replay suspicion = red, the binding does not argue.
+- On suspicion, downgrade the badge, never upgrade.

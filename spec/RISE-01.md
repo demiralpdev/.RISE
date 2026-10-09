@@ -1,64 +1,65 @@
-# RISE-01 — Çekirdek Kayıt Biçimi
+# RISE-01 — Core Capture Format
 
-> Amaç: Deklanşör anında kanıt üret. Sonradan ekleme yok.
+> Goal: produce proof at shutter time. No after-the-fact claims.
 
-## 1. Çekirdek Formül
+## 1. Core Formula
 
 ```
 SHA256(raw frame) at shutter + sign + timestamp
 ```
 
-- `raw frame`: Sensörden gelen işlenmemiş kare.
-- `shutter`: Deklanşör anı, gecikme yok.
-- `sign`: Cihaz anahtarıyla imza.
-- `timestamp`: RFC 3161 damgası.
+- `raw frame`: the unprocessed frame coming from the sensor.
+- `shutter`: the moment of capture, no delay.
+- `sign`: signature with the device key.
+- `timestamp`: RFC 3161 token.
 
-## 2. Kutu (Box) Yapısı
+## 2. Box Structure
 
 ```
-[ftyp] [mvex-uzantı] [jumb] [mdat]
+[ftyp] [mvex-extension] [jumb] [mdat]
 ```
 
-- `ftyp`: Dosya tipi, ISO 21617-1:2026 uyumlu.
-- `mvex-uzantı`: Kare hash listesi (her kareye bir SHA-256).
-- `jumb`: JUMBF gömülü C2PA 2.4 manifesti.
-- `mdat`: Ham medya baytları.
+- `ftyp`: file type, compatible with ISO 21617-1:2026.
+- `mvex-extension`: frame hash list (one SHA-256 per frame).
+- `jumb`: C2PA 2.4 manifest embedded via JUMBF.
+- `mdat`: raw media bytes.
 
-## 3. Hash ve İmza
+## 3. Hash and Signature
 
-- Hash: SHA-256 (zorunlu, tek algoritma).
-- İmza varsayılan: ES256 (P-256 + ECDSA).
-- İmza seçeneği: Ed25519 (ince cihazlar için).
-- Her kare hash'i imzalı manifestin içindedir.
+- Hash: SHA-256 (mandatory, single algorithm).
+- Default signature: ES256 (P-256 + ECDSA).
+- Signature option: Ed25519 (constrained devices).
+- Every frame hash lives inside the signed manifest.
 
-## 4. C2PA 2.4 Uyumu
+## 4. C2PA 2.4 Compatibility
 
-- Manifest C2PA 2.4 şemasına uyar.
-- JUMBF kutusu standart okuyucuda açılır.
-- RISE kutuları C2PA doğrulayıcıyı bozmaz.
+- The manifest follows the C2PA 2.4 schema.
+- The JUMBF box opens in standard readers.
+- RISE boxes do not break C2PA validators.
 
-## 5. Manifest Alanları
+## 5. Manifest Fields
 
-| Alan | Açıklama |
+| Field | Description |
 |---|---|
-| `rise_version` | Biçim sürümü (`1`) |
-| `frame_hashes` | Kare SHA-256 listesi |
-| `sig_alg` | `ES256` veya `Ed25519` |
-| `timestamp_token` | RFC 3161 jetonu |
-| `device_id` | Anonim cihaz kimliği |
+| `rise_version` | format version (`1`) |
+| `frame_hashes` | list of frame SHA-256 hashes |
+| `sig_alg` | `ES256` or `Ed25519` |
+| `timestamp_token` | RFC 3161 token |
+| `device_id` | anonymous device id |
+| `assurance` | trust tier: `silver`, `gold-L2`, `gold-L4` |
 
-## 6. Sürümlendirme
+## 6. Versioning
 
-- `rise_version: 1` ile başlar.
-- Yeni alan eklenebilir, eski alan silinemez.
-- Okuyucu bilmediği alanı görmezden gelir.
+- Starts with `rise_version: 1`.
+- New fields may be added, old fields are never removed.
+- Readers ignore unknown fields.
 
-## 7. Güven Zorunlulukları
+## 7. Trust Requirements
 
-- C2PA Trust List kontrolü zorunlu.
-- Sertifika iptal (revocation) kontrolü zorunlu.
-- Listeye ulaşılamazsa sonuç: `bilinmiyor`, asla `güvenli` değil.
+- C2PA Trust List check is mandatory.
+- Certificate revocation check is mandatory.
+- If the list is unreachable the result is `unknown`, never `trusted`.
 
-## Referanslar
+## References
 
 - C2PA 2.4, ISO 21617-1:2026, RFC 3161.

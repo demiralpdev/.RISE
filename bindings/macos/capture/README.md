@@ -1,30 +1,31 @@
 # macOS Capture (minimal)
 
-Tek kare yakalar → `../../target/frame-001.jpg` (yani `bindings/target/`).
-Öncelik: **Rapoo USB** varsa o, yoksa FaceTime HD.
+Captures one frame -> `../../target/frame-001.jpg` (i.e. `bindings/target/`).
+Priority: **Rapoo USB** if present, otherwise FaceTime HD.
 
-## Çalıştır
+## Run
 
 ```bash
 cd bindings/macos/capture
 ./capture.sh
 ```
 
-Alternatif (saf Swift, ffmpeg'siz):
+Alternative (pure Swift, no ffmpeg):
 
 ```bash
 swiftc capture.swift -o capture-swift
 ./capture-swift
 ```
 
-## İzin
+## Permission
 
-İlk çalıştırmada macOS kamera izni ister. Reddedilirse:
+macOS asks for camera permission on first run. If denied:
 
-**Sistem Ayarları → Gizlilik ve Güvenlik → Kamera → Terminal'e izin ver**, tekrar çalıştır.
+**System Settings -> Privacy & Security -> Camera -> allow Terminal**, then run again.
 
-## Dosyalar
+## Files
 
-- `capture.sh` — ffmpeg ile 1 kare (önerilen)
-- `capture.swift` — AVCapture ile 1 kare (ffmpeg yoksa)
-- `capture.log` — son çalışmanın ffmpeg çıktısı (hata ayıklama için)
+- `capture.sh` — 1 frame via ffmpeg (recommended)
+- `capture.swift` — 1 frame via AVCapture (if ffmpeg is missing)
+- `core.h` — FFI header stub for `core/`
+- `capture.log` — ffmpeg output of the last run (debugging)

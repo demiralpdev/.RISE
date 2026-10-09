@@ -1,0 +1,41 @@
+openapi: 3.0.3
+info:
+  title: RISE verify-web MVP
+  version: 0.1.0
+paths:
+  /health:
+    get:
+      summary: Sağlık kontrolü
+      responses:
+        "200":
+          description: ok
+  /api/v1/verify:
+    post:
+      summary: Manifest doğrula, rozet döndür
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [manifest]
+              properties:
+                manifest:
+                  type: string
+                frame_b64:
+                  type: string
+      responses:
+        "200":
+          description: badge + reason + verify_url
+  /v/{vid}:
+    get:
+      summary: Paylaşılabilir verify linki
+      parameters:
+        - name: vid
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: rozet sonucu

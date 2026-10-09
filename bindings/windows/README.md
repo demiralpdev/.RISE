@@ -1,15 +1,15 @@
-# Windows Binding (ince kabuk)
+# Windows Binding (thin shell)
 
-Sorumluluk: kareyi yakala, `core/`'a gönder. İmza mantığı burada yok.
+Responsibility: capture the frame, send it to `core/`. No signing logic here.
 
-- Donanım deposu: TPM 2.0 + VBS
-- Görev: kamera karesi → core hash/attest çağrısı
-- Gerçek kod yok, sadece iskelet.
+- Hardware store: TPM 2.0 + VBS
+- Task: camera frame -> core hash/attest call
+- No real code yet, skeleton only.
 
 ## Gold-gate checklist
 
-- TPM 2.0 anahtar + VBS onayı yoksa gold verme.
-- Attest zayıfsa gold-L4 yerine gold-L2 veya silver'a düşür.
-- Zayıf attest + sağlam zincir = en fazla gold-L2.
-- Zincir kırık/replay şüphesi = red, binding itiraz etmez.
-- Şüphede rozeti yükseltme, düşür.
+- No gold without a TPM 2.0 key + VBS confirmation.
+- If attestation is weak, downgrade from gold-L4 to gold-L2 or silver.
+- Weak attestation + clean chain = gold-L2 at most.
+- Broken chain / replay suspicion = red, the binding does not argue.
+- On suspicion, downgrade the badge, never upgrade.

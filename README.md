@@ -1,7 +1,7 @@
 # .rise
 
-.rise, kameradan çıkan her karenin donanım destekli kanıtla mühürlendiği ince bir güven katmanıdır; bindings kareyi yakalayıp `core/`'a verir, verify-web sonucu rozetle gösterir.
+.rise is a thin trust layer that seals every camera frame with hardware-backed proof; bindings capture the frame and hand it to `core/`, verify-web shows the result as a badge.
 
-- Yol haritası: ROADMAP.md
-- Kabuklar: `bindings/` (android, ios, macos, windows, linux)
-- Doğrulayıcı: `verify-web/`
+- Roadmap: ROADMAP.md
+- Shells: `bindings/` (android, ios, macos, windows, linux)
+- Verifier: `verify-web/`

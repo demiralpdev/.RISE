@@ -1,16 +1,24 @@
-# verify-web (doğrulayıcı iskelet)
+# verify-web (verifier skeleton)
 
-Yüklenen kanıtı gösterir: altın / gümüş / kırmızı rozet.
+Shows the uploaded evidence: gold / silver / red badge.
 
-## Rozet karar ağacı
+## Badge decision tree
 
-- gold-L4: donanım mühür + STRONG verdict + zincir sağlam → tam yasal ağırlık.
-- gold-L2: donanım mühür + BASIC verdict + zincir sağlam → sınırlı ağırlık.
-- silver: yazılım anahtar veya zincirde küçük eksik → bilgi amaçlı.
-- red: imza geçersiz, zincir kırık veya replay → reddet.
-- Kural: STRONG yoksa gold-L4 verme, bir basamak düşür.
-- Kural: zincir kırık/replay varsa direkt red ver.
-- Kural: şüphede rozeti yükseltme, düşür.
-- Rozetler hukuki ağırlığı belirler: gold-L4 > gold-L2 > silver > red.
-- Ekranda her rozetin gerekçesi tek satır gösterilir.
-- Gerçek doğrulama yok, yer tutucu; sonraki adım core çıktısını rozete bağla.
+- gold-L4: hardware seal + STRONG verdict + clean chain -> full legal weight.
+- gold-L2: hardware seal + BASIC verdict + clean chain -> limited weight.
+- silver: software key or small chain gap -> informational.
+- red: invalid signature, broken chain, or replay -> reject.
+- Rule: no STRONG, no gold-L4; drop one tier.
+- Rule: broken chain / replay -> straight red.
+- Rule: on suspicion, downgrade the badge, never upgrade.
+- Badges define legal weight: gold-L4 > gold-L2 > silver > red.
+- Each badge shows a one-line reason on screen.
+- MS1: real verification wired to `core/` output; Trust List/OCSP come later.
+
+## Run
+
+```bash
+cd verify-web
+python3 -m pytest tests/ -q        # badge tree tests
+uvicorn app:app --port 8088        # MVP API
+```

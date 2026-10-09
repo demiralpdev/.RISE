@@ -1,15 +1,15 @@
-# Linux Binding (ince kabuk)
+# Linux Binding (thin shell)
 
-Sorumluluk: kareyi yakala, `core/`'a gönder. İmza mantığı burada yok.
+Responsibility: capture the frame, send it to `core/`. No signing logic here.
 
-- Donanım deposu: TPM2 opsiyonel
-- Görev: kamera karesi → core hash/attest çağrısı
-- Gerçek kod yok, sadece iskelet.
+- Hardware store: TPM2 optional
+- Task: camera frame -> core hash/attest call
+- No real code yet, skeleton only.
 
 ## Gold-gate checklist
 
-- TPM2 anahtar yoksa gold verme, en fazla silver hedefle.
-- Donanım attest yoksa gold-L4/L2 kapalı, silver'a düşür.
-- Yazılım anahtar + sağlam zincir = en fazla silver.
-- Zincir kırık/replay şüphesi = red, binding itiraz etmez.
-- Şüphede rozeti yükseltme, düşür.
+- No TPM2 key: no gold, target silver at most.
+- No hardware attestation: gold-L4/L2 closed, downgrade to silver.
+- Software key + clean chain = silver at most.
+- Broken chain / replay suspicion = red, the binding does not argue.
+- On suspicion, downgrade the badge, never upgrade.
