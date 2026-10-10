@@ -14,7 +14,7 @@ rm -rf build
 mkdir -p build/classes build/dex build/stage/lib/arm64-v8a
 
 echo B1-kotlinc
-"$KOTLINC" -cp "$PLATFORM" MainActivity.kt com/rise/core/RiseCore.kt -d build/classes 1>&2
+"$KOTLINC" -cp "$PLATFORM" MainActivity.kt com/rise/core/RiseCore.kt ../capture/RiseCapture.kt ../capture/RiseCameraPermission.kt -d build/classes 1>&2
 find build/classes -name '*.class' > build/classlist.txt
 
 echo B2-d8
