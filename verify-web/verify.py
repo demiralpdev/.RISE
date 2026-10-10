@@ -49,12 +49,19 @@ def verify_badge(
             return _red("No signature, not evidence.")
         if not m.get("sig_alg"):
             return _red("No signature algorithm, not evidence.")
-        # MS1 manifest v1: frame_hashes list
-        frame_hashes = m.get("frame_hashes") or []
+        # MS1 manifest v1: frame_hashes list (type-strict, fail-closed)
+        frame_hashes = m.get("frame_hashes")
+        if not isinstance(frame_hashes, list):
+            return _red("Malformed frame hashes, rejected.")
+        tile_hashes_in = m.get("tile_hashes")
+        if not isinstance(tile_hashes_in, list):
+            return _red("Malformed tile hashes, rejected.")
+        if not isinstance(m.get("merkle_root"), str):
+            return _red("Malformed merkle root, rejected.")
         tiles = [_sha256(t) for t in _tiles(frame)]
-        if _sha256(frame) not in frame_hashes:
+        if frame and _sha256(frame) not in frame_hashes:
             return _red("Frame hash mismatch, content changed.")
-        if tiles != m.get("tile_hashes"):
+        if frame and tiles != tile_hashes_in:
             return _red("Tile hashes mismatch, content changed.")
         if _merkle(tiles) != m.get("merkle_root"):
             return _red("Chain root mismatch, content changed.")
