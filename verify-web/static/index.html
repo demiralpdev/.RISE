@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>.rise verifier</title>
+<style>
+  body { background: #0d1117; color: #e6edf3; font-family: monospace; max-width: 760px; margin: 2rem auto; padding: 0 1rem; }
+  h1 { color: #58a6ff; }
+  input, textarea, button { font-family: monospace; background: #161b22; color: #e6edf3; border: 1px solid #30363d; padding: 6px; margin: 4px 0; }
+  button { cursor: pointer; padding: 8px 16px; }
+  .badge { font-size: 1.4rem; font-weight: bold; padding: 8px 12px; display: inline-block; margin: 8px 0; }
+  .red { background: #da3633; } .silver { background: #8b949e; color: #0d1117; }
+  .gold-L2, .gold-L4 { background: #d29922; color: #0d1117; }
+  .details { white-space: pre-wrap; word-break: break-all; background: #161b22; padding: 10px; border: 1px solid #30363d; }
+  .note { color: #8b949e; font-size: 0.85rem; }
+</style>
+</head>
+<body>
+<h1>.rise verifier</h1>
+<p>Upload a .rise manifest (+ optionally the frame and the signer's public key) to check the evidence chain. Everything runs in YOUR browser — no file ever leaves this page.</p>
+<p>Manifest (.rise / .json): <input type="file" id="mfile" accept=".json,.rise,.jpg,.jpeg"></p>
+<p>Frame file (optional, raw or JPEG): <input type="file" id="ffile"></p>
+<p>Signer public key — SPKI PEM (optional, enables real ES256 check):<br>
+<textarea id="pubkey" rows="4" cols="70" placeholder="-----BEGIN PUBLIC KEY-----"></textarea></p>
+<button id="go">VERIFY</button>
+<div id="result"></div>
+<p class="note">Not evidence, preliminary finding. Gold tiers are not issued in MS1.</p>
+<script type="module">
+import { verifyBadge, sha256Hex } from "./verify.js";
+document.getElementById("go").onclick = async () => {
+  const res = document.getElementById("result");
+  res.innerHTML = "verifying...";
+  const mf = document.getElementById("mfile").files[0];
+  if (!mf) { res.innerHTML = "<span class='badge red'>ERROR</span> no manifest file"; return; }
+  const raw = await mf.text();
+  const ff = document.getElementById("ffile").files[0];
+  const frame = ff ? new Uint8Array(await ff.arrayBuffer()) : new Uint8Array(0);
+  const pubkey = document.getElementById("pubkey").value.trim();
+  const r = await verifyBadge(raw, frame, { pubkeyPem: pubkey || null });
+  const details = await (async () => {
+    let m = {}; try { m = JSON.parse(raw.startsWith("UNSIGNED:") ? raw.slice(9) : raw); } catch {}
+    return "frame_hashes=" + JSON.stringify(m.frame_hashes || []) +
+           "\nmerkle_root=" + (m.merkle_root || "n/a") +
+           "\nsig_alg=" + (m.sig_alg || "n/a") + " tier=" + (m.assurance || "n/a") +
+           "\ndevice_id=" + (m.device_id || "n/a");
+  })();
+  res.innerHTML = `<span class='badge ${r.badge}'>${r.badge.toUpperCase()}</span><br>${r.reason}<br><div class='details'>${details}</div>`;
+};
+</script>
+</body>
+</html>
