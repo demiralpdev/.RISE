@@ -5,7 +5,7 @@
 - Roadmap: ROADMAP.md
 - Shells: `bindings/` (android, ios, macos, windows, linux)
 - Verifier: `verify-web/`
-- **Public verifier: https://demiralpdev.github.io/.RISE/** (client-side, no server — files never leave the browser)
+- **Public verifiers: https://universe-rise.netlify.app/ | https://demiralpdev.github.io/.RISE/** (client-side, no server — files never leave the browser)
 
 ## Quickstart
 
@@ -18,4 +18,12 @@ cargo build
 # verifier tests
 cd ../verify-web
 .venv/bin/python -m pytest tests/ -q
+```
+
+
+## Install (npm)
+
+```bash
+npm install -g @rise/cli
+rise --help
 ```

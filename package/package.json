@@ -1,0 +1,17 @@
+{
+  "name": "@rise/cli",
+  "version": "0.2.0",
+  "description": "Rise — photo/video authenticity CLI: hash, sign, stamp, verify, pack, unpack",
+  "bin": {
+    "rise": "./rise.js"
+  },
+  "scripts": {
+    "install": "node install.js"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/demiralpdev/.RISE.git"
+  },
+  "keywords": ["c2pa", "provenance", "authenticity", "camera", "forensics"],
+  "license": "MIT"
+}
