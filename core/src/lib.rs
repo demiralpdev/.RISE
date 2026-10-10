@@ -80,11 +80,17 @@ pub struct ManifestV1 {
     #[serde(default)]
     pub timestamp_token: Option<String>,
     /// Signature over the canonical JSON (hex, None while unsigned).
-    #[serde(default)]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub signature: Option<String>,
     /// Key id used to sign.
-    #[serde(default)]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub signing_key_id: Option<String>,
+    /// Post-quantum algorithm (e.g. "ML-DSA-65") when dual-signed.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub pqc_alg: Option<String>,
+    /// ML-DSA signature over the canonical carrying the classic signature (hex).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub pqc_signature: Option<String>,
 }
 
 /// Default tier is silver.
@@ -159,6 +165,8 @@ pub fn create_manifest_v1(
         timestamp_token: None,
         signature: None,
         signing_key_id: None,
+        pqc_alg: None,
+        pqc_signature: None,
     }
 }
 
@@ -266,6 +274,37 @@ pub fn sign_manifest_v1(m: &mut ManifestV1, signer: &dyn signer::Signer) -> Resu
     Ok(())
 }
 
+/// Dual-signs: classic signature first, then ML-DSA-65 seals the canonical
+/// carrying the classic signature (chain binding: PQ attests the ES-signed
+/// form). The base canonical omits both signature fields.
+pub fn dual_sign_manifest_v1(
+    m: &mut ManifestV1,
+    signer: &dyn signer::Signer,
+    pqc: &signer::MlDsa65Signer,
+) -> Result<(), RiseError> {
+    // 1) classic signature over the base canonical (no pqc fields)
+    sign_manifest_v1(m, signer)?;
+    // 2) PQ canonical: signature present, pqc_signature absent
+    m.pqc_alg = Some("ML-DSA-65".to_string());
+    m.pqc_signature = None;
+    let canon = manifest_to_json(m)?;
+    m.pqc_signature = Some(hex_encode(pqc.sign(canon.as_bytes())?));
+    Ok(())
+}
+
+/// Verifies the ML-DSA chain signature over the canonical carrying the
+/// classic signature (pqc_signature omitted from the canonical form).
+pub fn verify_pqc(m: &ManifestV1, verifier: &signer::MlDsa65Verifier) -> Result<(), RiseError> {
+    let Some(sig_hex) = &m.pqc_signature else {
+        return Err(RiseError::InvalidSignature);
+    };
+    let sig_bytes = hex_decode(sig_hex)?;
+    let mut tmp = m.clone();
+    tmp.pqc_signature = None;
+    let canon = manifest_to_json(&tmp)?;
+    verifier.verify(canon.as_bytes(), &sig_bytes)
+}
+
 /// Verifies the manifest signature over the canonical JSON.
 pub fn verify_signature(m: &ManifestV1, verifier: &dyn signer::Verifier) -> Result<(), RiseError> {
     let Some(sig_hex) = &m.signature else {
@@ -275,6 +314,8 @@ pub fn verify_signature(m: &ManifestV1, verifier: &dyn signer::Verifier) -> Resu
     // rebuild the exact canonical form the signer used
     let mut tmp = m.clone();
     tmp.signature = None;
+    tmp.pqc_alg = None;
+    tmp.pqc_signature = None;
     let canon = manifest_to_json(&tmp)?;
     verifier.verify(canon.as_bytes(), &sig_bytes)
 }
@@ -655,6 +696,40 @@ mod tests {
         )
         .unwrap();
     }
+    #[test]
+    fn dual_sign_pqc_chain() {
+        // ES signs the base canonical, ML-DSA seals the ES-signed form; both
+        // verifications pass, and tampering breaks both (chain binding).
+        let kare = b"rise-pqc-chain";
+        let mut m = create_manifest_v1(&[&kare[..]], "d", 0, SigAlg::Es256, "silver");
+        let (priv_pem, pub_pem) = signer::generate_p256().unwrap();
+        let (seed, vk) = signer::MlDsa65Signer::generate().unwrap();
+        let pp = std::env::temp_dir().join("rise-dual.pem");
+        let pubp = std::env::temp_dir().join("rise-dual.pub.pem");
+        let mlseed = std::env::temp_dir().join("rise-dual.mldsa");
+        let mlpub = std::env::temp_dir().join("rise-dual.mldsa.pub");
+        std::fs::write(&pp, &priv_pem).unwrap();
+        std::fs::write(&pubp, &pub_pem).unwrap();
+        std::fs::write(&mlseed, &seed).unwrap();
+        std::fs::write(&mlpub, &vk).unwrap();
+        let es = signer::P256Signer::from_pem_file(pp.to_str().unwrap()).unwrap();
+        let pq = signer::MlDsa65Signer::from_seed_file(mlseed.to_str().unwrap()).unwrap();
+        dual_sign_manifest_v1(&mut m, &es, &pq).unwrap();
+        assert!(m.signature.is_some());
+        assert_eq!(m.pqc_alg.as_deref(), Some("ML-DSA-65"));
+        let v = signer::P256Verifier::from_pem_file(pubp.to_str().unwrap()).unwrap();
+        let pv = signer::MlDsa65Verifier::from_pubkey_file(mlpub.to_str().unwrap()).unwrap();
+        verify_signature(&m, &v).unwrap();
+        verify_pqc(&m, &pv).unwrap();
+        let mut bad = m.clone();
+        bad.device_id = "attacker".into();
+        assert!(verify_signature(&bad, &v).is_err());
+        assert!(verify_pqc(&bad, &pv).is_err());
+        for f in [&pp, &pubp, &mlseed, &mlpub] {
+            std::fs::remove_file(f).unwrap();
+        }
+    }
+
     #[test]
     fn stamp_then_sign_recorded_token_roundtrip() {
         // production order: stamp BEFORE sign so the signature covers
