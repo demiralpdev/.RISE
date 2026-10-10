@@ -5,7 +5,7 @@
 - Roadmap: ROADMAP.md
 - Shells: `bindings/` (android, ios, macos, windows, linux)
 - Verifier: `verify-web/`
-- **Public verifiers: https://universe-rise.netlify.app/ | https://demiralpdev.github.io/.RISE/** (client-side, no server — files never leave the browser)
+- **Public verifier: https://riseproof.me** (also: https://universe-rise.netlify.app/ | https://demiralpdev.github.io/.RISE/) (client-side, no server — files never leave the browser)
 
 ## Quickstart
 
