@@ -24,6 +24,14 @@ SHA256(raw frame) at shutter + sign + timestamp
 - `jumb`: C2PA 2.4 manifest embedded via JUMBF.
 - `mdat`: raw media bytes.
 
+## 2.1 Sealed File Naming
+
+- The sealed artifact is `<original>.rise` — the bytes stay a valid JPEG
+  (APP11/JUMBF evidence embedded), so any image viewer opens it; the
+  extension marks the seal and is the product's file identity.
+- Raw-frame flows (Windows YUY2) keep a sidecar `<original>.manifest.json`
+  plus the raw file — APP11 requires a JPEG container.
+
 ## 3. Hash and Signature
 
 - Hash: SHA-256 (mandatory, single algorithm).

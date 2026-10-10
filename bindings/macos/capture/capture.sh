@@ -45,10 +45,15 @@ else
 fi
 
 # Manifest: if the core CLI is built, convert the frame into a sealed manifest
-CORE_BIN="../../../core/target/debug/rise-core"
+CORE_BIN="../../../core/target/release/rise-core"
+[ -x "$CORE_BIN" ] || CORE_BIN="../../../core/target/debug/rise-core"
 if [ -x "$CORE_BIN" ]; then
   "$CORE_BIN" sign "$OUT" --device "$DEV_NAME" --out "${OUT%.jpg}.manifest.json" \
     || echo "WARN: manifest could not be generated (core error)"
+  if [ -f "${OUT%.jpg}.manifest.json" ]; then
+    "$CORE_BIN" pack "$OUT" "${OUT%.jpg}.manifest.json" --out "${OUT%.jpg}.rise" \
+      || echo "WARN: pack failed (core error)"
+  fi
 else
   echo "Note: core CLI is not built (core/target/debug/rise-core), manifest skipped."
 fi

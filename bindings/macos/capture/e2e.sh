@@ -15,7 +15,7 @@ trap 'rm -rf "$TMP"' EXIT
 
 FRAME="$TMP/frame.jpg"
 MANIFEST="$TMP/signed.manifest.json"
-SEALED="$TMP/sealed.jpg"
+SEALED="$TMP/sealed.rise"
 UNPACKED="$TMP/unpacked.manifest.json"
 TAMPERED="$TMP/tampered.jpg"
 

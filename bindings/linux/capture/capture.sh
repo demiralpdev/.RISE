@@ -80,3 +80,7 @@ if [ -x "$CORE_BIN" ]; then
 else
   echo "Note: core CLI is not built (core/target/debug/rise-core), manifest skipped."
 fi
+if [ -x "$CORE_BIN" ] && [ -f "${OUT%.jpg}.manifest.json" ]; then
+  "$CORE_BIN" pack "$OUT" "${OUT%.jpg}.manifest.json" --out "${OUT%.jpg}.rise" \
+    || echo "WARN: pack failed (core error)"
+fi
