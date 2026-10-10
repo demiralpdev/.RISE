@@ -12,7 +12,7 @@
 | macOS | REAL — `capture/capture.sh`, `capture/capture.swift`, `capture/capture.log` exist; `bindings/target/frame-001.jpg` on disk | STUB — no `attest/` dir, no Secure Enclave code; goal only in `README.md` | REAL e2e (capture → manifest) — `bindings/target/frame-001.jpg` + `frame-001.manifest.json` exist | real run (artifacts on disk) | silver max currently (no SE key → no gold per gold-gate); gold-L2/L4 only after attest lands |
 | iOS | STUB — `capture/Capture.swift` exists, never ran on device | STUB — `attest/Attest.swift` exists, never ran (needs iPhone + Apple servers) | NOT RUN — no frame, no manifest | static (reported `swiftc --typecheck` PASS 2026-10-10 per README; not re-verified here) | gold-L2/L4 candidate by design (SE + App Attest), unproven |
 | Linux | STUB — `capture/capture.sh` exists, never ran on Linux | STUB — `attest/detect.sh` + `attest/README.md` exist, report-only | NOT RUN — no frame, no manifest | static (reported `bash -n` clean per README; not re-run here — `ls` only) | silver, always (gold path closed on Linux) |
-| Android | CORE REAL - core binary built for aarch64-linux-android and RUN on the attached device (`emugy5nbrsmrmzmz`): on-device SHA-256 matches Mac byte-for-byte; device keygen+sign pulled to Mac and verified `VALID (signed)` (2026-10-10). `capture/RiseCapture.kt` etc still uncompiled (needs Android SDK/gradle) | STUB - `attest/RiseKeystore.kt`, `RiseIntegrity.kt`, `RiseAssurance.kt` exist; never run | REAL for core CLI on device (hash + cross-device signature); NOT RUN for Kotlin capture | real run (adb device, release binary) | capture/attest tiers still design-only: STRONG missing -> L2/silver; BASIC+clean = L2 max; mock/GPS-off = silver; broken = red |
+| Android | CORE REAL - core binary built for aarch64-linux-android and RUN on the attached device (`emugy5nbrsmrmzmz`): on-device SHA-256 matches Mac byte-for-byte; device keygen+sign pulled to Mac and verified `VALID (signed)` (2026-10-10). JNI bridge REAL: librise_jni.so NDK-compiled (CMake, static librise_core.a), `Java_com_rise_core_RiseCore_hashFrame` exported, dlopen-loaded on device (JNI_SYMBOL_OK). Kotlin `capture/` files still uncompiled (needs Android SDK/gradle)  | STUB - `attest/RiseKeystore.kt`, `RiseIntegrity.kt`, `RiseAssurance.kt` exist; never run | REAL for core CLI on device (hash + cross-device signature); NOT RUN for Kotlin capture | real run (adb device, release binary) | capture/attest tiers still design-only: STRONG missing -> L2/silver; BASIC+clean = L2 max; mock/GPS-off = silver; broken = red |
 | Windows | CORE REAL — `cargo test` 33/33 green on DESKTOP-1LD8TK1 (192.168.111.7, SSH user `rise`); `capture/capture.cpp` still uncompiled | REAL — `attest.cpp` compiled+run on the PC (2026-10-10): TPM present, `RISE-device-key` P-256 created+finalized in TPM via NCrypt, VBS off in registry → fail-closed silver | REAL e2e — `keygen → sign --key --tsa (live FreeTSA) → verify --pubkey` printed `VALID (signed)` exit 0 (2026-10-10) | real run (tests + attest + e2e over SSH) | gold-L2 requires VBS enabled on that PC (registry off today → silver); L4 unreachable by design |
 
 Proof-type legend: **real run** = artifacts on disk from an actual run;
@@ -57,8 +57,10 @@ Linux hardware run. Ceiling is silver by policy even with TPM2 present.
 The Rust core binary (aarch64-linux-android, NDK r27) ran on the real phone via
 adb: on-device SHA-256 matched the Mac byte-for-byte, and a keypair generated +
 signed ON THE DEVICE verified as `VALID (signed)` on the Mac (cross-device proof).
-The five Kotlin capture/attest files remain uncompiled (no Android SDK/gradle
-here) - Play Integrity gating is still design, not behavior.
+The JNI bridge (librise_jni.so) was NDK-compiled via CMake, symbol-verified with
+llvm-nm, and dlopen-loaded on the device (JNI_SYMBOL_OK); calling it needs an app
+process (future work). The Kotlin capture/attest files remain uncompiled (no
+Android SDK/gradle here) - Play Integrity gating is still design, not behavior.
 
 **Windows — CORE+ATTEST REAL, capture STUB.**
 Rust core fully green on the real PC (33/33 tests, MSVC Build Tools installed,

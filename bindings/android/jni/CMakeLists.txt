@@ -1,9 +1,8 @@
 # RISE Android JNI bridge — CMake build for librise_jni.so
 #
-# STUB HONESTY HEADER — NOT CONFIGURED, NOT BUILT.
-# No Android NDK on this machine (ANDROID_NDK_HOME unset), so
-# `cmake --toolchain android.toolchain.cmake` has never run here.
-# This file is review-only until an NDK host proves it.
+# Status: REAL - configured + built for arm64-v8a with NDK r27
+# (cmake 4.4.4, Unix Makefiles generator, 2026-10-10). Symbol verified
+# with llvm-nm; dlopen-loaded on the device (see MATRIX.md).
 
 cmake_minimum_required(VERSION 3.22)
 

@@ -1,19 +1,11 @@
 # Android JNI Bridge (`bindings/android/jni/`)
 
-> STUB HONESTY HEADER — NOT BUILT, NOT RUN (2026-10-10, macOS host).
-> - `rise_jni.c` is written against `bindings/macos/capture/core.h`
->   (`rise_hash_frame(bytes, len, out_hex65)`) and `core/src/lib.rs`, read
->   on disk. Host syntax-only check passed (see below); no NDK compile here.
-> - Host syntax check 2026-10-10: `cc -fsyntax-only` with JDK `jni.h`
->   (macOS darwin headers) exits 0 — the relative `core.h` include resolves
->   and JNI types check. This is NOT an NDK / Android-ABI build.
-> - No Android NDK on this machine (`ANDROID_NDK_HOME` unset, NDK download
->   deliberately not attempted). No `cmake`, `ninja`, or Android-ABI proof
->   has run. Do not treat as tested.
-> - Thin-shell rule: this bridge only moves frame bytes across JNI into
->   core. No signing logic, no key handling, no logging of frame bytes or
->   key material. Key code lives in `../attest/` (Keystore/Integrity),
->   hashing lives in `core/`.
+> Status: REAL - NDK r27 aarch64-v8a build + on-device proof (2026-10-10).
+> - librise_jni.so built via CMake (Unix Makefiles, android.toolchain.cmake),
+>   statically linked against librise_core.a (cargo-ndk release build).
+> - llvm-nm -D: Java_com_rise_core_RiseCore_hashFrame exported (T).
+> - On-device dlopen + dlsym via dlopen_smoke.c: JNI_SYMBOL_OK.
+> - APK-context System.loadLibrary call still pending (needs an app).
 
 ## What this is
 
@@ -60,7 +52,7 @@ bindings/android/jni/
 The relative include (`../../macos/capture/core.h`) is intentional: one FFI
 contract shared with the proven macOS C harness, not a forked copy.
 
-## Exact NDK build steps (unproven here — run on an NDK host)
+## Exact NDK build steps (PROVEN on this host, 2026-10-10; only arm64-v8a; ninja absent -> Unix Makefiles)
 
 Prerequisites on the build machine (versions are minimums, adjust to current):
 
@@ -135,16 +127,14 @@ val hex: String = RiseCore.hashFrame(rawFrame.yuvBytes)
 // hex is 64 lowercase hex chars; compare against core sha256_frame on desktop.
 ```
 
-## Honest verdict (this machine, 2026-10-10)
+## Honest verdict (this host, 2026-10-10)
 
-- JNI C source: written, **host syntax-checked only** (`cc -fsyntax-only`
-  with JDK `jni.h` on macOS exits 0). No NDK / Android-ABI compile.
-- CMake file: written, **unconfigured**. `android.toolchain.cmake` does not exist here.
-- NDK: **absent** (`ANDROID_NDK_HOME` unset). No download attempted per task constraints.
-- `llvm-nm` symbol check: **not run**.
-- Kotlin `external fun` declaration: **not typechecked** (no Android SDK here either).
-- Status: **STUB**. Next owner with an NDK host runs Steps A–E above and replaces this header with the real output.
-
+- JNI C source: NDK-compiled (r27, aarch64-v8a) via CMake + android.toolchain.cmake.
+- librise_core.a staged from cargo-ndk release build (staticlib crate-type added).
+- llvm-nm -D: Java_com_rise_core_RiseCore_hashFrame exported (T).
+- On-device dlopen + dlsym (dlopen_smoke.c): JNI_SYMBOL_OK.
+- APK-context System.loadLibrary call: pending (needs an app) - only remaining gap.
+- Status: REAL at bridge level.
 ## Rules for future edits
 
 - Thin shell only. Any signing, attestation verdict parsing, or badge logic belongs in `../attest/` or `verify-web/`, never here.

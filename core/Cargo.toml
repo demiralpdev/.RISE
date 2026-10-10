@@ -6,7 +6,7 @@ edition = "2021"
 [lib]
 name = "rise_core"
 path = "src/lib.rs"
-crate-type = ["lib", "cdylib"]
+crate-type = ["lib", "cdylib", "staticlib"]
 
 [[bin]]
 name = "rise-core"

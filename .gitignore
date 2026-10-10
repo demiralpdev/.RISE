@@ -27,3 +27,7 @@ __pycache__/
 
 # run artifacts
 *.log
+
+# android jni build artifacts
+bindings/android/jni/build/
+bindings/android/jni/libs/

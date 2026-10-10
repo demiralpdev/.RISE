@@ -1,15 +1,15 @@
 /* RISE Android JNI bridge — thin shell over core rise_hash_frame.
  *
- * STUB HONESTY HEADER — NOT BUILT, NOT RUN.
+ * Status: REAL - NDK r27 aarch64-v8a build + on-device proof (2026-10-10):
+ * - cmake (Unix Makefiles, android.toolchain.cmake) built librise_jni.so,
+ *   statically linked against librise_core.a (cargo-ndk release build).
+ * - llvm-nm -D: Java_com_rise_core_RiseCore_hashFrame exported (T).
+ * - On-device (emugy5nbrsmrmzmz, /data/local/tmp): dlopen + dlsym resolved
+ *   the symbol (dlopen_smoke.c -> JNI_SYMBOL_OK).
+ * - Calling the function still needs a JNIEnv (app process); an APK-context
+ *   System.loadLibrary test remains future work.
  * - Written against bindings/macos/capture/core.h
  *   (void rise_hash_frame(const unsigned char *, size_t, char *out_hex65))
- *   and core/src/lib.rs rise_hash_frame. Signature verified by reading
- *   both files on 2026-10-10; host syntax-only check passed (see below),
- *   no NDK / Android-ABI compile has run.
- * - Host syntax check 2026-10-10: `cc -fsyntax-only` with JDK jni.h
- *   (macOS darwin headers) exits 0, confirming the relative
- *   `../../macos/capture/core.h` include resolves and the JNI types check.
- *   This is NOT an NDK build and NOT an Android-ABI compile.
  * - Thin-shell rule: this file only moves bytes across JNI and calls core.
  *   No signing logic, no key handling, no key material logging.
  */
