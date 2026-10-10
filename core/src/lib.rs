@@ -482,33 +482,66 @@ mod tests {
     fn manifest_sign_verify_roundtrip() {
         // generate a keypair, sign the manifest, verify it
         let (priv_pem, pub_pem) = signer::generate_p256().unwrap();
-        std::fs::write(std::env::temp_dir().join("rise-mv.pem").to_str().unwrap(), &priv_pem).unwrap();
-        std::fs::write(std::env::temp_dir().join("rise-mv.pub.pem").to_str().unwrap(), &pub_pem).unwrap();
+        std::fs::write(
+            std::env::temp_dir().join("rise-mv.pem").to_str().unwrap(),
+            &priv_pem,
+        )
+        .unwrap();
+        std::fs::write(
+            std::env::temp_dir()
+                .join("rise-mv.pub.pem")
+                .to_str()
+                .unwrap(),
+            &pub_pem,
+        )
+        .unwrap();
         let kare = b"rise-signed-frame";
         let mut m = create_manifest_v1(&[&kare[..]], "test-device", 123, SigAlg::Es256, "silver");
-        let s = signer::P256Signer::from_pem_file(std::env::temp_dir().join("rise-mv.pem").to_str().unwrap()).unwrap();
+        let s = signer::P256Signer::from_pem_file(
+            std::env::temp_dir().join("rise-mv.pem").to_str().unwrap(),
+        )
+        .unwrap();
         sign_manifest_v1(&mut m, &s).unwrap();
         // signature present, no stub prefix anywhere
         assert!(m.signature.is_some());
         let json = manifest_to_json(&m).unwrap();
         assert!(!json.contains("UNSIGNED"));
         // the correct signature verifies
-        let v = signer::P256Verifier::from_pem_file(std::env::temp_dir().join("rise-mv.pub.pem").to_str().unwrap()).unwrap();
+        let v = signer::P256Verifier::from_pem_file(
+            std::env::temp_dir()
+                .join("rise-mv.pub.pem")
+                .to_str()
+                .unwrap(),
+        )
+        .unwrap();
         verify_signature(&m, &v).unwrap();
         // tampering the signed content breaks it
         let mut bad = m.clone();
         bad.device_id = "attacker".into();
         assert!(verify_signature(&bad, &v).is_err());
         std::fs::remove_file(std::env::temp_dir().join("rise-mv.pem").to_str().unwrap()).unwrap();
-        std::fs::remove_file(std::env::temp_dir().join("rise-mv.pub.pem").to_str().unwrap()).unwrap();
+        std::fs::remove_file(
+            std::env::temp_dir()
+                .join("rise-mv.pub.pem")
+                .to_str()
+                .unwrap(),
+        )
+        .unwrap();
     }
     #[test]
     fn double_sign_refused() {
         let (priv_pem, _pub_pem) = signer::generate_p256().unwrap();
-        std::fs::write(std::env::temp_dir().join("rise-ds.pem").to_str().unwrap(), &priv_pem).unwrap();
+        std::fs::write(
+            std::env::temp_dir().join("rise-ds.pem").to_str().unwrap(),
+            &priv_pem,
+        )
+        .unwrap();
         let kare = b"rise-ds-frame";
         let mut m = create_manifest_v1(&[&kare[..]], "d", 0, SigAlg::Es256, "silver");
-        let s = signer::P256Signer::from_pem_file(std::env::temp_dir().join("rise-ds.pem").to_str().unwrap()).unwrap();
+        let s = signer::P256Signer::from_pem_file(
+            std::env::temp_dir().join("rise-ds.pem").to_str().unwrap(),
+        )
+        .unwrap();
         sign_manifest_v1(&mut m, &s).unwrap();
         assert!(sign_manifest_v1(&mut m, &s).is_err());
         std::fs::remove_file(std::env::temp_dir().join("rise-ds.pem").to_str().unwrap()).unwrap();
@@ -573,17 +606,37 @@ mod tests {
         ));
         // intact chain, signed, no pubkey: still Unknown (informational)
         let (priv_pem, pub_pem) = signer::generate_p256().unwrap();
-        std::fs::write(std::env::temp_dir().join("rise-dec.pem").to_str().unwrap(), &priv_pem).unwrap();
-        std::fs::write(std::env::temp_dir().join("rise-dec.pub.pem").to_str().unwrap(), &pub_pem).unwrap();
+        std::fs::write(
+            std::env::temp_dir().join("rise-dec.pem").to_str().unwrap(),
+            &priv_pem,
+        )
+        .unwrap();
+        std::fs::write(
+            std::env::temp_dir()
+                .join("rise-dec.pub.pem")
+                .to_str()
+                .unwrap(),
+            &pub_pem,
+        )
+        .unwrap();
         let mut signed = m.clone();
-        let s = signer::P256Signer::from_pem_file(std::env::temp_dir().join("rise-dec.pem").to_str().unwrap()).unwrap();
+        let s = signer::P256Signer::from_pem_file(
+            std::env::temp_dir().join("rise-dec.pem").to_str().unwrap(),
+        )
+        .unwrap();
         sign_manifest_v1(&mut signed, &s).unwrap();
         assert!(matches!(
             verify_decision(&signed, &[&kare[..]], None),
             VerifyDecision::Unknown(_)
         ));
         // signed + correct pubkey: Valid
-        let v = signer::P256Verifier::from_pem_file(std::env::temp_dir().join("rise-dec.pub.pem").to_str().unwrap()).unwrap();
+        let v = signer::P256Verifier::from_pem_file(
+            std::env::temp_dir()
+                .join("rise-dec.pub.pem")
+                .to_str()
+                .unwrap(),
+        )
+        .unwrap();
         assert_eq!(
             verify_decision(&signed, &[&kare[..]], Some(&v)),
             VerifyDecision::Valid
@@ -594,7 +647,13 @@ mod tests {
             VerifyDecision::Red(_)
         ));
         std::fs::remove_file(std::env::temp_dir().join("rise-dec.pem").to_str().unwrap()).unwrap();
-        std::fs::remove_file(std::env::temp_dir().join("rise-dec.pub.pem").to_str().unwrap()).unwrap();
+        std::fs::remove_file(
+            std::env::temp_dir()
+                .join("rise-dec.pub.pem")
+                .to_str()
+                .unwrap(),
+        )
+        .unwrap();
     }
     #[test]
     fn stamp_then_sign_recorded_token_roundtrip() {
@@ -609,11 +668,31 @@ mod tests {
         let mut m = create_manifest_v1(&[&frame[..]], "d", 0, SigAlg::Es256, "silver");
         m.timestamp_token = Some(token_b64);
         let (priv_pem, pub_pem) = signer::generate_p256().unwrap();
-        std::fs::write(std::env::temp_dir().join("rise-sts.pem").to_str().unwrap(), &priv_pem).unwrap();
-        std::fs::write(std::env::temp_dir().join("rise-sts.pub.pem").to_str().unwrap(), &pub_pem).unwrap();
-        let s = signer::P256Signer::from_pem_file(std::env::temp_dir().join("rise-sts.pem").to_str().unwrap()).unwrap();
+        std::fs::write(
+            std::env::temp_dir().join("rise-sts.pem").to_str().unwrap(),
+            &priv_pem,
+        )
+        .unwrap();
+        std::fs::write(
+            std::env::temp_dir()
+                .join("rise-sts.pub.pem")
+                .to_str()
+                .unwrap(),
+            &pub_pem,
+        )
+        .unwrap();
+        let s = signer::P256Signer::from_pem_file(
+            std::env::temp_dir().join("rise-sts.pem").to_str().unwrap(),
+        )
+        .unwrap();
         sign_manifest_v1(&mut m, &s).unwrap();
-        let v = signer::P256Verifier::from_pem_file(std::env::temp_dir().join("rise-sts.pub.pem").to_str().unwrap()).unwrap();
+        let v = signer::P256Verifier::from_pem_file(
+            std::env::temp_dir()
+                .join("rise-sts.pub.pem")
+                .to_str()
+                .unwrap(),
+        )
+        .unwrap();
         verify_signature(&m, &v).unwrap();
         assert_eq!(
             verify_decision(&m, &[&frame[..]], Some(&v)),
@@ -625,7 +704,13 @@ mod tests {
         restamped.timestamp_token = Some("AA==".to_string());
         assert!(verify_signature(&restamped, &v).is_err());
         std::fs::remove_file(std::env::temp_dir().join("rise-sts.pem").to_str().unwrap()).unwrap();
-        std::fs::remove_file(std::env::temp_dir().join("rise-sts.pub.pem").to_str().unwrap()).unwrap();
+        std::fs::remove_file(
+            std::env::temp_dir()
+                .join("rise-sts.pub.pem")
+                .to_str()
+                .unwrap(),
+        )
+        .unwrap();
     }
     #[test]
     #[ignore]
@@ -641,13 +726,51 @@ mod tests {
         timestamp::verify_token_against_digest(&tok, &digest).unwrap();
         m.timestamp_token = Some(base64::engine::general_purpose::STANDARD.encode(&tok));
         let (priv_pem, pub_pem) = signer::generate_p256().unwrap();
-        std::fs::write(std::env::temp_dir().join("rise-sts-live.pem").to_str().unwrap(), &priv_pem).unwrap();
-        std::fs::write(std::env::temp_dir().join("rise-sts-live.pub.pem").to_str().unwrap(), &pub_pem).unwrap();
-        let s = signer::P256Signer::from_pem_file(std::env::temp_dir().join("rise-sts-live.pem").to_str().unwrap()).unwrap();
+        std::fs::write(
+            std::env::temp_dir()
+                .join("rise-sts-live.pem")
+                .to_str()
+                .unwrap(),
+            &priv_pem,
+        )
+        .unwrap();
+        std::fs::write(
+            std::env::temp_dir()
+                .join("rise-sts-live.pub.pem")
+                .to_str()
+                .unwrap(),
+            &pub_pem,
+        )
+        .unwrap();
+        let s = signer::P256Signer::from_pem_file(
+            std::env::temp_dir()
+                .join("rise-sts-live.pem")
+                .to_str()
+                .unwrap(),
+        )
+        .unwrap();
         sign_manifest_v1(&mut m, &s).unwrap();
-        let v = signer::P256Verifier::from_pem_file(std::env::temp_dir().join("rise-sts-live.pub.pem").to_str().unwrap()).unwrap();
+        let v = signer::P256Verifier::from_pem_file(
+            std::env::temp_dir()
+                .join("rise-sts-live.pub.pem")
+                .to_str()
+                .unwrap(),
+        )
+        .unwrap();
         verify_signature(&m, &v).unwrap();
-        std::fs::remove_file(std::env::temp_dir().join("rise-sts-live.pem").to_str().unwrap()).unwrap();
-        std::fs::remove_file(std::env::temp_dir().join("rise-sts-live.pub.pem").to_str().unwrap()).unwrap();
+        std::fs::remove_file(
+            std::env::temp_dir()
+                .join("rise-sts-live.pem")
+                .to_str()
+                .unwrap(),
+        )
+        .unwrap();
+        std::fs::remove_file(
+            std::env::temp_dir()
+                .join("rise-sts-live.pub.pem")
+                .to_str()
+                .unwrap(),
+        )
+        .unwrap();
     }
 }
