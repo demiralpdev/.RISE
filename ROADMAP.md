@@ -10,9 +10,14 @@ Status: 0.2.0 — per-OS proof details in bindings/MATRIX.md.
 - Phase 5: device tests — PARTIAL (macOS e2e 8/8, Windows 33/33 + cross-device VALID, Android on-device hash + signature; iOS/Linux device runs pending)
 - Phase 6: release + publishing prep — DONE 0.2.0 (CHANGELOG, Quickstart, CI, SECURITY, 28e0e50/34e8ebb)
 
-Next (need user decisions or hardware):
-- VBS enable on the Windows PC (reboot) -> gold-L2 re-run
-- Linux dual-boot leg (boot Linux, install openssh-server, share IP)
-- Android app shell (Android Studio SDK -> Kotlin capture run + System.loadLibrary in an APK)
-- iOS leg (Xcode + Apple Developer account)
-- Qualified TSA + PAdES certificate (eIDAS court weight)
+Next — planned waves (see QTSP_GUIDE.md for the qualified-TSA flow):
+
+- Wave 1 (free, autonomous): Kotlin Camera2 capture wired into the minimal APK
+  (real phone camera + hash + signature in the app process; SDK already installed).
+- Wave 2 (free, autonomous): verify-web deepening - embed the trust list in the
+  static verifier, multi-TSA display, Oracle Free Tier VM for the API server.
+- Wave 3 (user action, paid): Mobil İmza activation + KamuSM e-Damga (or an EU
+  QTSP) -> hand the endpoint to the project -> qualified-stamp proof + court packet.
+- Wave 4 (user action): iPhone -> Xcode free 7-day provisioning -> device proof.
+- DONE this cycle: VBS gold-L2 on Windows, Nobara Linux leg, Android JNI + APK
+  proof, public verifier live, red team round 2 (link-poisoning fix), PQC dual-sign.
