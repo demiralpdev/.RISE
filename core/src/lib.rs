@@ -8,6 +8,7 @@ use std::io::Read;
 use thiserror::Error;
 
 pub mod jumbf;
+pub mod signer;
 
 /// Core error type.
 #[derive(Debug, Error)]
@@ -27,6 +28,12 @@ pub enum RiseError {
     /// Merkle root did not match.
     #[error("merkle root mismatch")]
     RootMismatch,
+    /// Crypto operation failed.
+    #[error("crypto error: {0}")]
+    Crypto(String),
+    /// Signature missing or did not verify.
+    #[error("invalid signature")]
+    InvalidSignature,
 }
 
 /// Signature algorithm (RISE-01 §3).
@@ -70,6 +77,12 @@ pub struct ManifestV1 {
     /// RFC 3161 token (None until MS3 wires a TSA).
     #[serde(default)]
     pub timestamp_token: Option<String>,
+    /// Signature over the canonical JSON (hex, None while unsigned).
+    #[serde(default)]
+    pub signature: Option<String>,
+    /// Key id used to sign.
+    #[serde(default)]
+    pub signing_key_id: Option<String>,
 }
 
 /// Default tier is silver.
@@ -142,6 +155,8 @@ pub fn create_manifest_v1(
         device_id: device_id.to_string(),
         assurance: assurance.to_string(),
         timestamp_token: None,
+        signature: None,
+        signing_key_id: None,
     }
 }
 
@@ -193,6 +208,34 @@ pub fn create_manifest(frame: &[u8], cihaz: &str, zaman: u64) -> String {
         "device": cihaz,
     })
     .to_string()
+}
+
+/// Signs the manifest in place (MS2 real signing).
+/// The signature covers the canonical JSON: signing_key_id set, signature empty.
+pub fn sign_manifest_v1(m: &mut ManifestV1, signer: &dyn signer::Signer) -> Result<(), RiseError> {
+    // already signed: refuse double signing
+    if m.signature.is_some() {
+        return Err(RiseError::InvalidSignature);
+    }
+    // canonical form: key id set, signature still empty
+    m.signing_key_id = Some(signer.key_id());
+    let canon = manifest_to_json(m)?;
+    let sig = signer.sign(canon.as_bytes())?;
+    m.signature = Some(hex_encode(sig));
+    Ok(())
+}
+
+/// Verifies the manifest signature over the canonical JSON.
+pub fn verify_signature(m: &ManifestV1, verifier: &dyn signer::Verifier) -> Result<(), RiseError> {
+    let Some(sig_hex) = &m.signature else {
+        return Err(RiseError::InvalidSignature);
+    };
+    let sig_bytes = hex_decode(sig_hex)?;
+    // rebuild the exact canonical form the signer used
+    let mut tmp = m.clone();
+    tmp.signature = None;
+    let canon = manifest_to_json(&tmp)?;
+    verifier.verify(canon.as_bytes(), &sig_bytes)
 }
 
 /// Signs the manifest (unnamed stub).
@@ -278,6 +321,20 @@ fn hex_encode(bytes: impl AsRef<[u8]>) -> String {
         s.push(char::from_digit((v & 0xf) as u32, 16).unwrap());
     }
     s
+}
+
+/// Decodes lowercase hex back to bytes; odd length or bad chars error out.
+fn hex_decode(s: &str) -> Result<Vec<u8>, RiseError> {
+    if !s.len().is_multiple_of(2) {
+        return Err(RiseError::Crypto("hex: odd length".to_string()));
+    }
+    (0..s.len())
+        .step_by(2)
+        .map(|i| {
+            u8::from_str_radix(&s[i..i + 2], 16)
+                .map_err(|_| RiseError::Crypto("hex: invalid char".to_string()))
+        })
+        .collect()
 }
 
 /// FFI: SHA256(raw frame); the caller allocates a 65-byte buffer (64 hex + NUL).
@@ -381,10 +438,39 @@ mod tests {
         assert!(verify_manifest_v1(&m, &[]).is_ok());
     }
     #[test]
-    fn sign_stub_stands() {
-        // the stub prefix is preserved
-        let cikti = sign_manifest("{}");
-        assert!(cikti.starts_with("UNSIGNED:"));
+    fn manifest_sign_verify_roundtrip() {
+        // generate a keypair, sign the manifest, verify it
+        let (priv_pem, pub_pem) = signer::generate_p256().unwrap();
+        std::fs::write("/tmp/rise-mv.pem", &priv_pem).unwrap();
+        std::fs::write("/tmp/rise-mv.pub.pem", &pub_pem).unwrap();
+        let kare = b"rise-signed-frame";
+        let mut m = create_manifest_v1(&[&kare[..]], "test-device", 123, SigAlg::Es256, "silver");
+        let s = signer::P256Signer::from_pem_file("/tmp/rise-mv.pem").unwrap();
+        sign_manifest_v1(&mut m, &s).unwrap();
+        // signature present, no stub prefix anywhere
+        assert!(m.signature.is_some());
+        let json = manifest_to_json(&m).unwrap();
+        assert!(!json.contains("UNSIGNED"));
+        // the correct signature verifies
+        let v = signer::P256Verifier::from_pem_file("/tmp/rise-mv.pub.pem").unwrap();
+        verify_signature(&m, &v).unwrap();
+        // tampering the signed content breaks it
+        let mut bad = m.clone();
+        bad.device_id = "attacker".into();
+        assert!(verify_signature(&bad, &v).is_err());
+        std::fs::remove_file("/tmp/rise-mv.pem").unwrap();
+        std::fs::remove_file("/tmp/rise-mv.pub.pem").unwrap();
+    }
+    #[test]
+    fn double_sign_refused() {
+        let (priv_pem, _pub_pem) = signer::generate_p256().unwrap();
+        std::fs::write("/tmp/rise-ds.pem", &priv_pem).unwrap();
+        let kare = b"rise-ds-frame";
+        let mut m = create_manifest_v1(&[&kare[..]], "d", 0, SigAlg::Es256, "silver");
+        let s = signer::P256Signer::from_pem_file("/tmp/rise-ds.pem").unwrap();
+        sign_manifest_v1(&mut m, &s).unwrap();
+        assert!(sign_manifest_v1(&mut m, &s).is_err());
+        std::fs::remove_file("/tmp/rise-ds.pem").unwrap();
     }
     #[test]
     fn tile_merkle_consistent() {
