@@ -110,7 +110,11 @@ class RiseCapture(private val context: Context) {
                     val buffer = plane.buffer
                     val rowStride = plane.rowStride
                     val pixelStride = plane.pixelStride
-                    PlaneData(buffer.array().copyOfRange(buffer.position(), buffer.remaining()), rowStride, pixelStride)
+                    // Direct ByteBuffers (common on MIUI/Snapdragon) don't support
+                    // .array() — copy via get() which works for both.
+                    val copy = ByteArray(buffer.remaining())
+                    buffer.get(copy)
+                    PlaneData(copy, rowStride, pixelStride)
                 })
                 onFrame(
                     Result.success(
