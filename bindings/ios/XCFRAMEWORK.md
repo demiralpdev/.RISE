@@ -34,11 +34,11 @@
 4. **XCFramework assembled**:
    ```sh
    xcodebuild -create-xcframework \
-     -library core/target/aarch64-apple-ios-sim/release/librise_core.a -headers heads/ \
-     -library core/target/aarch64-apple-ios/release/librise_core.a -headers heads/ \
+     -library core/target/aarch64-apple-ios-sim/release/librise_core.a -headers bindings/ios/include/ \
+     -library core/target/aarch64-apple-ios/release/librise_core.a -headers bindings/ios/include/ \
      -output /tmp/RiseCore.xcframework
    ```
-   -> `Info.plist`, `ios-arm64/`, `ios-arm64-simulator/` slices. `heads/` holds
+   -> `Info.plist`, `ios-arm64/`, `ios-arm64-simulator/` slices. `bindings/ios/include/` holds
    `core.h` + `module.modulemap` (`module RiseCore { header "core.h" export * }`).
 5. **Simulator RUN proof** (beyond the old plan's typecheck-only scope):
    - `bindings/ios/ios_harness.swift` — hashes `"rise-ios-sim-proof-001"` via

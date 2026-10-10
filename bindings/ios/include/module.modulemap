@@ -1,0 +1,4 @@
+module RiseCore {
+  header "core.h"
+  export *
+}
