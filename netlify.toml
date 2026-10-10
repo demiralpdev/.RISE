@@ -1,0 +1,9 @@
+# Netlify config: serves the .rise client-side verifier.
+# The API (FastAPI report/trust) moves to Netlify Functions in Wave 2.
+[build]
+  publish = "verify-web/static"
+
+[[redirects]]
+  from = "/verify.js"
+  to = "/verify.js"
+  status = 200
