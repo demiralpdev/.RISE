@@ -64,10 +64,22 @@ async function verifyEs256(pemText, msgBytes, sigHex) {
   return crypto.subtle.verify({ name: "ECDSA", hash: "SHA-256" }, key, sig, msgBytes);
 }
 
+/* Must mirror the Rust canonical form EXACTLY: struct field order, unknown
+ * fields dropped, signature forced to null. */
 function canonicalJson(m) {
-  const c = { ...m, signature: null };
-  const keys = Object.keys(c).sort();
-  return JSON.stringify(keys.reduce((o, k) => (o[k] = c[k], o), {}));
+  const o = {};
+  o.rise_version = m.rise_version ?? 1;
+  o.frame_hashes = m.frame_hashes ?? [];
+  o.tile_hashes = m.tile_hashes ?? [];
+  o.merkle_root = m.merkle_root ?? "";
+  o.sig_alg = m.sig_alg ?? "ES256";
+  o.timestamp_ms = m.timestamp_ms ?? 0;
+  o.device_id = m.device_id ?? "";
+  o.assurance = m.assurance ?? "silver";
+  o.timestamp_token = m.timestamp_token ?? null;
+  o.signature = null;
+  o.signing_key_id = m.signing_key_id ?? null;
+  return JSON.stringify(o);
 }
 
 /* Badge decision: mirrors verify-web/verify.py (Phase 1 tree, fail-closed). */
