@@ -1,0 +1,51 @@
+name: ci
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  rust:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: core
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy, rustfmt
+      - run: cargo test --locked
+      - run: cargo clippy --all-targets -- -D warnings
+      - run: cargo fmt --check
+
+  python:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      # Install fastapi so the FULL suite runs, including
+      # tests/test_app.py (FastAPI TestClient, no network).
+      - run: pip install fastapi httpx pytest
+      # README Quickstart: cd verify-web && python -m pytest tests/ -q
+      - run: python -m pytest tests/ -q
+        working-directory: verify-web
+
+  shell:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: |
+          set -u
+          fail=0
+          while IFS= read -r f; do
+            bash -n "$f" || fail=1
+          done < <(git ls-files '*.sh')
+          exit "$fail"
+
+  # NOTE: e2e / camera / network jobs are intentionally excluded.
+  # bindings/*/capture and core/tests/ffi_e2e.sh need real camera
+  # hardware or OS-specific toolchains (macOS-only steps) that do
+  # not exist on stock ubuntu-latest runners.
