@@ -31,3 +31,6 @@ __pycache__/
 # android jni build artifacts
 bindings/android/jni/build/
 bindings/android/jni/libs/
+
+# android app build artifacts
+bindings/android/app/build/
