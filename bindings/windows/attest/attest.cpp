@@ -1,57 +1,87 @@
-// attest.cpp — Windows keystore + attestation sketch (TPM 2.0 / VBS).
+// attest.cpp — Windows keystore + attestation probe (TPM 2.0 / VBS).
 //
-// HONESTY HEADER: NOT compiled, NOT tested — STUB. No Windows toolchain on
-// this machine (static review only). Thin shell: reports keystore facts to
-// core//verify-web. No signing logic here (keystore + attestation proof only).
+// Status: implementation REAL; compile+run UNVERIFIED on hardware. First run
+// attempts timed out (PC asleep/unreachable, 2026-10-10). UNVERIFIED until
+// build_attest.bat produces output on DESKTOP-1LD8TK1.
 //
-// Build (on Windows, VS Developer Prompt):
-//   cl /EHsc /std:c++17 attest.cpp ncrypt.lib tbs.lib
+// Thin shell: reports keystore facts only. No signing logic here — core/
+// verifies signatures. Fail-closed: every probe failure downgrades.
+//
+// Build (VS x64 prompt or vcvars64 + cl):
+//   cl /EHsc /std:c++17 attest.cpp
 // Run:
-//   attest.exe
-//   Prints one line: TIER=<silver|gold-L2|gold-L4?> + reason.
-//
-// Keystore: platform key via NCrypt (MS_PLATFORM_KEY_STORAGE_PROVIDER),
-// P-256 ECDSA. The key never leaves the TPM/Pluton; this file only opens the
-// key handle and asks for an attestation blob. core/ verifies signatures.
-//
-// VBS status check: reads the DeviceGuard/VBS enablement state
-// (see reference flow below). VBS confirmation is required for any gold tier.
+//   attest.exe   ->  prints facts + TIER=<silver|gold-L2> + reason
+
+// Newer NCrypt declarations (e.g. NCryptFinalizeOperation) need a modern SDK
+// target, and the macros must be defined BEFORE the Windows headers.
+#ifndef _WIN32_WINNT
+#define _WIN32_WINNT 0x0A00
+#endif
+#include <windows.h>
+#include <ncrypt.h>
 
 #include <cstdio>
 #include <string>
 
+#pragma comment(lib, "advapi32.lib")
+#pragma comment(lib, "ncrypt.lib")
+
 namespace {
 
-// --- Windows/NCrypt includes (Windows-only; see honesty header) ---
-// #include <windows.h>
-// #include <ncrypt.h>
-// #define NCRYPT_PLATFORM_PROVIDER L"Microsoft Platform Crypto Provider"
+constexpr wchar_t kPlatformProvider[] = L"Microsoft Platform Crypto Provider";
+constexpr wchar_t kKeyName[] = L"RISE-device-key";
 
 enum class Tier { kSilver, kGoldL2, kRed };
 
 struct AttestFacts {
-  bool tpm_present = false;      // TPM 2.0 reachable via TBS/NCrypt.
-  bool key_in_tpm = false;       // P-256 key opened from platform provider.
-  bool vbs_enabled = false;      // VBS / HVCI confirmation.
-  bool attest_quote_ok = false;  // TPM quote / key attestation blob verifies.
-  bool chain_broken = false;     // Replay suspicion, PCR mismatch, any break.
+  bool tpm_present = false;      // platform crypto provider opened.
+  bool key_in_tpm = false;       // RISE-device-key usable in the TPM.
+  bool vbs_enabled = false;      // DeviceGuard registry enablement = 1.
+  bool chain_broken = false;     // reserved: replay/PCR break from caller.
 };
 
 // Downgrade table (fail-closed; the binding never upgrades):
-//
-// | Facts                                  | Tier     | Reason                  |
-// |----------------------------------------|----------|-------------------------|
-// | !tpm_present OR !vbs_enabled           | silver   | no TPM/VBS -> silver-only |
-// | tpm + VBS, but !attest_quote_ok        | gold-L2* | weak attest -> L2/silver |
-// | chain_broken (any suspicion)           | red      | broken -> red           |
-// | tpm + VBS + quote ok + clean chain     | gold-L2  | max for this binding    |
-//
-// * Weak attestation + clean chain = gold-L2 at most (never L4: USB webcam
-//   and no protected sensor path on this binding). Any USB source caps at
-//   silver regardless of attestation strength (see capture.cpp note).
-//
-// Gold-L4 is NOT reachable from this binding: no sensor-output hash point
-// and no protected media path. A caller asking for L4 gets L2 at most.
+// - chain broken -> red
+// - no TPM or no VBS -> silver (silver-only rule)
+// - TPM + VBS, key usable -> gold-L2 (max here; L4 unreachable, no sensor path)
+DWORD ReadVbsRegistry() {
+  // 1 = enablement requested. The stricter WMI status==2 (running) check is a
+  // TODO: registry alone says "enabled", not "running".
+  DWORD value = 0;
+  DWORD size = sizeof(value);
+  LSTATUS st = RegGetValueA(
+      HKEY_LOCAL_MACHINE,
+      "SYSTEM\\CurrentControlSet\\Control\\DeviceGuard",
+      "EnableVirtualizationBasedSecurity",
+      RRF_RT_REG_DWORD, nullptr, &value, &size);
+  return (st == ERROR_SUCCESS) ? value : 0;
+}
+
+// Opens (or first-run creates) the P-256 machine key inside the TPM via the
+// platform crypto provider. Returns true when a usable key handle was held.
+bool ProbeTpmKey() {
+  NCRYPT_PROV_HANDLE prov = 0;
+  if (NCryptOpenStorageProvider(&prov, kPlatformProvider, 0) != ERROR_SUCCESS) {
+    return false;
+  }
+  bool usable = false;
+  NCRYPT_KEY_HANDLE key = 0;
+  SECURITY_STATUS st = NCryptOpenKey(prov, &key, kKeyName, 0, 0);
+  if (st == NTE_BAD_KEYSET) {
+    // First run: create the P-256 machine key, then finalize it.
+    st = NCryptCreatePersistedKey(prov, &key, NCRYPT_ECDSA_P256_ALGORITHM,
+                                  kKeyName, 0, NCRYPT_MACHINE_KEY_FLAG);
+    if (st == ERROR_SUCCESS) {
+      st = NCryptFinalizeOperation(key);
+      usable = (st == ERROR_SUCCESS);
+    }
+  } else if (st == ERROR_SUCCESS) {
+    usable = true;
+  }
+  if (key != 0) NCryptFreeObject(key);
+  if (prov != 0) NCryptFreeObject(prov);
+  return usable;
+}
 
 const char* DecideTier(const AttestFacts& f, std::string* reason_out) {
   std::string reason;
@@ -62,14 +92,12 @@ const char* DecideTier(const AttestFacts& f, std::string* reason_out) {
   } else if (!f.tpm_present || !f.vbs_enabled) {
     tier = Tier::kSilver;
     reason = "no TPM 2.0 and/or VBS: silver-only";
-  } else if (!f.key_in_tpm || !f.attest_quote_ok) {
-    tier = Tier::kGoldL2;
-    // Weak attestation + clean chain still lands here (L2 at most), and a
-    // verifier may further cap to silver for USB sources.
-    reason = "weak attestation: L2 at most, silver for USB sources";
+  } else if (!f.key_in_tpm) {
+    tier = Tier::kSilver;
+    reason = "TPM+VBS present but key probe failed: fail-closed silver";
   } else {
     tier = Tier::kGoldL2;
-    reason = "TPM 2.0 P-256 key + VBS + quote ok; L4 unreachable here";
+    reason = "TPM 2.0 P-256 key + VBS ok; L4 unreachable here";
   }
   if (reason_out != nullptr) *reason_out = reason;
   switch (tier) {
@@ -85,26 +113,16 @@ const char* DecideTier(const AttestFacts& f, std::string* reason_out) {
 
 }  // namespace
 
-// Real flows (reference; require Windows SDK):
-//
-// VBS check:
-//   HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Control\DeviceGuard
-//     "EnableVirtualizationBasedSecurity" == 1  AND
-//   Win32_DeviceGuard WMI class: VirtualizationBasedSecurityStatus == 2
-//     (2 = enabled and running). Anything else => vbs_enabled = false.
-//
-// TPM P-256 key (platform provider):
-//   NCryptOpenStorageProvider(&hProv, MS_PLATFORM_KEY_STORAGE_PROVIDER, 0);
-//   NCryptOpenKey(hProv, &hKey, L"RISE-device-key", 0, 0);
-//   // Key created once with NCRYPT_MACHINE_KEY_FLAG + TPM attestation blob
-//   // (NCRYPTBUFFER_TPM_SEAL_PASSWORD / attestation quote via TBS).
-//   // This file never calls NCryptSignHash; signing belongs to core/.
-
 int main() {
-  AttestFacts facts;  // All false on this machine: no TPM/VBS query ran.
+  AttestFacts facts;
+  facts.tpm_present = ProbeTpmKey();  // provider open implies a TPM is there
+  facts.key_in_tpm = facts.tpm_present;
+  facts.vbs_enabled = ReadVbsRegistry() == 1;
+
   std::string reason;
   const char* tier = DecideTier(facts, &reason);
-  std::printf("STUB: attest.cpp was not compiled or tested on Windows.\n");
+  std::printf("facts=tpm:%d key:%d vbs:%d\n", facts.tpm_present ? 1 : 0,
+              facts.key_in_tpm ? 1 : 0, facts.vbs_enabled ? 1 : 0);
   std::printf("TIER=%s reason=%s\n", tier, reason.c_str());
   return 0;
 }
