@@ -24,3 +24,6 @@ __pycache__/
 
 # codegraph symlink (file form)
 .codegraph
+
+# run artifacts
+*.log
