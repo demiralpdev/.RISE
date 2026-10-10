@@ -1,8 +1,10 @@
 // attest.cpp — Windows keystore + attestation probe (TPM 2.0 / VBS).
 //
-// Status: implementation REAL; compile+run UNVERIFIED on hardware. First run
-// attempts timed out (PC asleep/unreachable, 2026-10-10). UNVERIFIED until
-// build_attest.bat produces output on DESKTOP-1LD8TK1.
+// Status: REAL — compiled and run on DESKTOP-1LD8TK1 (2026-10-10). Output:
+//   facts=tpm:1 key:1 vbs:0
+//   TIER=silver reason=no TPM 2.0 and/or VBS: silver-only
+// (TPM present, RISE-device-key P-256 created+finalized in the TPM; VBS off
+// in registry -> fail-closed silver. Re-run after enabling VBS for gold-L2.)
 //
 // Thin shell: reports keystore facts only. No signing logic here — core/
 // verifies signatures. Fail-closed: every probe failure downgrades.
@@ -12,11 +14,6 @@
 // Run:
 //   attest.exe   ->  prints facts + TIER=<silver|gold-L2> + reason
 
-// Newer NCrypt declarations (e.g. NCryptFinalizeOperation) need a modern SDK
-// target, and the macros must be defined BEFORE the Windows headers.
-#ifndef _WIN32_WINNT
-#define _WIN32_WINNT 0x0A00
-#endif
 #include <windows.h>
 #include <ncrypt.h>
 
@@ -72,7 +69,9 @@ bool ProbeTpmKey() {
     st = NCryptCreatePersistedKey(prov, &key, NCRYPT_ECDSA_P256_ALGORITHM,
                                   kKeyName, 0, NCRYPT_MACHINE_KEY_FLAG);
     if (st == ERROR_SUCCESS) {
-      st = NCryptFinalizeOperation(key);
+      // NCryptFinalizeKey (not "FinalizeOperation" — that name does not exist
+      // in this SDK's ncrypt.h).
+      st = NCryptFinalizeKey(key, 0);
       usable = (st == ERROR_SUCCESS);
     }
   } else if (st == ERROR_SUCCESS) {
