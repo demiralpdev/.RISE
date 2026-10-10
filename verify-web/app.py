@@ -1,5 +1,6 @@
 """MS1 verify-web MVP (FastAPI). No file persistence, hash-id link only."""
 import base64
+import hashlib
 import json
 
 from fastapi import FastAPI, HTTPException
@@ -79,13 +80,16 @@ def health():
 
 @app.post("/api/v1/verify")
 def verify(inp: VerifyIn):
+    # Red-team R4: cap the input size (DoS surface).
+    if len(inp.manifest) > 1_000_000:
+        return {"badge": "red", "reason": "Manifest too large, rejected.", "verify_url": ""}
     try:
         frame = base64.b64decode(inp.frame_b64) if inp.frame_b64 else b""
     except (ValueError, TypeError):
         return {"badge": "red", "reason": "Frame undecodable, unverified.", "verify_url": ""}
     r = verify_badge(inp.manifest, frame)
     t = _apply_trust(r["badge"], r["reason"], inp.manifest)
-    vid = verify_id(t["reason"] + inp.manifest[:32])
+    vid = verify_id(hashlib.sha256(inp.manifest.encode()).hexdigest())
     _results[vid] = {
         "badge": t["badge"],
         "reason": t["reason"],

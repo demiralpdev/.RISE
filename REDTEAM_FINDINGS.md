@@ -43,3 +43,17 @@ Every path to gold-L4/L2 requires: real hardware key + attestation + STRONG
 verdict + Trust List. The MS1 cap (gold never issued) held even against a
 compromised caller (A2). The badge stays silver/red until the real trust
 infrastructure lands — exactly as designed.
+
+## Round 2 (2026-10-10, deeper pass)
+
+| # | Attack | Result |
+|---|---|---|
+| R1 | verify_link poisoning: two different manifests sharing manifest[:32] get the same /v/ id | **CONFIRMED -> FIXED** (the id now binds the full manifest sha256) |
+| R2 | type confusion: frame_hashes/tile_hashes/merkle_root as plain strings | contained by the tile-list equality -> HARDENED (explicit list/str type checks, fail-closed) |
+| R3 | duplicate JSON keys (python last-wins vs rust serde rejects) | divergence documented; both sides fail-closed for signing |
+| R4 | 2MB manifest (API DoS surface, no size cap) | **CONFIRMED -> FIXED** (1MB cap, red) |
+| R5 | assurance case/type confusion (GOLD-L4, gold-l2, list, dict, None) | ALL red — the tier enum check holds |
+| F7 (new, open) | Windows gold-L2 is locally self-asserted: attest.exe computes the tier from local facts; the NCrypt key attestation + VBS quote are not yet bound into the manifest | documented — the binding is required before gold-L2 is third-party verifiable |
+
+Post-fix re-attack: prefix_same=True but ids_now_differ=True — the poisoning
+path is closed. Gold remains unreachable.
