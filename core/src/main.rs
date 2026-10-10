@@ -43,6 +43,14 @@ enum Cmd {
         /// Manifest JSON output path.
         #[arg(long)]
         out: Option<String>,
+        /// Primary TSA URL for stamp-then-sign (e.g. https://freetsa.org/tsr).
+        /// When given, the manifest is stamped BEFORE signing so the
+        /// signature covers the timestamp token.
+        #[arg(long)]
+        tsa: Option<String>,
+        /// Second TSA URL for cross-stamping (requires --tsa).
+        #[arg(long)]
+        tsa2: Option<String>,
     },
     /// Verifies a manifest v1 against the frame; checks the signature with --pubkey.
     Verify {
@@ -103,7 +111,17 @@ fn main() {
             key,
             alg,
             out,
-        } => sign_cmd(&file, &device, key.as_deref(), &alg, out.as_deref()),
+            tsa,
+            tsa2,
+        } => sign_cmd(
+            &file,
+            &device,
+            key.as_deref(),
+            &alg,
+            out.as_deref(),
+            tsa.as_deref(),
+            tsa2.as_deref(),
+        ),
         Cmd::Verify {
             manifest,
             file,
@@ -166,8 +184,18 @@ fn load_signer(alg: &str, key: &str) -> Result<Box<dyn rise_core::signer::Signer
     }
 }
 
-/// sign command: build manifest v1; sign when --key is given.
-fn sign_cmd(file: &str, device: &str, key: Option<&str>, alg: &str, out: Option<&str>) -> i32 {
+/// sign command: build manifest v1; stamp-then-sign when --tsa is given,
+/// sign when --key is given. Without both flags the unsigned path is
+/// byte-identical to before (capture.sh relies on it).
+fn sign_cmd(
+    file: &str,
+    device: &str,
+    key: Option<&str>,
+    alg: &str,
+    out: Option<&str>,
+    tsa: Option<&str>,
+    tsa2: Option<&str>,
+) -> i32 {
     // MS1 flow is single-frame: read the file
     let Ok(b) = fs::read(file) else {
         eprintln!("read error: {file}");
@@ -183,6 +211,23 @@ fn sign_cmd(file: &str, device: &str, key: Option<&str>, alg: &str, out: Option<
     };
     // build manifest v1
     let mut m = create_manifest_v1(&[&b], device, now_ms(), sig_alg, "silver");
+    // production order is stamp-then-sign: the token must be attached
+    // BEFORE signing so the signature covers the token field.
+    // Without --tsa this block is skipped and the manifest stays
+    // byte-identical to the old unsigned flow.
+    if tsa.is_some() || tsa2.is_some() {
+        let Some(tsa_url) = tsa else {
+            eprintln!("--tsa2 requires --tsa");
+            return 2;
+        };
+        match attach_timestamp_token(&mut m, tsa_url, tsa2) {
+            Ok(n) => eprintln!("stamped (token {n} bytes DER)"),
+            Err(e) => {
+                eprintln!("tsa error: {e}");
+                return 2;
+            }
+        }
+    }
     // sign when a key is given; unsigned is structurally complete without signature
     if let Some(key_path) = key {
         let signer = match load_signer(alg, key_path) {
@@ -364,8 +409,38 @@ fn pack_cmd(file: &str, manifest_path: &str, out: &str) -> i32 {
     }
 }
 
+/// Fetches RFC 3161 token(s) over the canonical manifest bytes (token
+/// field empty at stamp time) and attaches the primary token, reusing the
+/// timestamp.rs request/verify helpers. Returns the DER token length.
+fn attach_timestamp_token(
+    m: &mut rise_core::ManifestV1,
+    tsa: &str,
+    tsa2: Option<&str>,
+) -> Result<usize, String> {
+    // canonical bytes stamped: token field None at stamp time
+    m.timestamp_token = None;
+    let canon = manifest_to_json(m).map_err(|e| e.to_string())?;
+    let digest = rise_core::timestamp::sha256_of(canon.as_bytes());
+    let tok1 = rise_core::timestamp::request_timestamp(tsa, canon.as_bytes())
+        .map_err(|e| e.to_string())?;
+    rise_core::timestamp::verify_token_against_digest(&tok1, &digest)
+        .map_err(|e| format!("token mismatch: {e}"))?;
+    if let Some(url2) = tsa2 {
+        let tok2 = rise_core::timestamp::request_timestamp(url2, canon.as_bytes())
+            .map_err(|e| format!("tsa2: {e}"))?;
+        rise_core::timestamp::cross_check_tokens(&tok1, &tok2, &digest)
+            .map_err(|e| format!("cross-check failed: {e}"))?;
+    }
+    let n = tok1.len();
+    use base64::Engine;
+    m.timestamp_token = Some(base64::engine::general_purpose::STANDARD.encode(&tok1));
+    Ok(n)
+}
+
 /// stamp command: fetch RFC 3161 token(s) over the canonical manifest
 /// JSON (token field empty at stamp time) and write the base64 token back.
+/// Note: stamping a SIGNED manifest invalidates its signature (the
+/// signature covers the token field); prefer `sign --key --tsa` instead.
 fn stamp_cmd(manifest_path: &str, tsa: &str, tsa2: Option<&str>) -> i32 {
     let Ok(text) = fs::read_to_string(manifest_path) else {
         eprintln!("manifest read error: {manifest_path}");
@@ -378,42 +453,18 @@ fn stamp_cmd(manifest_path: &str, tsa: &str, tsa2: Option<&str>) -> i32 {
             return 2;
         }
     };
-    // canonical bytes stamped: token field None at stamp time
-    m.timestamp_token = None;
-    let canon = match manifest_to_json(&m) {
-        Ok(j) => j,
-        Err(e) => {
-            eprintln!("manifest error: {e}");
-            return 2;
-        }
-    };
-    let digest = rise_core::timestamp::sha256_of(canon.as_bytes());
-    let tok1 = match rise_core::timestamp::request_timestamp(tsa, canon.as_bytes()) {
-        Ok(t) => t,
+    if m.signature.is_some() {
+        eprintln!(
+            "warn: stamping a signed manifest invalidates its signature; prefer sign --key --tsa"
+        );
+    }
+    let n = match attach_timestamp_token(&mut m, tsa, tsa2) {
+        Ok(n) => n,
         Err(e) => {
             eprintln!("tsa error: {e}");
             return 2;
         }
     };
-    if let Err(e) = rise_core::timestamp::verify_token_against_digest(&tok1, &digest) {
-        eprintln!("tsa token mismatch: {e}");
-        return 2;
-    }
-    if let Some(url2) = tsa2 {
-        let tok2 = match rise_core::timestamp::request_timestamp(url2, canon.as_bytes()) {
-            Ok(t) => t,
-            Err(e) => {
-                eprintln!("tsa2 error: {e}");
-                return 2;
-            }
-        };
-        if let Err(e) = rise_core::timestamp::cross_check_tokens(&tok1, &tok2, &digest) {
-            eprintln!("tsa cross-check failed: {e}");
-            return 2;
-        }
-    }
-    use base64::Engine;
-    m.timestamp_token = Some(base64::engine::general_purpose::STANDARD.encode(&tok1));
     let out = match manifest_to_json(&m) {
         Ok(j) => j,
         Err(e) => {
@@ -425,11 +476,7 @@ fn stamp_cmd(manifest_path: &str, tsa: &str, tsa2: Option<&str>) -> i32 {
         eprintln!("write error: {e}");
         return 2;
     }
-    println!(
-        "stamped: {} (token {} bytes DER)",
-        manifest_path,
-        tok1.len()
-    );
+    println!("stamped: {manifest_path} (token {n} bytes DER)");
     0
 }
 

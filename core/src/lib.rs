@@ -596,4 +596,58 @@ mod tests {
         std::fs::remove_file("/tmp/rise-dec.pem").unwrap();
         std::fs::remove_file("/tmp/rise-dec.pub.pem").unwrap();
     }
+    #[test]
+    fn stamp_then_sign_recorded_token_roundtrip() {
+        // production order: stamp BEFORE sign so the signature covers
+        // the token field. Uses a recorded FreeTSA token offline; the
+        // recorded imprint belongs to its seed message, so no digest
+        // check runs here — signature coverage is what this proves.
+        use base64::Engine as _;
+        let token_der: &[u8] = include_bytes!("../tests/vectors/freetsa_a.der");
+        let token_b64 = base64::engine::general_purpose::STANDARD.encode(token_der);
+        let frame = b"rise-stamp-then-sign-frame";
+        let mut m = create_manifest_v1(&[&frame[..]], "d", 0, SigAlg::Es256, "silver");
+        m.timestamp_token = Some(token_b64);
+        let (priv_pem, pub_pem) = signer::generate_p256().unwrap();
+        std::fs::write("/tmp/rise-sts.pem", &priv_pem).unwrap();
+        std::fs::write("/tmp/rise-sts.pub.pem", &pub_pem).unwrap();
+        let s = signer::P256Signer::from_pem_file("/tmp/rise-sts.pem").unwrap();
+        sign_manifest_v1(&mut m, &s).unwrap();
+        let v = signer::P256Verifier::from_pem_file("/tmp/rise-sts.pub.pem").unwrap();
+        verify_signature(&m, &v).unwrap();
+        assert_eq!(
+            verify_decision(&m, &[&frame[..]], Some(&v)),
+            VerifyDecision::Valid
+        );
+        // the fixed bug: stamping AFTER signing mutates the signed bytes,
+        // so a post-sign token change must break verification
+        let mut restamped = m.clone();
+        restamped.timestamp_token = Some("AA==".to_string());
+        assert!(verify_signature(&restamped, &v).is_err());
+        std::fs::remove_file("/tmp/rise-sts.pem").unwrap();
+        std::fs::remove_file("/tmp/rise-sts.pub.pem").unwrap();
+    }
+    #[test]
+    #[ignore]
+    fn live_stamp_then_sign_roundtrip() {
+        // live FreeTSA stamp-then-sign over real canonical bytes
+        use base64::Engine as _;
+        let frame = b"rise-live-stamp-then-sign";
+        let mut m = create_manifest_v1(&[&frame[..]], "d", 0, SigAlg::Es256, "silver");
+        let canon = manifest_to_json(&m).unwrap();
+        let digest = timestamp::sha256_of(canon.as_bytes());
+        let tok =
+            timestamp::request_timestamp(timestamp::DEFAULT_TSA_URL, canon.as_bytes()).unwrap();
+        timestamp::verify_token_against_digest(&tok, &digest).unwrap();
+        m.timestamp_token = Some(base64::engine::general_purpose::STANDARD.encode(&tok));
+        let (priv_pem, pub_pem) = signer::generate_p256().unwrap();
+        std::fs::write("/tmp/rise-sts-live.pem", &priv_pem).unwrap();
+        std::fs::write("/tmp/rise-sts-live.pub.pem", &pub_pem).unwrap();
+        let s = signer::P256Signer::from_pem_file("/tmp/rise-sts-live.pem").unwrap();
+        sign_manifest_v1(&mut m, &s).unwrap();
+        let v = signer::P256Verifier::from_pem_file("/tmp/rise-sts-live.pub.pem").unwrap();
+        verify_signature(&m, &v).unwrap();
+        std::fs::remove_file("/tmp/rise-sts-live.pem").unwrap();
+        std::fs::remove_file("/tmp/rise-sts-live.pub.pem").unwrap();
+    }
 }
