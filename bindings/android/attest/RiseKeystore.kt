@@ -1,4 +1,4 @@
-// STUB — NOT compiled/tested (no Android SDK on this machine).
+// Compile-verified against android-35 (2026-10-10, kotlinc 2.0.21 + JDK 21); runtime proof pending an app process.
 // Thin shell only: create a P-256 key in AndroidKeyStore, StrongBox-first.
 // No signing logic here; signing happens in core/. The key never leaves
 // hardware and is never logged.

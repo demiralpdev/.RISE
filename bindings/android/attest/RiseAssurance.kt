@@ -1,4 +1,4 @@
-// STUB — NOT compiled/tested (no Android SDK on this machine).
+// Compile-verified against android-35 (2026-10-10, kotlinc 2.0.21 + JDK 21); runtime proof pending an app process.
 // Thin shell only: explicit downgrade table (A-102 + A-103).
 // The binding reports the ceiling; verify-web shows the final badge.
 // Rule: on suspicion DOWNGRADE, never upgrade.

@@ -1,4 +1,4 @@
-// STUB — NOT compiled/tested (no Android SDK on this machine).
+// Compile-verified against android-35 (2026-10-10, kotlinc 2.0.21 + JDK 21); runtime proof pending an app process.
 // Thin shell only: Play Integrity verdict parsing + STRONG gating.
 // No signing logic here. Verdicts are read, never invented.
 

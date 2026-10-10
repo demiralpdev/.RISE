@@ -1,5 +1,6 @@
-// STUB — NOT compiled/tested (no Android SDK on this machine).
 // Thin shell only: camera permission flow with rationale + settings deep-link.
+// Compile-verified against android-35 (2026-10-10, platform APIs only —
+// no AndroidX); runtime proof pending an app process.
 
 package rise.android.capture
 
@@ -10,9 +11,6 @@ import android.content.Intent
 import android.content.pm.PackageManager
 import android.net.Uri
 import android.provider.Settings
-import androidx.activity.result.ActivityResultLauncher
-import androidx.core.app.ActivityCompat
-import androidx.core.content.ContextCompat
 
 /**
  * Camera permission flow (A-101).
@@ -20,35 +18,39 @@ import androidx.core.content.ContextCompat
  * Order: check -> rationale (if user denied once) -> system request ->
  * settings deep-link (if permanently denied).
  *
- * The caller owns the ActivityResultLauncher for
- * ActivityResultContracts.RequestPermission and forwards its boolean
- * result to [onPermissionResult].
+ * Classic request flow (no AndroidX): [request] launches the system dialog
+ * with [REQUEST_CODE]; the Activity forwards the grant result to
+ * [onPermissionResult] from onRequestPermissionsResult.
  */
 object RiseCameraPermission {
 
     const val CAMERA = Manifest.permission.CAMERA
 
+    /** Request code for the classic requestPermissions flow. */
+    const val REQUEST_CODE = 4211
+
     /** True when CAMERA is already granted. */
     fun isGranted(context: Context): Boolean =
-        ContextCompat.checkSelfPermission(context, CAMERA) == PackageManager.PERMISSION_GRANTED
+        context.checkSelfPermission(CAMERA) == PackageManager.PERMISSION_GRANTED
 
     /**
      * True when the system recommends showing a rationale first
      * (user denied at least once but did not select "don't ask again").
      */
     fun shouldShowRationale(activity: Activity): Boolean =
-        ActivityCompat.shouldShowRequestPermissionRationale(activity, CAMERA)
+        activity.shouldShowRequestPermissionRationale(CAMERA)
 
     /**
-     * Requests CAMERA via the caller's launcher.
-     * Call only when [isGranted] is false.
+     * Requests CAMERA via the classic system dialog.
+     * Call only when [isGranted] is false. The result arrives in the
+     * Activity's onRequestPermissionsResult; forward it to [onPermissionResult].
      */
-    fun request(launcher: ActivityResultLauncher<String>) {
-        launcher.launch(CAMERA)
+    fun request(activity: Activity) {
+        activity.requestPermissions(arrayOf(CAMERA), REQUEST_CODE)
     }
 
     /**
-     * Handles the launcher result.
+     * Handles the requestPermissions result.
      * - granted=true: proceed to [RiseCapture.captureSingleFrame].
      * - granted=false + rationale available: show rationale UI, ask again.
      * - granted=false + no rationale: user picked "don't ask again",
