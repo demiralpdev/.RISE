@@ -189,44 +189,44 @@ mod tests {
     #[test]
     fn p256_sign_verify_roundtrip() {
         let (priv_pem, pub_pem) = generate_p256().unwrap();
-        std::fs::write("/tmp/rise-test-p256.pem", &priv_pem).unwrap();
-        std::fs::write("/tmp/rise-test-p256.pub.pem", &pub_pem).unwrap();
-        let s = P256Signer::from_pem_file("/tmp/rise-test-p256.pem").unwrap();
-        let v = P256Verifier::from_pem_file("/tmp/rise-test-p256.pub.pem").unwrap();
+        std::fs::write(std::env::temp_dir().join("rise-test-p256.pem").to_str().unwrap(), &priv_pem).unwrap();
+        std::fs::write(std::env::temp_dir().join("rise-test-p256.pub.pem").to_str().unwrap(), &pub_pem).unwrap();
+        let s = P256Signer::from_pem_file(std::env::temp_dir().join("rise-test-p256.pem").to_str().unwrap()).unwrap();
+        let v = P256Verifier::from_pem_file(std::env::temp_dir().join("rise-test-p256.pub.pem").to_str().unwrap()).unwrap();
         let msg = b"rise-p256";
         let sig = s.sign(msg).unwrap();
         assert_eq!(s.alg(), SigAlg::Es256);
         v.verify(msg, &sig).unwrap();
-        std::fs::remove_file("/tmp/rise-test-p256.pem").unwrap();
-        std::fs::remove_file("/tmp/rise-test-p256.pub.pem").unwrap();
+        std::fs::remove_file(std::env::temp_dir().join("rise-test-p256.pem").to_str().unwrap()).unwrap();
+        std::fs::remove_file(std::env::temp_dir().join("rise-test-p256.pub.pem").to_str().unwrap()).unwrap();
     }
 
     #[test]
     fn ed25519_sign_verify_roundtrip() {
         let (seed, pubkey) = generate_ed25519().unwrap();
-        std::fs::write("/tmp/rise-test-ed.seed", &seed).unwrap();
-        std::fs::write("/tmp/rise-test-ed.pub", &pubkey).unwrap();
-        let s = Ed25519Signer::from_file("/tmp/rise-test-ed.seed").unwrap();
-        let v = Ed25519Verifier::from_file("/tmp/rise-test-ed.pub").unwrap();
+        std::fs::write(std::env::temp_dir().join("rise-test-ed.seed").to_str().unwrap(), &seed).unwrap();
+        std::fs::write(std::env::temp_dir().join("rise-test-ed.pub").to_str().unwrap(), &pubkey).unwrap();
+        let s = Ed25519Signer::from_file(std::env::temp_dir().join("rise-test-ed.seed").to_str().unwrap()).unwrap();
+        let v = Ed25519Verifier::from_file(std::env::temp_dir().join("rise-test-ed.pub").to_str().unwrap()).unwrap();
         let msg = b"rise-ed25519";
         let sig = s.sign(msg).unwrap();
         assert_eq!(s.alg(), SigAlg::Ed25519);
         v.verify(msg, &sig).unwrap();
-        std::fs::remove_file("/tmp/rise-test-ed.seed").unwrap();
-        std::fs::remove_file("/tmp/rise-test-ed.pub").unwrap();
+        std::fs::remove_file(std::env::temp_dir().join("rise-test-ed.seed").to_str().unwrap()).unwrap();
+        std::fs::remove_file(std::env::temp_dir().join("rise-test-ed.pub").to_str().unwrap()).unwrap();
     }
 
     #[test]
     fn tampered_message_fails() {
         let (seed, pubkey) = generate_ed25519().unwrap();
-        std::fs::write("/tmp/rise-test-ed2.seed", &seed).unwrap();
-        std::fs::write("/tmp/rise-test-ed2.pub", &pubkey).unwrap();
-        let s = Ed25519Signer::from_file("/tmp/rise-test-ed2.seed").unwrap();
-        let v = Ed25519Verifier::from_file("/tmp/rise-test-ed2.pub").unwrap();
+        std::fs::write(std::env::temp_dir().join("rise-test-ed2.seed").to_str().unwrap(), &seed).unwrap();
+        std::fs::write(std::env::temp_dir().join("rise-test-ed2.pub").to_str().unwrap(), &pubkey).unwrap();
+        let s = Ed25519Signer::from_file(std::env::temp_dir().join("rise-test-ed2.seed").to_str().unwrap()).unwrap();
+        let v = Ed25519Verifier::from_file(std::env::temp_dir().join("rise-test-ed2.pub").to_str().unwrap()).unwrap();
         let sig = s.sign(b"original").unwrap();
         assert!(v.verify(b"tampered", &sig).is_err());
-        std::fs::remove_file("/tmp/rise-test-ed2.seed").unwrap();
-        std::fs::remove_file("/tmp/rise-test-ed2.pub").unwrap();
+        std::fs::remove_file(std::env::temp_dir().join("rise-test-ed2.seed").to_str().unwrap()).unwrap();
+        std::fs::remove_file(std::env::temp_dir().join("rise-test-ed2.pub").to_str().unwrap()).unwrap();
     }
 
     #[test]

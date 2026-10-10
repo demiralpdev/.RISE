@@ -8,6 +8,7 @@ use rise_core::{
 };
 use std::fs;
 use std::fs::File;
+#[cfg(unix)]
 use std::os::unix::fs::PermissionsExt;
 use std::time::{SystemTime, UNIX_EPOCH};
 
@@ -374,11 +375,14 @@ fn keygen_cmd(out: &str, alg: &str) -> i32 {
         eprintln!("write error: {e}");
         return 2;
     }
-    // private key gets 0600
+    // private key: 0600 on unix; on Windows the profile ACL already scopes access
+    #[cfg(unix)]
     if let Err(e) = fs::set_permissions(&key_path, fs::Permissions::from_mode(0o600)) {
         eprintln!("permission error: {e}");
         return 2;
     }
+    #[cfg(not(unix))]
+    let _ = &key_path;
     println!("keypair written: {key_path} (0600) + {pub_path}");
     0
 }
