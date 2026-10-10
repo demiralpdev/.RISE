@@ -4,7 +4,12 @@
 # At the end it prints a PASTE-THIS-BACK block: send that output back.
 set -e
 echo "=== [1/7] system packages (sudo) ==="
-sudo dnf install -y git ffmpeg v4l-utils tpm2-tools
+sudo dnf install -y git v4l-utils tpm2-tools
+# Nobara ships ffmpeg-free which CONFLICTS with the full ffmpeg package; the
+# ffmpeg CLI comes with ffmpeg-free, so only install if the binary is missing.
+if ! command -v ffmpeg >/dev/null 2>&1; then
+  sudo dnf install -y ffmpeg --allowerasing || sudo dnf install -y ffmpeg --skip-broken || echo "WARN: ffmpeg missing - install it manually"
+fi
 
 echo "=== [2/7] rust toolchain ==="
 if ! command -v cargo >/dev/null 2>&1; then
