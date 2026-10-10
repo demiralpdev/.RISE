@@ -67,7 +67,7 @@ def verify_badge(
             return {"badge": GOLD_CAP, "reason": "MVP: gold-L4 is not issued, chain unverified."}
         if tier == "gold-L2" and not strong_signal:
             return {"badge": GOLD_CAP, "reason": "No strong signal, downgraded one tier."}
-        return {"badge": GOLD_CAP, "reason": "Software signature valid (MS1), informational."}
+        return {"badge": GOLD_CAP, "reason": "Structure valid, signature NOT crypto-verified (MS1), informational."}
     except (json.JSONDecodeError, TypeError):
         return _red("Manifest unreadable, unverified.")
 

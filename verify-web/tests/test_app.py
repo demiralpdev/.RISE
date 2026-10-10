@@ -44,12 +44,26 @@ def test_health():
     assert client.get("/health").json() == {"ok": True}
 
 
-def test_verify_trusted_keeps_silver():
+def test_verify_trusted_keeps_silver(monkeypatch):
+    # The prod trust list ships EMPTY anchors (red-team finding F1): a trusted
+    # verdict is only reachable via a fixture-patched check_trust_list.
+    import app as app_module
+
+    monkeypatch.setattr(app_module, "check_trust_list",
+                        lambda *a, **k: ("trusted", "Issuer pinned (fixture)."))
     m = _manifest(issuer=ANCHOR)
     r = client.post("/api/v1/verify", json={"manifest": m, "frame_b64": _b64()}).json()
     assert r["badge"] == "silver"
     assert r["trust"]["verdict"] == "trusted"
     assert r["verify_url"].startswith("/v/")
+
+
+def test_prod_trust_list_has_no_test_anchor():
+    # Locks the red-team F1 fix: the shipped trust list must not trust any
+    # issuer by default (empty anchors until a verified upstream snapshot).
+    import app as app_module
+
+    assert not app_module.check_trust_list("leaf", ANCHOR)[0] == "trusted"
 
 
 def test_verify_unknown_demotes_to_red():

@@ -1,4 +1,5 @@
 """V-103/V-104 trust layer tests — recorded vectors only, no network."""
+import json
 import sys
 from pathlib import Path
 
@@ -28,9 +29,22 @@ def test_unreachable_list_unknown():
     assert v == "unknown" and v != "trusted"
 
 
-def test_known_anchor_trusted():
-    v, _ = check_trust_list("leaf", ANCHOR)
+def test_known_anchor_trusted(tmp_path):
+    fixture = tmp_path / "tl.json"
+    fixture.write_text(json.dumps({"anchors": [{"subject": ANCHOR, "fingerprint": "fp"}], "version": "1", "snapshot_date": "2026-10-10"}))
+    v, _ = check_trust_list("leaf", ANCHOR, path=str(fixture))
     assert v == "trusted"
+
+
+def test_prod_trust_list_ships_empty():
+    prod = Path(__file__).resolve().parent.parent / "trust-list.json"
+    d = json.loads(prod.read_text())
+    assert d.get("anchors") == []
+
+
+def test_prod_list_never_trusts_any_claim():
+    v, _ = check_trust_list("leaf", ANCHOR)
+    assert v != "trusted"
 
 
 def test_ocsp_stub_never_green():
