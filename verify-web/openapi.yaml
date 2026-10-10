@@ -11,7 +11,11 @@ paths:
           description: ok
   /api/v1/verify:
     post:
-      summary: Verify manifest, return badge
+      summary: Verify manifest, return badge with trust verdict
+      description: >-
+        Runs the badge decision tree, then consults the trust list on the
+        manifest signer. Unknown or untrusted signers demote the badge one
+        step (minimum red); the badge is never upgraded.
       requestBody:
         required: true
         content:
@@ -26,7 +30,31 @@ paths:
                   type: string
       responses:
         "200":
-          description: badge + reason + verify_url
+          description: badge + reason + trust verdict + verify_url
+  /api/v1/report:
+    post:
+      summary: Return the report bundle for a verified manifest id
+      description: >-
+        Returns the report.py bundle for a verify_id issued by
+        POST /api/v1/verify. Returns 404 for an unknown id and 501
+        when the report module is unavailable.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [verify_id]
+              properties:
+                verify_id:
+                  type: string
+      responses:
+        "200":
+          description: report bundle
+        "404":
+          description: unknown verify_id
+        "501":
+          description: report module unavailable
   /v/{vid}:
     get:
       summary: Shareable verify link
@@ -38,4 +66,4 @@ paths:
             type: string
       responses:
         "200":
-          description: rozet sonucu
+          description: badge result
