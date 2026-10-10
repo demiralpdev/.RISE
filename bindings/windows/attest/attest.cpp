@@ -26,7 +26,7 @@
 namespace {
 
 constexpr wchar_t kPlatformProvider[] = L"Microsoft Platform Crypto Provider";
-constexpr wchar_t kKeyName[] = L"RISE-device-key";
+constexpr wchar_t kKeyName[] = L"RISE-device-key-v2";
 
 enum class Tier { kSilver, kGoldL2, kRed };
 
@@ -58,12 +58,14 @@ DWORD ReadVbsRegistry() {
 // platform crypto provider. Returns true when a usable key handle was held.
 bool ProbeTpmKey() {
   NCRYPT_PROV_HANDLE prov = 0;
-  if (NCryptOpenStorageProvider(&prov, kPlatformProvider, 0) != ERROR_SUCCESS) {
+  SECURITY_STATUS st = NCryptOpenStorageProvider(&prov, kPlatformProvider, 0);
+  if (st != ERROR_SUCCESS) {
+    std::fprintf(stderr, "ncrypt_open=0x%08lX\n", (unsigned long)st);
     return false;
   }
   bool usable = false;
   NCRYPT_KEY_HANDLE key = 0;
-  SECURITY_STATUS st = NCryptOpenKey(prov, &key, kKeyName, 0, 0);
+  st = NCryptOpenKey(prov, &key, kKeyName, 0, 0);
   if (st == NTE_BAD_KEYSET) {
     // First run: create the P-256 machine key, then finalize it.
     st = NCryptCreatePersistedKey(prov, &key, NCRYPT_ECDSA_P256_ALGORITHM,
@@ -73,9 +75,13 @@ bool ProbeTpmKey() {
       // in this SDK's ncrypt.h).
       st = NCryptFinalizeKey(key, 0);
       usable = (st == ERROR_SUCCESS);
+    } else {
+      std::fprintf(stderr, "ncrypt_create=0x%08lX\n", (unsigned long)st);
     }
   } else if (st == ERROR_SUCCESS) {
     usable = true;
+  } else {
+    std::fprintf(stderr, "ncrypt_openkey=0x%08lX\n", (unsigned long)st);
   }
   if (key != 0) NCryptFreeObject(key);
   if (prov != 0) NCryptFreeObject(prov);
