@@ -10,6 +10,11 @@ from trust import check_trust_list
 from verify import verify_badge, verify_id
 
 try:
+    import db as _db
+except ImportError:
+    _db = None
+
+try:
     import report as _report  # lands in parallel (V-107); absent -> 501
 except ImportError:
     _report = None
@@ -96,6 +101,8 @@ def verify(inp: VerifyIn):
         "trust": t["trust"],
         "manifest": inp.manifest,
     }
+    if _db is not None:
+        _db.store(vid, t["badge"], t["reason"], inp.manifest, t["trust"])
     return {
         "badge": t["badge"],
         "reason": t["reason"],
@@ -119,6 +126,10 @@ def make_report(inp: ReportIn):
 @app.get("/v/{vid}")
 def verify_link(vid: str):
     result = _results.get(vid)
+    if result is None and _db is not None:
+        mongo = _db.fetch(vid)
+        if mongo is not None:
+            result = {"badge": mongo["badge"], "reason": mongo["reason"], "trust": mongo.get("trust", {})}
     if result is None:
         return {"verify_id": vid, "badge": "unknown", "note": "Not evidence, preliminary finding."}
     return {
