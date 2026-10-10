@@ -1,0 +1,2 @@
+build/classes/rise/android/app/MainActivity.class
+build/classes/com/rise/core/RiseCore.class

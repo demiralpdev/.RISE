@@ -5,7 +5,7 @@
 >   statically linked against librise_core.a (cargo-ndk release build).
 > - llvm-nm -D: Java_com_rise_core_RiseCore_hashFrame exported (T).
 > - On-device dlopen + dlsym via dlopen_smoke.c: JNI_SYMBOL_OK.
-> - APK-context System.loadLibrary call still pending (needs an app).
+> - APK-context System.loadLibrary: PROVEN via the minimal APK (bindings/android/app/) - hashFrame called in an app process, HASH matches Mac (2026-10-10).
 
 ## What this is
 
@@ -133,8 +133,8 @@ val hex: String = RiseCore.hashFrame(rawFrame.yuvBytes)
 - librise_core.a staged from cargo-ndk release build (staticlib crate-type added).
 - llvm-nm -D: Java_com_rise_core_RiseCore_hashFrame exported (T).
 - On-device dlopen + dlsym (dlopen_smoke.c): JNI_SYMBOL_OK.
-- APK-context System.loadLibrary call: pending (needs an app) - only remaining gap.
-- Status: REAL at bridge level.
+- APK-context System.loadLibrary call: PROVEN (minimal APK, HASH matches Mac).
+- Status: REAL at bridge and app-process level.
 ## Rules for future edits
 
 - Thin shell only. Any signing, attestation verdict parsing, or badge logic belongs in `../attest/` or `verify-web/`, never here.
