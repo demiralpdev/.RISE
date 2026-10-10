@@ -78,6 +78,18 @@ enum Cmd {
         /// Packed JPEG file.
         file: String,
     },
+    /// Stamps a manifest with an RFC 3161 timestamp token (multi-TSA optional).
+    Stamp {
+        /// Manifest JSON path (updated in place).
+        #[arg(long = "in")]
+        manifest: String,
+        /// Primary TSA URL (e.g. https://freetsa.org/tsr).
+        #[arg(long)]
+        tsa: String,
+        /// Second TSA URL for cross-stamping.
+        #[arg(long)]
+        tsa2: Option<String>,
+    },
 }
 
 fn main() {
@@ -104,6 +116,11 @@ fn main() {
             out,
         } => pack_cmd(&file, &manifest, &out),
         Cmd::Unpack { file } => unpack_cmd(&file),
+        Cmd::Stamp {
+            manifest,
+            tsa,
+            tsa2,
+        } => stamp_cmd(&manifest, &tsa, tsa2.as_deref()),
     };
     std::process::exit(kod);
 }
@@ -345,6 +362,75 @@ fn pack_cmd(file: &str, manifest_path: &str, out: &str) -> i32 {
             2
         }
     }
+}
+
+/// stamp command: fetch RFC 3161 token(s) over the canonical manifest
+/// JSON (token field empty at stamp time) and write the base64 token back.
+fn stamp_cmd(manifest_path: &str, tsa: &str, tsa2: Option<&str>) -> i32 {
+    let Ok(text) = fs::read_to_string(manifest_path) else {
+        eprintln!("manifest read error: {manifest_path}");
+        return 2;
+    };
+    let mut m = match manifest_from_json(&text) {
+        Ok(m) => m,
+        Err(e) => {
+            eprintln!("manifest parse error: {e}");
+            return 2;
+        }
+    };
+    // canonical bytes stamped: token field None at stamp time
+    m.timestamp_token = None;
+    let canon = match manifest_to_json(&m) {
+        Ok(j) => j,
+        Err(e) => {
+            eprintln!("manifest error: {e}");
+            return 2;
+        }
+    };
+    let digest = rise_core::timestamp::sha256_of(canon.as_bytes());
+    let tok1 = match rise_core::timestamp::request_timestamp(tsa, canon.as_bytes()) {
+        Ok(t) => t,
+        Err(e) => {
+            eprintln!("tsa error: {e}");
+            return 2;
+        }
+    };
+    if let Err(e) = rise_core::timestamp::verify_token_against_digest(&tok1, &digest) {
+        eprintln!("tsa token mismatch: {e}");
+        return 2;
+    }
+    if let Some(url2) = tsa2 {
+        let tok2 = match rise_core::timestamp::request_timestamp(url2, canon.as_bytes()) {
+            Ok(t) => t,
+            Err(e) => {
+                eprintln!("tsa2 error: {e}");
+                return 2;
+            }
+        };
+        if let Err(e) = rise_core::timestamp::cross_check_tokens(&tok1, &tok2, &digest) {
+            eprintln!("tsa cross-check failed: {e}");
+            return 2;
+        }
+    }
+    use base64::Engine;
+    m.timestamp_token = Some(base64::engine::general_purpose::STANDARD.encode(&tok1));
+    let out = match manifest_to_json(&m) {
+        Ok(j) => j,
+        Err(e) => {
+            eprintln!("manifest error: {e}");
+            return 2;
+        }
+    };
+    if let Err(e) = fs::write(manifest_path, &out) {
+        eprintln!("write error: {e}");
+        return 2;
+    }
+    println!(
+        "stamped: {} (token {} bytes DER)",
+        manifest_path,
+        tok1.len()
+    );
+    0
 }
 
 /// unpack command: extract the embedded manifest JSON.

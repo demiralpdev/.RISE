@@ -9,6 +9,8 @@ use thiserror::Error;
 
 pub mod jumbf;
 pub mod signer;
+pub mod timestamp;
+pub mod transparency;
 
 /// Core error type.
 #[derive(Debug, Error)]
@@ -208,6 +210,45 @@ pub fn create_manifest(frame: &[u8], cihaz: &str, zaman: u64) -> String {
         "device": cihaz,
     })
     .to_string()
+}
+
+/// Trust decision (MS3, R-205). Fail-closed: suspicion downgrades,
+/// an unreachable trust source yields Unknown, never Valid.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum VerifyDecision {
+    /// Hash chain holds and the signature verified.
+    Valid,
+    /// Tampering or a bad signature, with a one-line reason.
+    Red(String),
+    /// Chain holds but the claim is unverifiable (unsigned, or no
+    /// pubkey to check the signature against), with a reason.
+    Unknown(String),
+}
+
+/// Maps hash/Merkle/signature states to a trust decision.
+/// The signature check is informational until a pubkey is passed:
+/// without a verifier an intact chain yields Unknown, never Valid.
+pub fn verify_decision(
+    manifest: &ManifestV1,
+    frames: &[&[u8]],
+    verifier: Option<&dyn signer::Verifier>,
+) -> VerifyDecision {
+    if let Err(e) = verify_manifest_v1(manifest, frames) {
+        return VerifyDecision::Red(format!("hash chain: {e}"));
+    }
+    match verifier {
+        Some(v) => match verify_signature(manifest, v) {
+            Ok(()) => VerifyDecision::Valid,
+            Err(e) => VerifyDecision::Red(format!("signature: {e}")),
+        },
+        None => {
+            if manifest.signature.is_some() {
+                VerifyDecision::Unknown("signature present but no pubkey given".to_string())
+            } else {
+                VerifyDecision::Unknown("unsigned manifest: not evidence".to_string())
+            }
+        }
+    }
 }
 
 /// Signs the manifest in place (MS2 real signing).
@@ -500,5 +541,59 @@ mod tests {
         assert!(!verify_manifest(&m, b"wrong"));
         // corrupt JSON fails
         assert!(!verify_manifest("broken", kare));
+    }
+    #[test]
+    fn reordered_tiles_fail_verification() {
+        // R-204: the tile list order is bound to the manifest; swapping
+        // two tiles must fail verification (tile-swap protection)
+        let k1 = b"tile-frame-one-payload";
+        let k2 = b"tile-frame-two-payload";
+        let m = create_manifest_v1(&[&k1[..], &k2[..]], "d", 0, SigAlg::Es256, "silver");
+        assert!(m.tile_hashes.len() >= 2);
+        assert!(verify_manifest_v1(&m, &[&k1[..], &k2[..]]).is_ok());
+        let mut bad = m.clone();
+        bad.tile_hashes.swap(0, 1);
+        assert!(matches!(
+            verify_manifest_v1(&bad, &[&k1[..], &k2[..]]),
+            Err(RiseError::TileMismatch)
+        ));
+        assert!(matches!(
+            verify_decision(&bad, &[&k1[..], &k2[..]], None),
+            VerifyDecision::Red(_)
+        ));
+    }
+    #[test]
+    fn verify_decision_states() {
+        // intact chain, unsigned: Unknown (not evidence), never Valid
+        let kare = b"rise-decision-frame";
+        let m = create_manifest_v1(&[&kare[..]], "d", 0, SigAlg::Es256, "silver");
+        assert!(matches!(
+            verify_decision(&m, &[&kare[..]], None),
+            VerifyDecision::Unknown(_)
+        ));
+        // intact chain, signed, no pubkey: still Unknown (informational)
+        let (priv_pem, pub_pem) = signer::generate_p256().unwrap();
+        std::fs::write("/tmp/rise-dec.pem", &priv_pem).unwrap();
+        std::fs::write("/tmp/rise-dec.pub.pem", &pub_pem).unwrap();
+        let mut signed = m.clone();
+        let s = signer::P256Signer::from_pem_file("/tmp/rise-dec.pem").unwrap();
+        sign_manifest_v1(&mut signed, &s).unwrap();
+        assert!(matches!(
+            verify_decision(&signed, &[&kare[..]], None),
+            VerifyDecision::Unknown(_)
+        ));
+        // signed + correct pubkey: Valid
+        let v = signer::P256Verifier::from_pem_file("/tmp/rise-dec.pub.pem").unwrap();
+        assert_eq!(
+            verify_decision(&signed, &[&kare[..]], Some(&v)),
+            VerifyDecision::Valid
+        );
+        // tampered frame: Red even with a pubkey
+        assert!(matches!(
+            verify_decision(&signed, &[b"wrong"], Some(&v)),
+            VerifyDecision::Red(_)
+        ));
+        std::fs::remove_file("/tmp/rise-dec.pem").unwrap();
+        std::fs::remove_file("/tmp/rise-dec.pub.pem").unwrap();
     }
 }

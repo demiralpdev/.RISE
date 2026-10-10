@@ -21,3 +21,5 @@ thiserror = "2"
 p256 = { version = "0.14.0", features = ["ecdsa", "pkcs8"] }
 ed25519-dalek = "3.0.0"
 rand = "0.9"
+ureq = "3.4.2"
+base64 = "0.23.1"
