@@ -1,0 +1,1 @@
+{"anchors":[{"fingerprint":"SHA256:TEST-ANCHOR-CA-001","status":"active","subject":"test-anchor-ca"}],"note":"Pinned offline snapshot of the C2PA Trust List anchors; unknown CA is never trusted.","snapshot_date":"2026-10-10","source":"C2PA Trust List (https://trust-list.c2pa.org)"}
