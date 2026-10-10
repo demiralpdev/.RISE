@@ -13,7 +13,7 @@
 | iOS | STUB — `capture/Capture.swift` exists, never ran on device | STUB — `attest/Attest.swift` exists, never ran (needs iPhone + Apple servers) | NOT RUN — no frame, no manifest | static (reported `swiftc --typecheck` PASS 2026-10-10 per README; not re-verified here) | gold-L2/L4 candidate by design (SE + App Attest), unproven |
 | Linux | STUB — `capture/capture.sh` exists, never ran on Linux | STUB — `attest/detect.sh` + `attest/README.md` exist, report-only | NOT RUN — no frame, no manifest | static (reported `bash -n` clean per README; not re-run here — `ls` only) | silver, always (gold path closed on Linux) |
 | Android | STUB, uncompiled — `capture/RiseCapture.kt`, `capture/RiseCameraPermission.kt` exist; no Android SDK on this machine | STUB, uncompiled — `attest/RiseKeystore.kt`, `attest/RiseIntegrity.kt`, `attest/RiseAssurance.kt` exist; never run | NOT RUN — no frame, no manifest | untested (README: "compiles by inspection only") | gold-L4 candidate by design (STRONG + STRONG_BOX + clean); BASIC+clean = gold-L2 max; mock/GPS-off = silver max; broken chain = red |
-| Windows | STUB, uncompiled — `capture/capture.cpp` exists; no Windows toolchain on this machine | STUB, uncompiled — `attest/attest.cpp` exists; never run | NOT RUN — no frame, no manifest | untested (README honesty header: static review only) | gold-L2 max by design (L4 unreachable from this binding); no TPM/VBS = silver-only; broken chain = red |
+| Windows | CORE REAL — `cargo test` 33/33 green on DESKTOP-1LD8TK1 (192.168.111.7, SSH user `rise`); `capture/capture.cpp` still uncompiled | STUB — `attest/attest.cpp` exists, never run (needs TPM/VBS probe on that PC) | REAL e2e — `keygen → sign --key --tsa (live FreeTSA) → verify --pubkey` printed `VALID (signed)` exit 0 (2026-10-10) | real run (tests + e2e over SSH) | gold-L2 max by design (L4 unreachable from this binding); no TPM/VBS = silver-only; broken chain = red |
 
 Proof-type legend: **real run** = artifacts on disk from an actual run;
 **static** = source exists + a static check is reported (typecheck / `bash -n`)
@@ -58,7 +58,8 @@ All five Kotlin files exist but the README states NOT compiled/tested (no
 Android SDK here, inspection only). No instrumented tests, no Play Integrity
 verdict, no frame — e2e is NOT RUN; downgrade table is design, not behavior.
 
-**Windows — STUB, uncompiled.**
-Both `.cpp` files exist but the README honesty header states NOT compiled, NOT
-tested (no Windows toolchain, static review only). No MediaFoundation run, no
-TPM/VBS check — e2e is NOT RUN; L4 is unreachable by design, L2 is the max.
+**Windows — CORE REAL, capture STUB.**
+Rust core fully green on the real PC (33/33 tests, MSVC Build Tools installed,
+stable-msvc toolchain) and the signed e2e ran live: stamped with FreeTSA, ES256
+keypair in temp, `VALID (signed)` exit 0. The MediaFoundation `capture.cpp` and
+TPM/VBS `attest.cpp` remain uncompiled/unrun — camera capture proof still pending.
