@@ -5,3 +5,16 @@
 - Roadmap: ROADMAP.md
 - Shells: `bindings/` (android, ios, macos, windows, linux)
 - Verifier: `verify-web/`
+
+## Quickstart
+
+```bash
+# core CLI
+cd core
+cargo build
+./target/debug/rise-core --help
+
+# verifier tests
+cd ../verify-web
+.venv/bin/python -m pytest tests/ -q
+```
