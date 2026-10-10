@@ -7,6 +7,8 @@
 
 ## Status table
 
+> Public client-side verifier is LIVE: https://demiralpdev.github.io/.RISE/ (gh-pages, no server).
+
 | OS | Capture state | Attest state | e2e state | Proof type | Tier ceiling |
 |---|---|---|---|---|---|
 | macOS | REAL — `capture/capture.sh`, `capture/capture.swift`, `capture/capture.log` exist; `bindings/target/frame-001.jpg` on disk | STUB — no `attest/` dir, no Secure Enclave code; goal only in `README.md` | REAL e2e (capture → manifest) — `bindings/target/frame-001.jpg` + `frame-001.manifest.json` exist | real run (artifacts on disk) | silver max currently (no SE key → no gold per gold-gate); gold-L2/L4 only after attest lands |
