@@ -34,7 +34,7 @@ v4l2-ctl --list-devices 2>&1 | head -8 || echo "no v4l2 devices found"
 
 echo "=== [6/7] capture + sign + stamp + verify ==="
 cd "$HOME/RISE/bindings/linux/capture"
-./capture.sh || echo "CAPTURE_FAILED: see capture.log"
+bash capture.sh || echo "CAPTURE_FAILED: see capture.log"
 FRAME=$(ls -t "$HOME/RISE/bindings/target/frame-001.jpg" "$HOME/RISE/target/frame-001.jpg" 2>/dev/null | head -1)
 if [ -z "$FRAME" ]; then
   echo "NO_FRAME: capture failed - paste capture.log content back"
@@ -49,7 +49,7 @@ mkdir -p "$HOME/RISE/target"
 
 echo "=== [7/7] TPM ==="
 cd "$HOME/RISE/bindings/linux/attest"
-./detect.sh 2>&1 | head -6 || true
+bash detect.sh 2>&1 | head -6 || true
 
 echo ""
 echo "================ PASTE THIS BACK ================"
@@ -58,5 +58,5 @@ cargo test 2>&1 | grep "test result" | head -1
 ls -la "$FRAME" 2>/dev/null
 "$CORE" verify "$HOME/RISE/target/nb-m.json" "$FRAME" --pubkey "$HOME/RISE/target/nb-key.pub"
 echo "verify_exit=$?"
-./detect.sh 2>&1 | head -6 || true
+bash detect.sh 2>&1 | head -6 || true
 echo "================================================="
