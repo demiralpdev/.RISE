@@ -13,5 +13,5 @@
     "url": "https://github.com/demiralpdev/.RISE.git"
   },
   "keywords": ["c2pa", "provenance", "authenticity", "camera", "forensics"],
-  "license": "MIT"
+  "license": "Apache-2.0"
 }
