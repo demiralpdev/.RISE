@@ -1,5 +1,5 @@
 {
-  "name": "@rise/cli",
+  "name": "@univerisr-ai/rise-cli",
   "version": "0.2.0",
   "description": "Rise — photo/video authenticity CLI: hash, sign, stamp, verify, pack, unpack",
   "bin": {
