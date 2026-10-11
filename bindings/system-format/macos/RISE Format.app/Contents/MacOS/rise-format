@@ -1,0 +1,5 @@
+#!/bin/bash
+# RISE Format — UTI registration helper. Background-only; does nothing on launch.
+echo "RISE Format 0.2.0 — .rise system format registration"
+echo "Image UTI: org.rise.sealed-image (conforms to public.jpeg)"
+echo "Video UTI: org.rise.sealed-video (conforms to public.mpeg-4)"
