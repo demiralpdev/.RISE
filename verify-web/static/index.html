@@ -9,8 +9,7 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
 <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:ital,wght@0,300;0,400;0,600;0,800;1,400&display=swap" rel="stylesheet"/>
 <style>
-@layer od-layout {
-:where(.od-stack,.od-row,.od-row-top,.od-cluster,.od-grid,.od-field,.od-stat,.od-cell,.od-tile) > :where(*) { min-width: 0; }
+
 .od-stack { display:flex; flex-direction:column; gap:var(--od-gap,8px); }
 .od-row { display:flex; align-items:center; gap:var(--od-gap,8px); }
 .od-cluster { display:flex; flex-wrap:wrap; align-items:center; gap:var(--od-gap,8px); }
@@ -270,7 +269,7 @@ footer hr{border:0;border-top:1px solid var(--border);max-width:760px;margin:0 a
     </div>
     <div class="termlog" id="termlog" aria-hidden="true"></div>
 
-    <div class="drop od-touch" id="drop" tabindex="0" role="button"
+    <div class="drop" id="drop" tabindex="0" role="button"
          aria-label="Drop a .rise, .json, .jpg or .jpeg file here, or press Enter to browse">
       <svg viewBox="0 0 24 24" fill="none" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
         <path d="M12 3v12"/><path d="M7 10l5-5 5 5"/><path d="M4 19h16"/>
@@ -279,7 +278,7 @@ footer hr{border:0;border-top:1px solid var(--border);max-width:760px;margin:0 a
       <div class="d1">Drop .rise file here</div>
       <div class="d2">or click to browse</div>
       <div class="d3">.rise · .json · .jpg · .jpeg — max 1 MB</div>
-      <input class="sr" type="file" id="file" accept=".rise,.json,.jpg,.jpeg,application/json,image/jpeg" aria-label="Choose a file to verify"/>
+      <input type="file" style="position:absolute;inset:0;width:100%;height:100%;opacity:0;cursor:pointer" id="file" accept=".rise,.json,.jpg,.jpeg,application/json,image/jpeg" aria-label="Choose a file to verify"/>
     </div>
 
     <div class="filechip" id="filechip">
@@ -344,6 +343,6 @@ footer hr{border:0;border-top:1px solid var(--border);max-width:760px;margin:0 a
 </footer>
 
 <script src="verify.js" defer></script>
-<od-focus key="bb32160ce1236514" open="index.html"/>
+
 </body>
 </html>

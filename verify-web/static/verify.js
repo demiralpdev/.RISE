@@ -66,7 +66,7 @@
   }
 
   drop.addEventListener("click", function (e) {
-    if (e.target.closest("input")) return;
+    if (e.target.tagName === "INPUT" || e.target.tagName === "BUTTON") return;
     fileInput.click();
   });
   drop.addEventListener("keydown", function (e) {
