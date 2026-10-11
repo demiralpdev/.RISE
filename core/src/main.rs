@@ -8,6 +8,7 @@ use rise_core::{
 };
 use std::fs;
 use std::fs::File;
+use std::process::Command;
 #[cfg(unix)]
 use std::os::unix::fs::PermissionsExt;
 use std::time::{SystemTime, UNIX_EPOCH};
@@ -105,6 +106,27 @@ enum Cmd {
         #[arg(long)]
         tsa2: Option<String>,
     },
+    /// Seals a video: extracts frames with ffmpeg, hashes each frame,
+    /// and builds a multi-frame manifest v1.
+    Video {
+        /// Input video file (e.g. input.mp4).
+        input: String,
+        /// Anonymous device id.
+        #[arg(long, default_value = "cli-device")]
+        device: String,
+        /// Frames per second to extract.
+        #[arg(long, default_value_t = 1)]
+        fps: u32,
+        /// Signing key file (PKCS#8 PEM for es256, raw 32 bytes for ed25519).
+        #[arg(long)]
+        key: Option<String>,
+        /// Signature algorithm: es256 or ed25519.
+        #[arg(long, default_value = "es256")]
+        alg: String,
+        /// Manifest JSON output path (prints to stdout when omitted).
+        #[arg(long)]
+        out: Option<String>,
+    },
 }
 
 fn main() {
@@ -149,6 +171,14 @@ fn main() {
             tsa,
             tsa2,
         } => stamp_cmd(&manifest, &tsa, tsa2.as_deref()),
+        Cmd::Video {
+            input,
+            device,
+            fps,
+            key,
+            alg,
+            out,
+        } => video_cmd(&input, &device, fps, key.as_deref(), &alg, out.as_deref()),
     };
     std::process::exit(kod);
 }
@@ -572,6 +602,146 @@ fn stamp_cmd(manifest_path: &str, tsa: &str, tsa2: Option<&str>) -> i32 {
         return 2;
     }
     println!("stamped: {manifest_path} (token {n} bytes DER)");
+    0
+}
+
+/// video command: extract frames with ffmpeg, hash each frame, and build
+/// a multi-frame manifest v1. Tile hashes cover ALL frames combined, in
+/// frame order (via create_manifest_v1). Signs when --key is given.
+fn video_cmd(
+    input: &str,
+    device: &str,
+    fps: u32,
+    key: Option<&str>,
+    alg: &str,
+    out: Option<&str>,
+) -> i32 {
+    // ffmpeg must be on PATH; shell out via std::process::Command
+    if Command::new("ffmpeg").arg("-version").output().is_err() {
+        eprintln!("ffmpeg not found: install ffmpeg to seal videos (e.g. `brew install ffmpeg`)");
+        return 2;
+    }
+    if !std::path::Path::new(input).exists() {
+        eprintln!("input not found: {input}");
+        return 2;
+    }
+    if fps == 0 {
+        eprintln!("--fps must be >= 1");
+        return 2;
+    }
+    let sig_alg = match alg {
+        "es256" => SigAlg::Es256,
+        "ed25519" => SigAlg::Ed25519,
+        _ => {
+            eprintln!("unknown alg: {alg} (es256|ed25519)");
+            return 2;
+        }
+    };
+    // unique temp dir for the extracted frames
+    let tmp = std::env::temp_dir().join(format!("rise-video-{}-{}", std::process::id(), now_ms()));
+    if let Err(e) = fs::create_dir_all(&tmp) {
+        eprintln!("temp dir error: {e}");
+        return 2;
+    }
+    // extract frames: ffmpeg -i input -vf fps=N frame_%04d.jpg
+    let pattern = tmp.join("frame_%04d.jpg");
+    let pattern_str = pattern.to_string_lossy().into_owned();
+    let status = Command::new("ffmpeg")
+        .args([
+            "-y",
+            "-loglevel",
+            "error",
+            "-i",
+            input,
+            "-vf",
+            &format!("fps={fps}"),
+            &pattern_str,
+        ])
+        .status();
+    match status {
+        Ok(s) if s.success() => {}
+        Ok(s) => {
+            eprintln!("ffmpeg failed (exit {s}); is this a valid video file?");
+            let _ = fs::remove_dir_all(&tmp);
+            return 2;
+        }
+        Err(e) => {
+            eprintln!("ffmpeg error: {e}");
+            let _ = fs::remove_dir_all(&tmp);
+            return 2;
+        }
+    }
+    // collect extracted frames in sorted order
+    let mut paths: Vec<_> = match fs::read_dir(&tmp) {
+        Ok(rd) => rd.filter_map(|e| e.ok().map(|x| x.path())).collect(),
+        Err(e) => {
+            eprintln!("temp read error: {e}");
+            let _ = fs::remove_dir_all(&tmp);
+            return 2;
+        }
+    };
+    paths.sort();
+    if paths.is_empty() {
+        eprintln!("ffmpeg extracted no frames from: {input}");
+        let _ = fs::remove_dir_all(&tmp);
+        return 2;
+    }
+    // read every frame into memory for hashing
+    let mut frames: Vec<Vec<u8>> = Vec::with_capacity(paths.len());
+    for p in &paths {
+        match fs::read(p) {
+            Ok(b) => frames.push(b),
+            Err(e) => {
+                eprintln!("frame read error {}: {e}", p.display());
+                let _ = fs::remove_dir_all(&tmp);
+                return 2;
+            }
+        }
+    }
+    // clean up temp frames now that bytes are hashed in memory
+    let _ = fs::remove_dir_all(&tmp);
+    // build the multi-frame manifest (tiles span all frames)
+    let refs: Vec<&[u8]> = frames.iter().map(|f| &f[..]).collect();
+    let mut m = create_manifest_v1(&refs, device, now_ms(), sig_alg, "silver");
+    // sign when a key is given
+    if let Some(key_path) = key {
+        let signer = match load_signer(alg, key_path) {
+            Ok(s) => s,
+            Err(e) => {
+                eprintln!("key error: {e}");
+                return 2;
+            }
+        };
+        if let Err(e) = rise_core::sign_manifest_v1(&mut m, signer.as_ref()) {
+            eprintln!("sign error: {e}");
+            return 2;
+        }
+    }
+    let json = match manifest_to_json(&m) {
+        Ok(j) => j,
+        Err(e) => {
+            eprintln!("manifest error: {e}");
+            return 2;
+        }
+    };
+    if let Some(path) = out {
+        if let Err(e) = fs::write(path, &json) {
+            eprintln!("write error: {e}");
+            return 2;
+        }
+        eprintln!(
+            "sealed {} frames from {input} -> {path}",
+            m.frame_hashes.len()
+        );
+    } else {
+        println!("{json}");
+        eprintln!("sealed {} frames from {input}", m.frame_hashes.len());
+    }
+    if m.signature.is_some() {
+        eprintln!("signed ({alg})");
+    } else {
+        eprintln!("unsigned (no --key given; not evidence until signed)");
+    }
     0
 }
 

@@ -9,7 +9,7 @@ const PLATFORMS = {
   "darwin-x64": "rise-core-x86_64-apple-darwin",
   "linux-arm64": "rise-core-aarch64-unknown-linux-musl",
   "linux-x64": "rise-core-x86_64-unknown-linux-musl",
-  "win32-x64": "rise-core-x86_64-pc-windows-msvc.exe",
+  "win32-x64": "rise-core-x86_64-pc-windows-gnu.exe",
 };
 
 const key = `${process.platform}-${process.arch}`;

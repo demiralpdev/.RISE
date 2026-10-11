@@ -493,6 +493,33 @@ mod tests {
         assert!(verify_manifest_v1(&m, &[&k1[..], &k2[..], b"wrong"]).is_err());
     }
     #[test]
+    fn manifest_v1_video_frames_combined_tiles() {
+        // video-style: ten extracted frames sealed into one manifest
+        let frames: Vec<Vec<u8>> = (0..10)
+            .map(|i| format!("video-frame-{i:04}").into_bytes())
+            .collect();
+        let refs: Vec<&[u8]> = frames.iter().map(|f| &f[..]).collect();
+        let m = create_manifest_v1(&refs, "video-device", 4242, SigAlg::Es256, "silver");
+        // one hash per frame, in extraction order
+        assert_eq!(m.frame_hashes.len(), 10);
+        for (i, f) in frames.iter().enumerate() {
+            assert_eq!(m.frame_hashes[i], sha256_frame(f));
+        }
+        // tiles cover ALL frames combined, in frame order
+        let mut expected_tiles = Vec::new();
+        for f in &frames {
+            for d in dilimler(f) {
+                expected_tiles.push(tile_hash(d));
+            }
+        }
+        assert_eq!(m.tile_hashes, expected_tiles);
+        assert_eq!(m.merkle_root, merkle_root(&expected_tiles));
+        // roundtrip verification passes with all frames
+        assert!(verify_manifest_v1(&m, &refs).is_ok());
+        // dropping a frame breaks verification
+        assert!(verify_manifest_v1(&m, &refs[..9]).is_err());
+    }
+    #[test]
     fn manifest_json_roundtrip() {
         // build + write + read
         let m = create_manifest_v1(&[&b"a"[..]], "test-device", 123, SigAlg::Ed25519, "silver");
