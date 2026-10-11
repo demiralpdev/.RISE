@@ -1,51 +1,349 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
 <head>
-<meta charset="utf-8">
-<title>.rise verifier</title>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>RISE — Is it real? Prove it.</title>
+<meta name="description" content="RISE — client-side photo/video authenticity verifier. AI mı, gerçek mi? Kanıtla."/>
+<link rel="preconnect" href="https://fonts.googleapis.com"/>
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:ital,wght@0,300;0,400;0,600;0,800;1,400&display=swap" rel="stylesheet"/>
 <style>
-  body { background: #0d1117; color: #e6edf3; font-family: monospace; max-width: 760px; margin: 2rem auto; padding: 0 1rem; }
-  h1 { color: #58a6ff; }
-  input, textarea, button { font-family: monospace; background: #161b22; color: #e6edf3; border: 1px solid #30363d; padding: 6px; margin: 4px 0; }
-  button { cursor: pointer; padding: 8px 16px; }
-  .badge { font-size: 1.4rem; font-weight: bold; padding: 8px 12px; display: inline-block; margin: 8px 0; }
-  .red { background: #da3633; } .silver { background: #8b949e; color: #0d1117; }
-  .gold-L2, .gold-L4 { background: #d29922; color: #0d1117; }
-  .details { white-space: pre-wrap; word-break: break-all; background: #161b22; padding: 10px; border: 1px solid #30363d; }
-  .note { color: #8b949e; font-size: 0.85rem; }
+@layer od-layout {
+:where(.od-stack,.od-row,.od-row-top,.od-cluster,.od-grid,.od-field,.od-stat,.od-cell,.od-tile) > :where(*) { min-width: 0; }
+.od-stack { display:flex; flex-direction:column; gap:var(--od-gap,8px); }
+.od-row { display:flex; align-items:center; gap:var(--od-gap,8px); }
+.od-cluster { display:flex; flex-wrap:wrap; align-items:center; gap:var(--od-gap,8px); }
+.od-fill { flex:1 1 0; min-width:0; }
+.od-fixed { flex:none; }
+.od-truncate { display:block; max-width:100%; overflow:hidden; white-space:nowrap; text-overflow:ellipsis; }
+.od-nowrap { white-space:nowrap; }
+.od-touch { min-width:44px; min-height:44px; }
+}
+:root{
+  --bg:#090c10; --surface:#11151c; --surface2:#0d1117; --border:#1e2836;
+  --fg:#d5dde5; --muted:#66707d; --dim:#444d56; --faint:#333c44;
+  --blue:#58a6ff; --green:#00ff88; --red:#ff3b3b; --silver:#7d8590; --gold:#d29922;
+  --glow:rgba(88,166,255,.15);
+  --radius:12px;
+  --font:"JetBrains Mono",ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+::selection{background:var(--blue);color:#fff}
+html{scroll-behavior:smooth}
+body{
+  background:var(--bg); color:var(--fg); font-family:var(--font);
+  font-size:14px; line-height:1.6; font-weight:400;
+  min-height:100vh; overflow-x:hidden;
+  animation:pageIn .5s ease-out both;
+}
+@keyframes pageIn{from{opacity:0}to{opacity:1}}
+/* scanlines + vignette */
+body::before{
+  content:""; position:fixed; inset:0; z-index:60; pointer-events:none;
+  background:repeating-linear-gradient(0deg,rgba(255,255,255,.012) 0 1px,transparent 1px 4px);
+}
+body::after{
+  content:""; position:fixed; inset:0; z-index:61; pointer-events:none;
+  background:radial-gradient(ellipse at center,transparent 55%,rgba(0,0,0,.3) 100%);
+}
+::-webkit-scrollbar{width:6px;height:6px}
+::-webkit-scrollbar-track{background:var(--bg)}
+::-webkit-scrollbar-thumb{background:var(--border);border-radius:3px}
+::-webkit-scrollbar-thumb:hover{background:var(--blue)}
+a{color:var(--muted);text-decoration:none;transition:color .15s,background .15s}
+a:hover{color:var(--blue)}
+:focus-visible{outline:2px solid var(--blue);outline-offset:2px;border-radius:4px}
+/* ---------- status bar ---------- */
+.statusbar{
+  position:fixed;top:0;left:0;right:0;height:32px;z-index:50;
+  display:flex;align-items:center;justify-content:space-between;
+  padding:0 16px;font-size:11px;color:var(--muted);
+  background:rgba(9,12,16,.95);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);
+  border-bottom:1px solid var(--border);letter-spacing:.4px;
+}
+.statusbar .online{display:flex;align-items:center;gap:7px;color:var(--green);font-weight:600}
+.dot{width:7px;height:7px;border-radius:50%;background:var(--green);animation:pulse 2s ease-in-out infinite}
+@keyframes pulse{0%,100%{box-shadow:0 0 0 0 rgba(0,255,136,.5)}50%{box-shadow:0 0 0 6px rgba(0,255,136,0)}}
+.statusbar .center{color:var(--muted)}
+.statusbar .right{color:var(--dim)}
+@media(max-width:560px){.statusbar .center{display:none}}
+/* ---------- layout ---------- */
+.wrap{max-width:760px;margin:0 auto;padding:0 24px}
+@media(max-width:768px){.wrap{padding:0 16px}}
+/* ---------- hero ---------- */
+.hero{text-align:center;padding:96px 24px 40px}
+.hero .logo{
+  font-size:48px;font-weight:800;letter-spacing:8px;color:var(--fg);
+  text-shadow:0 0 20px rgba(88,166,255,.3);line-height:1.1;
+}
+@media(max-width:480px){.hero .logo{font-size:36px;letter-spacing:5px}}
+.scanline{height:2px;max-width:280px;margin:14px auto 18px;
+  background:linear-gradient(90deg,transparent,var(--blue),transparent);
+  background-size:200% 100%;animation:scan 3s linear infinite;border-radius:2px}
+@keyframes scan{from{background-position:200% 0}to{background-position:-200% 0}}
+.hero .tag{font-size:16px;font-style:italic;color:var(--muted)}
+.hero .tag-tr{font-size:13px;color:var(--dim);margin-top:6px}
+/* ---------- terminal window ---------- */
+.term{
+  border:1px solid var(--border);border-radius:var(--radius);
+  background:linear-gradient(135deg,#11151c 0%,#0d1117 100%);
+  box-shadow:0 8px 32px rgba(0,0,0,.4),inset 0 1px 0 rgba(255,255,255,.05);
+  overflow:hidden;
+}
+.term-head{display:flex;align-items:center;gap:12px;padding:12px 16px;border-bottom:1px solid var(--border)}
+.lights{display:flex;gap:7px}
+.lights span{width:12px;height:12px;border-radius:50%;display:block}
+.lights .r{background:#ff5f57}.lights .y{background:#febc2e}.lights .g{background:#28c840}
+.term-title{font-size:12px;color:var(--muted)}
+.term-cmd{margin-left:auto;font-size:12px;color:var(--muted);white-space:nowrap}
+.cursor{display:inline-block;color:var(--blue);animation:blink 1s steps(1) infinite;font-weight:600}
+@keyframes blink{50%{opacity:0}}
+.termlog{
+  display:none;padding:8px 16px;font-size:11px;color:var(--blue);
+  border-bottom:1px solid var(--border);min-height:32px;letter-spacing:.3px;
+}
+.termlog.on{display:block}
+.drop{
+  margin:24px;padding:60px 24px;text-align:center;cursor:pointer;
+  border:2px dashed var(--border);border-radius:8px;
+  transition:border-color .15s,background .15s,transform .15s;
+}
+.drop:hover,.drop:focus-visible{border-color:var(--blue);background:rgba(88,166,255,.03)}
+.drop.dragover{border-style:solid;border-color:var(--blue);background:var(--glow);transform:scale(1.02)}
+.drop svg{width:48px;height:48px;stroke:var(--muted);margin-bottom:14px}
+.drop .d1{font-size:18px;color:var(--fg);font-weight:600}
+.drop .d2{font-size:12px;color:var(--muted);margin-top:6px}
+.drop .d3{font-size:11px;color:var(--dim);margin-top:10px}
+.filechip{
+  display:none;margin:0 24px 20px;padding:10px 14px;font-size:12px;
+  border:1px solid var(--border);border-radius:6px;background:var(--bg);
+  color:var(--fg);
+}
+.filechip.on{display:flex;align-items:center;gap:8px}
+.filechip .sz{color:var(--muted)}
+.filechip button{margin-left:auto;background:none;border:0;color:var(--muted);cursor:pointer;font-family:inherit;font-size:14px;min-width:44px;min-height:32px}
+.filechip button:hover{color:var(--red)}
+.btnrow{display:flex;gap:12px;padding:0 24px 24px}
+button.verify{
+  flex:1;min-height:44px;font-family:inherit;font-size:14px;font-weight:600;
+  color:#04121f;background:var(--blue);border:0;border-radius:8px;cursor:pointer;
+  transition:filter .15s,transform .1s;
+}
+button.verify:hover:not(:disabled){filter:brightness(1.08)}
+button.verify:active:not(:disabled){transform:scale(.98)}
+button.verify:disabled{opacity:.4;cursor:not-allowed}
+.shake{animation:shake .2s ease-in-out 3}
+@keyframes shake{25%{transform:translateX(-4px)}75%{transform:translateX(4px)}}
+/* ---------- advanced ---------- */
+.adv{margin-top:16px;border:1px solid var(--border);border-radius:var(--radius);background:var(--surface);overflow:hidden}
+.adv-toggle{
+  width:100%;min-height:44px;display:flex;align-items:center;gap:8px;
+  background:none;border:0;color:var(--muted);font-family:inherit;font-size:13px;
+  padding:12px 18px;cursor:pointer;text-align:left;transition:background .15s,color .15s;
+}
+.adv-toggle:hover{background:rgba(255,255,255,.03);color:var(--fg)}
+.adv-toggle .caret{transition:transform .3s;display:inline-block}
+.adv.open .adv-toggle .caret{transform:rotate(90deg)}
+.adv-body{max-height:0;overflow:hidden;transition:max-height .3s ease-out}
+.adv.open .adv-body{max-height:600px}
+.adv-inner{padding:4px 18px 20px;display:flex;flex-direction:column;gap:14px}
+.adv label{font-size:12px;color:var(--muted);display:block;margin-bottom:6px}
+.adv input[type=file]{font-family:inherit;font-size:12px;color:var(--fg);background:var(--bg);
+  border:1px solid var(--border);border-radius:6px;padding:10px;width:100%;min-height:44px;cursor:pointer}
+.adv textarea{
+  font-family:var(--font);font-size:12px;color:var(--fg);background:var(--bg);
+  border:1px solid var(--border);border-radius:6px;padding:10px;width:100%;
+  min-height:96px;resize:vertical;line-height:1.6;
+}
+.adv textarea::placeholder{color:var(--dim)}
+.info{position:relative;display:inline-block;margin-left:6px;cursor:help;color:var(--blue);font-size:12px}
+.info .tip{
+  display:none;position:absolute;left:0;bottom:130%;width:240px;z-index:20;
+  background:var(--bg);border:1px solid var(--border);border-radius:6px;
+  padding:10px 12px;font-size:11px;color:var(--fg);line-height:1.5;
+}
+.info:hover .tip,.info:focus-within .tip{display:block}
+/* ---------- progress ---------- */
+.progress{display:none;padding:24px;text-align:center}
+.progress.on{display:block}
+.ring{width:40px;height:40px;margin:0 auto 12px;border:3px solid var(--border);border-top-color:var(--blue);border-radius:50%;animation:spin .8s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+.ptext{font-size:13px;color:var(--blue)}
+/* ---------- result ---------- */
+.result{display:none;padding:8px 24px 28px;animation:slideIn .3s ease-out}
+.result.on{display:block}
+@keyframes slideIn{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:none}}
+.badge{
+  text-align:center;font-size:42px;font-weight:800;letter-spacing:2px;
+  padding:20px 40px;border-radius:8px;margin:12px 0 14px;
+  animation:pop .2s ease-out;
+}
+@media(max-width:480px){.badge{font-size:32px;padding:16px 20px}}
+@keyframes pop{from{transform:scale(.95)}to{transform:scale(1)}}
+.badge.red{background:var(--red);color:#fff;box-shadow:0 0 30px rgba(255,59,59,.3)}
+.badge.silver{background:linear-gradient(135deg,#7d8590,#9ca3af);color:#090c10;position:relative;overflow:hidden}
+.badge.silver::after{content:"";position:absolute;top:0;left:-60%;width:40%;height:100%;
+  background:linear-gradient(100deg,transparent,rgba(255,255,255,.35),transparent);
+  animation:sheen 3s ease-in-out infinite}
+@keyframes sheen{0%{left:-60%}60%,100%{left:130%}}
+.badge.gold{background:linear-gradient(135deg,#d29922,#f0b93e);color:#090c10;position:relative;overflow:hidden}
+.badge.gold::after{content:"";position:absolute;top:0;left:-60%;width:40%;height:100%;
+  background:linear-gradient(100deg,transparent,rgba(255,255,255,.5),transparent);
+  animation:sheen 2.2s ease-in-out infinite}
+.reason{text-align:center;font-size:16px;color:var(--fg);margin-bottom:16px}
+.assure{margin:0 0 18px}
+.assure .lbl{display:flex;justify-content:space-between;font-size:11px;color:var(--muted);margin-bottom:6px}
+.assure .bar{height:6px;border-radius:3px;background:var(--border);overflow:hidden}
+.assure .fill{height:100%;width:0;border-radius:3px;transition:width .6s ease-out}
+.fill.red{background:var(--red)}.fill.silver{background:var(--silver)}.fill.gold{background:var(--gold)}
+.details{border:1px solid var(--border);border-radius:8px;background:var(--bg);overflow:hidden}
+.det-toggle{width:100%;min-height:44px;background:none;border:0;color:var(--muted);font-family:inherit;
+  font-size:12px;padding:10px 16px;cursor:pointer;text-align:left}
+.det-toggle:hover{color:var(--fg)}
+.det-body{display:none;padding:4px 16px 16px;font-size:12px;line-height:1.6}
+.details.open .det-body{display:block}
+.kv{display:flex;gap:8px;padding:5px 0;border-bottom:1px solid rgba(30,40,54,.5);word-break:break-all}
+.kv:last-child{border-bottom:0}
+.kv .k{color:var(--muted);flex:none;min-width:110px}
+.kv .v{color:var(--fg)}
+.kv .v.hash{color:var(--blue);font-size:12px;letter-spacing:.5px;cursor:pointer;position:relative}
+.kv .v.hash:hover{text-decoration:underline}
+.copytip{position:absolute;top:-24px;left:0;background:var(--green);color:#04121f;font-size:10px;
+  padding:2px 8px;border-radius:4px;white-space:nowrap;display:none}
+.copytip.on{display:block}
+.again{display:block;text-align:center;margin-top:18px;font-size:13px;color:var(--blue);min-height:44px;line-height:44px}
+/* ---------- footer ---------- */
+footer{padding:40px 24px 48px;text-align:center}
+footer hr{border:0;border-top:1px solid var(--border);max-width:760px;margin:0 auto 20px}
+.frow{display:flex;justify-content:space-between;align-items:center;gap:12px;max-width:760px;margin:0 auto;font-size:11px;flex-wrap:wrap}
+.frow .l{color:var(--dim)}
+.frow .c{color:var(--muted)}
+.frow .r a{color:var(--muted);padding:8px}
+.frow .r a:hover{color:var(--blue)}
+.fcopy{font-size:10px;color:var(--faint);margin-top:14px}
+@media(max-width:560px){.frow{flex-direction:column;gap:6px}}
+.sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+@media(prefers-reduced-motion:reduce){
+  *,*::before,*::after{animation:none!important;transition:none!important}
+  html{scroll-behavior:auto}
+}
+
+/* boot sequence */
+.boot{position:fixed;inset:0;z-index:100;background:var(--bg);display:flex;align-items:center;justify-content:center;flex-direction:column;gap:8px;font-size:12px;color:var(--green);animation:bootOut .8s ease 1.5s forwards}
+@keyframes bootOut{to{opacity:0;visibility:hidden;pointer-events:none}}
+.boot .bline{color:var(--dim);font-size:11px;letter-spacing:1px}
+.boot .ok{color:var(--green)}
+/* pqc indicator */
+.pqc{display:none;margin:0 24px 16px;padding:10px 14px;font-size:11px;border:1px solid rgba(210,153,34,.3);border-radius:6px;background:rgba(210,153,34,.08);color:var(--gold)}
+.pqc.on{display:flex;align-items:center;gap:8px}
+.pqc .icon{font-size:14px}
+
 </style>
 </head>
 <body>
-<h1>.rise verifier</h1>
-<p>Upload a .rise manifest (+ optionally the frame and the signer's public key) to check the evidence chain. Everything runs in YOUR browser — no file ever leaves this page.</p>
-<p>Manifest (.rise / .json): <input type="file" id="mfile" accept=".json,.rise,.jpg,.jpeg"></p>
-<p>Frame file (optional, raw or JPEG): <input type="file" id="ffile"></p>
-<p>Signer public key — SPKI PEM (optional, enables real ES256 check):<br>
-<textarea id="pubkey" rows="4" cols="70" placeholder="-----BEGIN PUBLIC KEY-----"></textarea></p>
-<button id="go">VERIFY</button>
-<div id="result"></div>
-<p class="note">Not evidence, preliminary finding. Gold tiers are not issued in MS1.</p>
-<script type="module">
-import { verifyBadge, sha256Hex } from "./verify.js";
-document.getElementById("go").onclick = async () => {
-  const res = document.getElementById("result");
-  res.innerHTML = "verifying...";
-  const mf = document.getElementById("mfile").files[0];
-  if (!mf) { res.innerHTML = "<span class='badge red'>ERROR</span> no manifest file"; return; }
-  const raw = await mf.text();
-  const ff = document.getElementById("ffile").files[0];
-  const frame = ff ? new Uint8Array(await ff.arrayBuffer()) : new Uint8Array(0);
-  const pubkey = document.getElementById("pubkey").value.trim();
-  const r = await verifyBadge(raw, frame, { pubkeyPem: pubkey || null });
-  const details = await (async () => {
-    let m = {}; try { m = JSON.parse(raw.startsWith("UNSIGNED:") ? raw.slice(9) : raw); } catch {}
-    return "frame_hashes=" + JSON.stringify(m.frame_hashes || []) +
-           "\nmerkle_root=" + (m.merkle_root || "n/a") +
-           "\nsig_alg=" + (m.sig_alg || "n/a") + " tier=" + (m.assurance || "n/a") +
-           "\ndevice_id=" + (m.device_id || "n/a");
-  })();
-  res.innerHTML = `<span class='badge ${r.badge}'>${r.badge.toUpperCase()}</span><br>${r.reason}<br><div class='details'>${details}</div>`;
-};
-</script>
+<div class="boot" aria-hidden="true">
+  <div>RISE v0.2.0</div>
+  <div class="bline">initializing core... <span class="ok">✓</span></div>
+  <div class="bline">loading WebCrypto... <span class="ok">✓</span></div>
+  <div class="bline">client-side mode — no data leaves your browser</div>
+</div>
+<div class="statusbar" role="status">
+  <span class="online"><span class="dot" aria-hidden="true"></span>ONLINE</span>
+  <span class="center">riseproof.me</span>
+  <span class="right">v0.2.0 | Rust + C2PA</span>
+</div>
+
+<header class="hero">
+  <div class="logo" aria-label="RISE">RISE</div>
+  <div class="scanline" aria-hidden="true"></div>
+  <p class="tag">Is it real? Prove it.</p>
+  <p class="tag-tr">AI mı, gerçek mi? Kanıtla.</p>
+</header>
+
+<main class="wrap">
+  <section class="term" aria-label="Verification terminal">
+    <div class="term-head">
+      <div class="lights" aria-hidden="true"><span class="r"></span><span class="y"></span><span class="g"></span></div>
+      <span class="term-title">rise-verify --frame</span>
+      <span class="term-cmd">~ $ rise verify<span class="cursor" aria-hidden="true">&nbsp;▮</span></span>
+    </div>
+    <div class="termlog" id="termlog" aria-hidden="true"></div>
+
+    <div class="drop od-touch" id="drop" tabindex="0" role="button"
+         aria-label="Drop a .rise, .json, .jpg or .jpeg file here, or press Enter to browse">
+      <svg viewBox="0 0 24 24" fill="none" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <path d="M12 3v12"/><path d="M7 10l5-5 5 5"/><path d="M4 19h16"/>
+        <circle cx="12" cy="14" r="8" stroke-dasharray="2 3" opacity=".5"/>
+      </svg>
+      <div class="d1">Drop .rise file here</div>
+      <div class="d2">or click to browse</div>
+      <div class="d3">.rise · .json · .jpg · .jpeg — max 1 MB</div>
+      <input class="sr" type="file" id="file" accept=".rise,.json,.jpg,.jpeg,application/json,image/jpeg" aria-label="Choose a file to verify"/>
+    </div>
+
+    <div class="filechip" id="filechip">
+      <span aria-hidden="true">▸</span>
+      <span class="od-truncate" id="filename"></span>
+      <span class="sz od-nowrap" id="filesize"></span>
+      <button id="clearfile" aria-label="Remove selected file">✕</button>
+    </div>
+
+    <div class="progress" id="progress" aria-hidden="true">
+      <div class="ring"></div>
+      <div class="ptext" id="ptext">Computing SHA-256…</div>
+    </div>
+
+    <div class="pqc" id="pqc"><span class="icon">⬡</span><span>Post-quantum detected: <strong>ML-DSA-65</strong> dual-signature present</span></div>
+    <div class="btnrow">
+      <button class="verify" id="verifyBtn" disabled>Verify</button>
+    </div>
+
+    <div class="result" id="result" aria-live="polite">
+      <div class="badge" id="badge" role="status">—</div>
+      <p class="reason" id="reason"></p>
+      <div class="assure" id="assure" hidden>
+        <div class="lbl"><span>ASSURANCE</span><span id="assureLabel"></span></div>
+        <div class="bar"><div class="fill" id="assureFill"></div></div>
+      </div>
+      <div class="details" id="detailsBox">
+        <button class="det-toggle" id="detToggle" aria-expanded="false">▸ Verification Details</button>
+        <div class="det-body" id="detBody"></div>
+      </div>
+      <a class="again" href="#top" id="again">↩ Verify another file</a>
+    </div>
+  </section>
+
+  <section class="adv" id="adv">
+    <button class="adv-toggle" id="advToggle" aria-expanded="false"><span class="caret">▸</span> Advanced Options</button>
+    <div class="adv-body">
+      <div class="adv-inner">
+        <div>
+          <label for="frameFile">Frame file <span style="color:var(--dim)">(optional — raw frame for hash recompute)</span></label>
+          <input type="file" id="frameFile" accept=".jpg,.jpeg,.png,.mp4,image/*,video/*" aria-label="Optional frame file"/>
+        </div>
+        <div>
+          <label for="pubkey">Signer Public Key (SPKI PEM) — enables real ES256 verification
+            <span class="info" tabindex="0">ⓘ<span class="tip">The signer's public key. If provided, the ES256 signature is cryptographically verified in your browser.</span></span>
+          </label>
+          <textarea id="pubkey" rows="4" spellcheck="false" placeholder="-----BEGIN PUBLIC KEY-----"></textarea>
+        </div>
+      </div>
+    </div>
+  </section>
+</main>
+
+<footer>
+  <hr/>
+  <div class="frow">
+    <span class="l">Not evidence, preliminary finding.</span>
+    <span class="c">Powered by Rust + C2PA + WebCrypto</span>
+    <span class="r"><a href="https://github.com/demiralpdev/.RISE" rel="noopener">GitHub</a> | <a href="https://github.com/demiralpdev/.RISE/blob/main/spec/RISE-01.md" rel="noopener">Spec</a> | <a href="https://github.com/demiralpdev/.RISE/blob/main/REDTEAM_FINDINGS.md" rel="noopener">Red Team Report</a></span>
+  </div>
+  <div class="fcopy">© 2026 RISE Project — MIT License</div>
+</footer>
+
+<script src="verify.js" defer></script>
+<od-focus key="bb32160ce1236514" open="index.html"/>
 </body>
 </html>
