@@ -1,12 +1,6 @@
-<h1 align="center">
-<pre>
-██▀███▄ ██ ▄█▀███▄ ██▀███▄
-██ ████ ██ ▀█▄▄▄▄▄ ██▄    
-██ ████ ██ ▄▄ ████ ██ ▄▄▄▄
-██▀███▀ ██ ██ ████ ██ ████
-██ ████ ██ ▀█▄███▀ ██▄███▀ 
-</pre>
-</h1>
+<p align="center">
+  <img src=".github/banner.svg" alt="RISE" width="480">
+</p>
 
 [![CI](https://github.com/demiralpdev/.RISE/actions/workflows/ci.yml/badge.svg)](https://github.com/demiralpdev/.RISE/actions)
 [![Rust tests](https://img.shields.io/badge/rust_tests-36_passed_3_ignored-blue)](https://github.com/demiralpdev/.RISE/tree/main/core)

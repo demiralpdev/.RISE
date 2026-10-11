@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="480" height="70" viewBox="0 0 480 70">
+<style>
+text{font-family:'SF Mono','Menlo','Consolas','Courier New',monospace;font-size:12px;fill:#FFB000;text-anchor:middle}
+</style>
+<text x="240" y="12">██▀███▄ ██ ▄█▀███▄ ██▀███▄</text>
+<text x="240" y="24">██ ████ ██ ▀█▄▄▄▄▄ ██▄    </text>
+<text x="240" y="36">██ ████ ██ ▄▄ ████ ██ ▄▄▄▄</text>
+<text x="240" y="48">██▀███▀ ██ ██ ████ ██ ████</text>
+<text x="240" y="60">██ ████ ██ ▀█▄███▀ ██▄███▀ </text>
+</svg>
