@@ -40,18 +40,14 @@ body::before{content:"";position:fixed;inset:0;z-index:50;pointer-events:none;
 
 .hero .ascii-line{font-size:11px;color:var(--amber-dim);
   letter-spacing:0;margin-bottom:8px;opacity:.6}
-.hero .logo-wrap{display:inline-block;padding:12px 28px;
-  border:1px solid var(--amber-dim);border-radius:2px;
-  background:linear-gradient(180deg,rgba(255,176,0,.06),rgba(255,176,0,.02));
-  box-shadow:0 0 16px rgba(255,176,0,.08),inset 0 1px 0 rgba(255,176,0,.1)}
-.hero .logo-text{font-size:2.8em;font-weight:800;color:var(--amber);
-  letter-spacing:.25em;text-shadow:0 0 10px rgba(255,176,0,.4);
-  font-family:var(--mono);display:block;line-height:1}
-.hero .logo-sub{margin-top:6px;font-size:11px;color:var(--amber-dim);
-  letter-spacing:2px;opacity:.7;text-align:center}
-  @media(max-width:480px){.hero .logo-text{font-size:2em;letter-spacing:.15em}
-  .hero .logo-wrap{padding:8px 16px}}
-  @media(max-width:360px){.hero .logo-text{font-size:1.6em;letter-spacing:.1em}}
+.hero .art{font-family:Menlo,Consolas,'DejaVu Sans Mono','Courier New',monospace;
+  font-size:13px;line-height:1.17;white-space:pre;
+  display:inline-block;text-align:left;margin:0 auto;
+  background:var(--bg);padding:8px;
+  text-shadow:0 0 6px rgba(255,176,0,.15);
+  overflow-x:auto;max-width:100%;-webkit-overflow-scrolling:touch}
+  @media(max-width:600px){.hero .art{font-size:9px;line-height:1.15}}
+  @media(max-width:360px){.hero .art{font-size:7px;line-height:1.12}}
 .hero .tag{margin-top:8px;font-size:14px;color:var(--dim);font-style:italic}
 .hero .cursor{display:inline-block;width:8px;height:15px;
   background:var(--amber);margin-left:4px;vertical-align:middle;animation:blink 1s steps(1) infinite}
@@ -207,7 +203,12 @@ footer .legal{font-size:10px;margin-top:4px}
 </div>
 
 <header class="hero">
-  <div class="logo-wrap"><span class="logo-text">RISE</span></div><div class="logo-sub">/// forensic verifier ///</div>
+  <pre class="art" aria-label="RISE"><span style="color:#8B6914"> </span><span style="color:#FFB000">▄</span><span style="color:#FFB000;background-color:#8B6914">▀</span><span style="color:#8B6914">  </span><span style="color:#FFB000">▄</span><span style="color:#553300">▄</span><span style="color:#8B6914"> </span><span style="color:#FFB000">▀▀▀</span><span style="color:#8B6914"> </span><span style="color:#FFB000">▄▄▓▀</span><span style="color:#FFB000;background-color:#8B6914">█▀▀</span><span style="color:#8B6914"> </span><span style="color:#FFB000">▄▄▓▀</span><span style="color:#FFB000;background-color:#8B6914">█▀▀</span>
+<span style="color:#FFB000">█</span><span style="color:#FFB000;background-color:#8B6914"> </span><span style="color:#553300;background-color:#8B6914">░</span><span style="color:#8B6914">▄</span><span style="color:#FFB000;background-color:#8B6914">▓</span><span style="color:#8B6914">█</span><span style="color:#553300;background-color:#8B6914">░</span><span style="color:#8B6914"> </span><span style="color:#FFB000;background-color:#8B6914">▓ </span><span style="color:#553300;background-color:#8B6914">░</span><span style="color:#8B6914"> </span><span style="color:#FFB000;background-color:#8B6914">▓ </span><span style="color:#553300;background-color:#8B6914">░</span><span style="color:#8B6914"> </span><span style="color:#FFB000;background-color:#8B6914">▓ </span><span style="color:#553300;background-color:#8B6914">░</span><span style="color:#8B6914"> </span><span style="color:#FFB000;background-color:#8B6914">▓ </span><span style="color:#553300;background-color:#8B6914">░</span><span style="color:#8B6914"> </span><span style="color:#FFB000;background-color:#8B6914">▓ </span><span style="color:#553300;background-color:#8B6914">░</span>
+<span style="color:#FFB000;background-color:#8B6914">▒ </span><span style="color:#553300;background-color:#8B6914">▒</span><span style="color:#8B6914"> </span><span style="color:#FFB000;background-color:#8B6914">▒ </span><span style="color:#553300;background-color:#8B6914">▓</span><span style="color:#8B6914"> </span><span style="color:#FFB000;background-color:#8B6914">▒ </span><span style="color:#553300;background-color:#8B6914">▒</span><span style="color:#8B6914"> </span><span style="color:#FFB000;background-color:#8B6914">▒ </span><span style="color:#553300;background-color:#8B6914">▒</span><span style="color:#8B6914">▄▄▄▄ </span><span style="color:#FFB000;background-color:#8B6914">▒ </span><span style="color:#553300;background-color:#8B6914">▒</span><span style="color:#8B6914">▀▀</span><span style="color:#553300">▀</span><span style="color:#8B6914"> </span>
+<span style="color:#FFB000;background-color:#8B6914">░ </span><span style="color:#553300;background-color:#8B6914">▓</span><span style="color:#8B6914"> </span><span style="color:#553300">▀▀</span><span style="color:#8B6914">  </span><span style="color:#FFB000;background-color:#8B6914">░ </span><span style="color:#553300;background-color:#8B6914">▓</span><span style="color:#8B6914"> ▄▄▄ </span><span style="color:#FFB000;background-color:#8B6914">░ </span><span style="color:#553300;background-color:#8B6914">▓</span><span style="color:#8B6914"> </span><span style="color:#FFB000;background-color:#8B6914">░ </span><span style="color:#553300;background-color:#8B6914">▓</span><span style="color:#8B6914"> </span><span style="color:#FFB000;background-color:#8B6914">░ </span><span style="color:#553300;background-color:#8B6914">▓</span>
+<span style="color:#553300;background-color:#8B6914">▄▄█</span><span style="color:#8B6914">     </span><span style="color:#553300;background-color:#8B6914">▄▄█</span><span style="color:#8B6914"> </span><span style="color:#553300;background-color:#8B6914">▄▄█</span><span style="color:#8B6914"> </span><span style="color:#553300;background-color:#8B6914">▄▄█</span><span style="color:#8B6914"> </span><span style="color:#553300;background-color:#8B6914">▄▄█</span><span style="color:#8B6914"> </span><span style="color:#553300;background-color:#8B6914">  █</span>
+<span style="color:#8B6914">              </span><span style="color:#553300">▀▀▀</span><span style="color:#8B6914">     </span><span style="color:#553300">▀▀▀</span><span style="color:#8B6914">  </span></pre>
   <p class="tag"><span class="tw">Is it real? Prove it.</span><span class="cursor">&nbsp;</span></p>
   <p class="tr">AI mi gercek mi? Kanitla.</p>
 </header>
