@@ -52,6 +52,9 @@ enum Cmd {
         /// Second TSA URL for cross-stamping (requires --tsa).
         #[arg(long)]
         tsa2: Option<String>,
+        /// ML-DSA-65 seed file for post-quantum dual-signing.
+        #[arg(long)]
+        pqc_key: Option<String>,
     },
     /// Verifies a manifest v1 against the frame; checks the signature with --pubkey.
     Verify {
@@ -62,6 +65,9 @@ enum Cmd {
         /// Public key file (SPKI PEM for es256, raw 32 bytes for ed25519).
         #[arg(long)]
         pubkey: Option<String>,
+        /// ML-DSA-65 verification key file (1952 bytes).
+        #[arg(long)]
+        pqc_pub: Option<String>,
     },
     /// Generates a signing keypair: <out>.key + <out>.pub (0600 for .key).
     Keygen {
@@ -114,6 +120,7 @@ fn main() {
             out,
             tsa,
             tsa2,
+            pqc_key,
         } => sign_cmd(
             &file,
             &device,
@@ -122,12 +129,14 @@ fn main() {
             out.as_deref(),
             tsa.as_deref(),
             tsa2.as_deref(),
+            pqc_key.as_deref(),
         ),
         Cmd::Verify {
             manifest,
             file,
             pubkey,
-        } => verify_cmd(&manifest, &file, pubkey.as_deref()),
+            pqc_pub,
+        } => verify_cmd(&manifest, &file, pubkey.as_deref(), pqc_pub.as_deref()),
         Cmd::Keygen { out, alg } => keygen_cmd(&out, &alg),
         Cmd::Pack {
             file,
@@ -196,6 +205,7 @@ fn sign_cmd(
     out: Option<&str>,
     tsa: Option<&str>,
     tsa2: Option<&str>,
+    pqc_key: Option<&str>,
 ) -> i32 {
     // MS1 flow is single-frame: read the file
     let Ok(b) = fs::read(file) else {
@@ -257,6 +267,53 @@ fn sign_cmd(
         }
         println!("manifest written: {path}");
     }
+    // PQC dual-sign if a seed file is provided
+    if let Some(pqc_path) = pqc_key {
+        let pqc = match rise_core::signer::MlDsa65Signer::from_seed_file(pqc_path) {
+            Ok(s) => s,
+            Err(e) => {
+                eprintln!("PQC key error: {e}");
+                return 2;
+            }
+        };
+        if m.signature.is_some() {
+            // set alg BEFORE canonical so verify_pqc can reproduce it
+            m.pqc_alg = Some("ML-DSA-65".to_string());
+            m.pqc_signature = None;
+            let canon = match rise_core::manifest_to_json(&m) {
+                Ok(j) => j,
+                Err(e) => {
+                    eprintln!("PQC canonical error: {e}");
+                    return 2;
+                }
+            };
+            let pq_sig = match pqc.sign(canon.as_bytes()) {
+                Ok(s) => s,
+                Err(e) => {
+                    eprintln!("PQC sign error: {e}");
+                    return 2;
+                }
+            };
+            m.pqc_signature = Some(
+                pq_sig.iter().map(|b| format!("{b:02x}")).collect::<String>(),
+            );
+            println!("PQC dual-signed (ML-DSA-65)");
+            // re-serialize + re-write to include the PQC fields
+            let final_json = match rise_core::manifest_to_json(&m) {
+                Ok(j) => j,
+                Err(e) => {
+                    eprintln!("manifest error: {e}");
+                    return 2;
+                }
+            };
+            if let Some(path) = out {
+                if let Err(e) = fs::write(path, &final_json) {
+                    eprintln!("write error: {e}");
+                    return 2;
+                }
+            }
+        }
+    }
     // state line: signed or unsigned
     if m.signature.is_some() {
         println!(
@@ -270,7 +327,7 @@ fn sign_cmd(
 }
 
 /// verify command: recompute + compare; signature check when --pubkey is given.
-fn verify_cmd(manifest_path: &str, file: &str, pubkey: Option<&str>) -> i32 {
+fn verify_cmd(manifest_path: &str, file: &str, pubkey: Option<&str>, pqc_pub: Option<&str>) -> i32 {
     // read the manifest
     let Ok(text) = fs::read_to_string(manifest_path) else {
         eprintln!("manifest read error: {manifest_path}");
@@ -315,8 +372,29 @@ fn verify_cmd(manifest_path: &str, file: &str, pubkey: Option<&str>) -> i32 {
             };
             match verify_signature(&m, verifier.as_ref()) {
                 Ok(()) => {
-                    println!("VALID (signed)");
-                    0
+                    // PQC verification if a verification key is provided
+                    if let Some(pqc_path) = pqc_pub {
+                        let pv = match rise_core::signer::MlDsa65Verifier::from_pubkey_file(pqc_path) {
+                            Ok(v) => v,
+                            Err(e) => {
+                                eprintln!("PQC pubkey error: {e}");
+                                return 2;
+                            }
+                        };
+                        match rise_core::verify_pqc(&m, &pv) {
+                            Ok(()) => {
+                                println!("VALID (signed + PQC ML-DSA-65)");
+                                0
+                            }
+                            Err(e) => {
+                                println!("INVALID PQC: {e}");
+                                3
+                            }
+                        }
+                    } else {
+                        println!("VALID (signed)");
+                        0
+                    }
                 }
                 Err(e) => {
                     println!("INVALID: {e}");
@@ -364,6 +442,19 @@ fn keygen_cmd(out: &str, alg: &str) -> i32 {
             let key_path = format!("{out}.key");
             let pub_path = format!("{out}.pub");
             let r = fs::write(&key_path, seed).and(fs::write(&pub_path, pubkey));
+            (r, key_path, pub_path)
+        }
+        "mldsa65" => {
+            let (seed, vk) = match rise_core::signer::MlDsa65Signer::generate() {
+                Ok(x) => x,
+                Err(e) => {
+                    eprintln!("keygen error: {e}");
+                    return 2;
+                }
+            };
+            let key_path = format!("{out}.mldsa65.seed");
+            let pub_path = format!("{out}.mldsa65.pub");
+            let r = fs::write(&key_path, seed).and(fs::write(&pub_path, vk));
             (r, key_path, pub_path)
         }
         _ => {
