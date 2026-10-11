@@ -19,10 +19,10 @@ variant of those base types.
 Installs `RISE Format.app` to `/Applications` and registers two UTIs with
 LaunchServices:
 
-| UTI | Conforms to | MIME |
-|---|---|---|
-| `org.rise.sealed-image` | `public.jpeg`, `public.image` | `image/jpeg` |
-| `org.rise.sealed-video` | `public.mpeg-4`, `public.movie` | `video/mp4` |
+| Extension | UTI | Conforms to | MIME |
+|---|---|---|---|
+| `.rise` | `org.rise.sealed-image` | `public.jpeg`, `public.image` | `image/jpeg` |
+| `.rvid` | `org.rise.sealed-video` | `public.mpeg-4`, `public.movie` | `video/mp4` |
 
 Verified result — a `.rise` file now reports:
 

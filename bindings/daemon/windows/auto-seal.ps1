@@ -5,7 +5,7 @@ $known = @{}
 
 function Seal($file) {
     $ext = [System.IO.Path]::GetExtension($file).ToLower()
-    $out = "$file.rise"
+    $out = if ($ext -in ".mp4",".mkv",".mov",".avi") { "$file.rvid" } else { "$file.rise" }
     if (Test-Path $out) { return }
     $ts = Get-Date -Format "yyyy-MM-dd HH:mm:ss"
     Add-Content $log "$ts SEAL $file"
@@ -34,6 +34,7 @@ while ($true) {
         $files = Get-ChildItem $dir -File -ErrorAction SilentlyContinue | Where-Object {
             $_.Extension.ToLower() -in ".mp4",".mkv",".mov",".avi",".jpg",".jpeg",".png" -and
             -not $_.Name.EndsWith(".rise") -and
+            -not $_.Name.EndsWith(".rvid") -and
             -not $_.Name.EndsWith(".manifest.json") -and
             -not $_.Name.StartsWith("rise-tmp")
         }

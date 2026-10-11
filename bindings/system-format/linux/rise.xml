@@ -6,6 +6,6 @@
   </mime-type>
   <mime-type type="video/mp4">
     <comment>RISE Sealed Video</comment>
-    <glob pattern="*.rise"/>
+    <glob pattern="*.rvid"/>
   </mime-type>
 </mime-info>

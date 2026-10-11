@@ -26,6 +26,18 @@ Set-ItemProperty -Path "HKLM:\SOFTWARE\Classes\RISE.SealedFile\shell\open\comman
 # 4. Register in the Explorer "Save as" known extensions list
 New-Item -Path "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer\KindMap" -Force -ErrorAction SilentlyContinue | Out-Null
 Set-ItemProperty -Path "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer\KindMap" -Name ".rise" -Value "picture" -ErrorAction SilentlyContinue
+Set-ItemProperty -Path "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer\KindMap" -Name ".rvid" -Value "video" -ErrorAction SilentlyContinue
+
+# 5. Register .rvid (sealed video, MP4 bytes) with PerceivedType video
+New-Item -Path "HKLM:\SOFTWARE\Classes\.rvid" -Force | Out-Null
+Set-ItemProperty -Path "HKLM:\SOFTWARE\Classes\.rvid" -Name "PerceivedType" -Value "video"
+Set-ItemProperty -Path "HKLM:\SOFTWARE\Classes\.rvid" -Name "ContentType" -Value "video/mp4"
+Set-ItemProperty -Path "HKLM:\SOFTWARE\Classes\.rvid" -Name "(default)" -Value "RISE.SealedVideo"
+
+New-Item -Path "HKLM:\SOFTWARE\Classes\RISE.SealedVideo" -Force | Out-Null
+Set-ItemProperty -Path "HKLM:\SOFTWARE\Classes\RISE.SealedVideo" -Name "(default)" -Value "RISE Sealed Video"
+New-Item -Path "HKLM:\SOFTWARE\Classes\RISE.SealedVideo\shell\open\command" -Force | Out-Null
+Set-ItemProperty -Path "HKLM:\SOFTWARE\Classes\RISE.SealedVideo\shell\open\command" -Name "(default)" -Value "`"%ProgramFiles%\Windows Media Player\wmplayer.exe`" %1"
 
 Write-Host "RISE format registered on Windows." -ForegroundColor Green
-Write-Host ".rise files are now recognized as images by Explorer."
+Write-Host ".rise = images, .rvid = videos."

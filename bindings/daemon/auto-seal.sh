@@ -79,7 +79,7 @@ is_image() {
 should_skip() {
   local f="$1"
   case "$f" in
-    *.rise|*.manifest.json) return 0 ;;
+    *.rise|*.rvid|*.manifest.json) return 0 ;;
   esac
   # Skip temp/partial files writers commonly use
   case "$(basename "$f")" in
@@ -111,7 +111,7 @@ wait_stable() {
 
 seal_video() {
   local f="$1"
-  local out="${f}.rise"
+  local out="${f}.rvid"
   log "SEAL-VIDEO start $f"
   if "$RISE_BIN" video "$f" --device auto --key "$KEY_FILE" --out "$out" >> "$LOG_FILE" 2>&1; then
     log "SEAL-VIDEO ok $f -> $out"
@@ -149,7 +149,9 @@ handle_file() {
     return
   fi
   # Already sealed and sealed file is newer than source -> skip
-  if [ -f "${f}.rise" ] && [ "${f}.rise" -nt "$f" ]; then
+  local sealed="${f}.rvid"
+  is_video "$f" || sealed="${f}.rise"
+  if [ -f "$sealed" ] && [ "$sealed" -nt "$f" ]; then
     return
   fi
   log "DETECT new file $f"

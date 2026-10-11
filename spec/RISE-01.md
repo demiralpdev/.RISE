@@ -26,9 +26,12 @@ SHA256(raw frame) at shutter + sign + timestamp
 
 ## 2.1 Sealed File Naming
 
-- The sealed artifact is `<original>.rise` — the bytes stay a valid JPEG
-  (APP11/JUMBF evidence embedded), so any image viewer opens it; the
+- Images seal as `<original>.rise` — the bytes stay a valid JPEG (APP11/JUMBF
+  evidence embedded) or PNG (`risE` chunk), so any viewer opens them; the
   extension marks the seal and is the product's file identity.
+- Videos seal as `<original>.rvid` — the bytes stay a valid, playable MP4
+  (top-level `rise` box). The distinct extension lets the OS route .rvid to
+  video players and .rise to image viewers (the `.webp` / `.webm` model).
 - Raw-frame flows (Windows YUY2) keep a sidecar `<original>.manifest.json`
   plus the raw file — APP11 requires a JPEG container.
 
