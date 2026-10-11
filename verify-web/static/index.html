@@ -36,9 +36,15 @@ body::before{content:"";position:fixed;inset:0;z-index:50;pointer-events:none;
 
 /* ── hero ── */
 .hero{padding:80px 12px 20px;text-align:center}
-.hero h1{font-size:3.5em;font-weight:700;color:var(--amber);
-  letter-spacing:.15em;text-shadow:0 0 20px rgba(255,176,0,.2);
-  font-family:var(--mono)}
+
+.hero .logo{font-size:4em;font-weight:800;color:transparent;
+  letter-spacing:.3em;font-family:var(--mono);line-height:1;
+  background:linear-gradient(180deg,#FFD700 0%,var(--amber) 40%,#804000 100%);
+  -webkit-background-clip:text;background-clip:text;
+  filter:drop-shadow(0 0 12px rgba(255,176,0,.5)) drop-shadow(0 0 40px rgba(255,176,0,.2));
+  margin-bottom:4px;display:inline-block}
+.hero .ascii-line{font-size:11px;color:var(--amber-dim);
+  letter-spacing:0;margin-bottom:8px;opacity:.6}
 .hero .tag{margin-top:8px;font-size:14px;color:var(--dim);font-style:italic}
 .hero .cursor{display:inline-block;width:8px;height:15px;
   background:var(--amber);margin-left:4px;vertical-align:middle;animation:blink 1s steps(1) infinite}
@@ -167,7 +173,7 @@ footer .legal{font-size:10px;margin-top:4px}
 
 /* ── responsive ── */
 @media(max-width:480px){
-  .hero h1{font-size:2.2em}
+  .hero .logo{font-size:2.5em;letter-spacing:.2em}
   .hero{padding-top:64px}
   .go{letter-spacing:2px;font-size:13px}
   .result .verdict{font-size:14px}
@@ -175,7 +181,7 @@ footer .legal{font-size:10px;margin-top:4px}
   .status{font-size:10px}
 }
 @media(max-width:360px){
-  .hero h1{font-size:1.8em}
+  .hero .logo{font-size:2em;letter-spacing:.15em}
   .dropzone{padding:28px 8px}
   .go{letter-spacing:1px}
 }
@@ -194,13 +200,8 @@ footer .legal{font-size:10px;margin-top:4px}
 </div>
 
 <header class="hero">
-  <pre class="banner">
- ####  ####  ####   ###  ####
- #  #  #  #  #     #   #  #
- ####  ####  ####  #    ####
- #     #  #     #  #   #  #
- #     #  #  ####   ### #  #
-  </pre>
+  <h1 class="logo">R I S E</h1>
+  <div class="ascii-line">///==================\\</div>
   <p class="tag"><span class="tw">Is it real? Prove it.</span><span class="cursor">&nbsp;</span></p>
   <p class="tr">AI mi gercek mi? Kanitla.</p>
 </header>
