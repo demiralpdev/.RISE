@@ -1,0 +1,380 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>RISE — Verify</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+:root{
+  --amber:#FFB000;--amber-dim:#8B6914;--amber-bg:#140F00;
+  --bg:#0A0800;--panel:#100C00;--text:#D4C48A;--dim:#6B5E30;
+  --faint:#3A3018;--red:#FF4444;--green:#22FF66;
+  --mono:'SF Mono','Menlo','Consolas','Courier New',monospace;
+}
+html{scroll-behavior:smooth}
+body{background:var(--bg);color:var(--text);font-family:var(--mono);
+  font-size:14px;line-height:1.5;-webkit-font-smoothing:antialiased}
+::selection{background:var(--amber);color:var(--bg)}
+::-webkit-scrollbar{width:6px;background:var(--bg)}
+::-webkit-scrollbar-thumb{background:var(--faint)}
+::-webkit-scrollbar-thumb:hover{background:var(--amber-dim)}
+
+/* subtle scanline */
+body::before{content:"";position:fixed;inset:0;z-index:50;pointer-events:none;
+  background:repeating-linear-gradient(0deg,transparent 0 3px,rgba(0,0,0,.05) 3px 4px)}
+
+/* ── status bar ── */
+.status{display:flex;justify-content:space-between;align-items:center;
+  padding:6px 12px;font-size:11px;border-bottom:1px solid var(--faint);
+  position:fixed;top:0;left:0;right:0;background:var(--bg);z-index:40}
+.status .live{color:var(--green)}
+.status .live::before{content:"* ";animation:blink 1.5s infinite}
+.status .clock{color:var(--dim)}
+.status .ver{color:var(--dim)}
+@keyframes blink{50%{opacity:.3}}
+
+/* ── hero ── */
+.hero{padding:80px 12px 20px;text-align:center}
+
+
+.hero .ascii-line{font-size:11px;color:var(--amber-dim);
+  letter-spacing:0;margin-bottom:8px;opacity:.6}
+.hero .art{font-family:Menlo,Consolas,'DejaVu Sans Mono','Courier New',monospace;
+  font-size:13px;line-height:1.17;white-space:pre;
+  display:inline-block;text-align:left;margin:0 auto;
+  background:var(--bg);padding:8px;
+  text-shadow:0 0 6px rgba(255,176,0,.15);
+  overflow-x:auto;max-width:100%;-webkit-overflow-scrolling:touch}
+  @media(max-width:600px){.hero .art{font-size:9px;line-height:1.15}}
+  @media(max-width:360px){.hero .art{font-size:7px;line-height:1.12}}
+.hero .tag{margin-top:8px;font-size:14px;color:var(--dim);font-style:italic}
+.hero .cursor{display:inline-block;width:8px;height:15px;
+  background:var(--amber);margin-left:4px;vertical-align:middle;animation:blink 1s steps(1) infinite}
+.hero .tr{margin-top:4px;font-size:11px;color:var(--faint)}
+
+/* typewriter */
+.tw{display:inline-block;overflow:hidden;white-space:nowrap;
+  animation:type 2s steps(30) .5s forwards;max-width:0}
+@keyframes type{to{max-width:300px}}
+
+/* ── panel ── */
+.wrap{max-width:640px;margin:0 auto;padding:0 12px 24px}
+.box{background:var(--panel);border:1px solid var(--faint);padding:16px;
+  border-radius:4px;position:relative}
+.box .label{position:absolute;top:-9px;left:12px;background:var(--bg);
+  padding:0 6px;font-size:11px;color:var(--amber-dim)}
+
+/* ── drop zone ── */
+.dropzone{border:1px dashed var(--faint);padding:40px 12px;text-align:center;
+  cursor:pointer;transition:border-color .2s,background .2s;margin-bottom:12px;
+  border-radius:2px;position:relative}
+.dropzone:hover,.dropzone.active{border-color:var(--amber);
+  background:rgba(255,176,0,.03)}
+.dropzone .icon{font-size:24px;color:var(--amber-dim);margin-bottom:8px;
+  display:block}
+.dropzone .main{font-size:15px;color:var(--text)}
+.dropzone .sub{font-size:12px;color:var(--dim);margin-top:4px}
+.dropzone .fmt{font-size:10px;color:var(--faint);margin-top:8px}
+.dropzone input[type=file]{position:absolute;inset:0;width:100%;
+  height:100%;opacity:0;cursor:pointer}
+
+/* file info */
+.fileinfo{display:none;padding:8px 12px;border:1px solid var(--faint);
+  font-size:12px;margin-bottom:12px;align-items:center;gap:6px;
+  border-radius:2px}
+.fileinfo.on{display:flex}
+.fileinfo .fname{flex:1;color:var(--amber);overflow:hidden;
+  text-overflow:ellipsis;white-space:nowrap}
+.fileinfo .fsize{color:var(--dim);font-size:11px}
+.fileinfo .fx{background:none;border:0;color:var(--dim);cursor:pointer;
+  font-size:14px;padding:2px 6px}
+.fileinfo .fx:hover{color:var(--red)}
+
+/* ── advanced ── */
+.adv{margin-bottom:12px}
+.adv-h{display:block;width:100%;padding:8px 12px;
+  background:none;border:1px solid var(--faint);color:var(--dim);
+  font-family:var(--mono);font-size:12px;cursor:pointer;text-align:left;
+  border-radius:2px}
+.adv-h:hover{color:var(--amber)}
+.adv-h .arr{display:inline-block;transition:transform .2s;margin-right:4px}
+.adv.open .adv-h .arr{transform:rotate(90deg)}
+.adv-b{display:none;padding:12px;border:1px solid var(--faint);
+  border-top:0;font-size:12px;border-radius:0 0 2px 2px}
+.adv.open .adv-b{display:block}
+.adv-b label{display:block;margin-bottom:4px;font-size:11px;color:var(--dim)}
+.adv-b input[type=file]{width:100%;padding:6px;font-family:var(--mono);
+  font-size:11px;background:var(--bg);color:var(--text);
+  border:1px solid var(--faint);margin-bottom:10px;border-radius:2px}
+.adv-b textarea{width:100%;min-height:60px;padding:8px;
+  font-family:var(--mono);font-size:11px;background:var(--bg);
+  color:var(--text);border:1px solid var(--faint);resize:vertical;
+  line-height:1.4;border-radius:2px}
+.adv-b textarea::placeholder{color:var(--faint)}
+
+/* ── button ── */
+.go{display:block;width:100%;padding:12px;border:1px solid var(--amber);
+  background:var(--bg);color:var(--amber);font-family:var(--mono);
+  font-size:15px;font-weight:700;cursor:pointer;transition:all .2s;
+  text-transform:uppercase;letter-spacing:3px;border-radius:2px}
+.go:hover:not(:disabled){background:var(--amber);color:var(--bg)}
+.go:active:not(:disabled){transform:scale(.99)}
+.go:disabled{opacity:.3;cursor:not-allowed}
+
+/* ── progress ── */
+.progress{display:none;padding:12px;text-align:center;font-size:12px;
+  color:var(--amber)}
+.progress.on{display:block}
+.progress .pbar{font-family:var(--mono);letter-spacing:1px}
+
+/* ── result ── */
+.result{display:none;padding-top:12px;animation:fadeUp .3s ease-out}
+.result.on{display:block}
+@keyframes fadeUp{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
+
+.result .verdict{text-align:center;font-size:18px;font-weight:700;
+  padding:12px;margin-bottom:8px;letter-spacing:2px;border-radius:2px}
+.verdict.red{color:var(--red);border:1px solid rgba(255,68,68,.3);
+  background:rgba(255,68,68,.05);box-shadow:0 0 12px rgba(255,68,68,.1)}
+.verdict.silver{color:#AAA;border:1px solid rgba(170,170,170,.3);
+  background:rgba(170,170,170,.05);box-shadow:0 0 12px rgba(170,170,170,.08)}
+.verdict.gold{color:var(--amber);border:1px solid rgba(255,176,0,.3);
+  background:rgba(255,176,0,.05);box-shadow:0 0 16px rgba(255,176,0,.15)}
+
+.result .why{text-align:center;font-size:13px;color:var(--dim);margin-bottom:12px}
+.result .meter{text-align:center;font-size:12px;color:var(--amber);
+  margin-bottom:12px;letter-spacing:2px}
+
+/* details */
+.det{border:1px solid var(--faint);margin-bottom:12px;border-radius:2px}
+.det-h{display:block;width:100%;padding:8px 12px;background:none;border:0;
+  color:var(--dim);font-family:var(--mono);font-size:12px;cursor:pointer;
+  text-align:left}
+.det-h:hover{color:var(--amber)}
+.det-h .arr{display:inline-block;transition:transform .2s;margin-right:4px}
+.det.open .det-h .arr{transform:rotate(90deg)}
+.det-b{display:none;padding:8px 12px;font-size:11px;line-height:1.7;
+  border-top:1px solid var(--faint)}
+.det.open .det-b{display:block}
+.det-b .row{display:flex;gap:8px;padding:2px 0}
+.det-b .k{color:var(--dim);flex-shrink:0;min-width:90px}
+.det-b .v{color:var(--text);word-break:break-all}
+.det-b .v.h{color:var(--amber)}
+
+/* again */
+.again{display:block;text-align:center;padding:8px;font-size:13px;
+  color:var(--amber);text-decoration:none}
+.again:hover{text-decoration:underline}
+
+/* ── footer ── */
+footer{padding:24px 12px;text-align:center;border-top:1px solid var(--faint);
+  margin-top:16px;font-size:11px;color:var(--faint)}
+footer a{color:var(--dim);text-decoration:none;margin:0 6px}
+footer a:hover{color:var(--amber)}
+footer .legal{font-size:10px;margin-top:4px}
+
+/* ── responsive ── */
+@media(max-width:480px){
+  
+  .hero{padding-top:64px}
+  .go{letter-spacing:2px;font-size:13px}
+  .result .verdict{font-size:14px}
+  .det-b .k{min-width:70px;font-size:10px}
+  .status{font-size:10px}
+}
+@media(max-width:360px){
+  
+  .dropzone{padding:28px 8px}
+  .go{letter-spacing:1px}
+}
+@media(prefers-reduced-motion:reduce){
+  *,*::before,*::after{animation:none!important;transition:none!important}
+  .tw{max-width:100%!important}
+}
+</style>
+</head>
+<body>
+
+<div class="status">
+  <span class="live">ONLINE</span>
+  <span class="clock" id="clock">--:--:--</span>
+  <span class="ver">v0.2.0</span>
+</div>
+
+<header class="hero">
+  <pre class="art" aria-label="RISE"><span style="color:#8B6914"> </span><span style="color:#FFB000">▄</span><span style="color:#FFB000;background-color:#8B6914">▀</span><span style="color:#8B6914">  </span><span style="color:#FFB000">▄</span><span style="color:#553300">▄</span><span style="color:#8B6914"> </span><span style="color:#FFB000">▀▀▀</span><span style="color:#8B6914"> </span><span style="color:#FFB000">▄▄▓▀</span><span style="color:#FFB000;background-color:#8B6914">█▀▀</span><span style="color:#8B6914"> </span><span style="color:#FFB000">▄▄▓▀</span><span style="color:#FFB000;background-color:#8B6914">█▀▀</span>
+<span style="color:#FFB000">█</span><span style="color:#FFB000;background-color:#8B6914"> </span><span style="color:#553300;background-color:#8B6914">░</span><span style="color:#8B6914">▄</span><span style="color:#FFB000;background-color:#8B6914">▓</span><span style="color:#8B6914">█</span><span style="color:#553300;background-color:#8B6914">░</span><span style="color:#8B6914"> </span><span style="color:#FFB000;background-color:#8B6914">▓ </span><span style="color:#553300;background-color:#8B6914">░</span><span style="color:#8B6914"> </span><span style="color:#FFB000;background-color:#8B6914">▓ </span><span style="color:#553300;background-color:#8B6914">░</span><span style="color:#8B6914"> </span><span style="color:#FFB000;background-color:#8B6914">▓ </span><span style="color:#553300;background-color:#8B6914">░</span><span style="color:#8B6914"> </span><span style="color:#FFB000;background-color:#8B6914">▓ </span><span style="color:#553300;background-color:#8B6914">░</span><span style="color:#8B6914"> </span><span style="color:#FFB000;background-color:#8B6914">▓ </span><span style="color:#553300;background-color:#8B6914">░</span>
+<span style="color:#FFB000;background-color:#8B6914">▒ </span><span style="color:#553300;background-color:#8B6914">▒</span><span style="color:#8B6914"> </span><span style="color:#FFB000;background-color:#8B6914">▒ </span><span style="color:#553300;background-color:#8B6914">▓</span><span style="color:#8B6914"> </span><span style="color:#FFB000;background-color:#8B6914">▒ </span><span style="color:#553300;background-color:#8B6914">▒</span><span style="color:#8B6914"> </span><span style="color:#FFB000;background-color:#8B6914">▒ </span><span style="color:#553300;background-color:#8B6914">▒</span><span style="color:#8B6914">▄▄▄▄ </span><span style="color:#FFB000;background-color:#8B6914">▒ </span><span style="color:#553300;background-color:#8B6914">▒</span><span style="color:#8B6914">▀▀</span><span style="color:#553300">▀</span><span style="color:#8B6914"> </span>
+<span style="color:#FFB000;background-color:#8B6914">░ </span><span style="color:#553300;background-color:#8B6914">▓</span><span style="color:#8B6914"> </span><span style="color:#553300">▀▀</span><span style="color:#8B6914">  </span><span style="color:#FFB000;background-color:#8B6914">░ </span><span style="color:#553300;background-color:#8B6914">▓</span><span style="color:#8B6914"> ▄▄▄ </span><span style="color:#FFB000;background-color:#8B6914">░ </span><span style="color:#553300;background-color:#8B6914">▓</span><span style="color:#8B6914"> </span><span style="color:#FFB000;background-color:#8B6914">░ </span><span style="color:#553300;background-color:#8B6914">▓</span><span style="color:#8B6914"> </span><span style="color:#FFB000;background-color:#8B6914">░ </span><span style="color:#553300;background-color:#8B6914">▓</span>
+<span style="color:#553300;background-color:#8B6914">▄▄█</span><span style="color:#8B6914">     </span><span style="color:#553300;background-color:#8B6914">▄▄█</span><span style="color:#8B6914"> </span><span style="color:#553300;background-color:#8B6914">▄▄█</span><span style="color:#8B6914"> </span><span style="color:#553300;background-color:#8B6914">▄▄█</span><span style="color:#8B6914"> </span><span style="color:#553300;background-color:#8B6914">▄▄█</span><span style="color:#8B6914"> </span><span style="color:#553300;background-color:#8B6914">  █</span>
+<span style="color:#8B6914">              </span><span style="color:#553300">▀▀▀</span><span style="color:#8B6914">     </span><span style="color:#553300">▀▀▀</span><span style="color:#8B6914">  </span></pre>
+  <p class="tag"><span class="tw">Is it real? Prove it.</span><span class="cursor">&nbsp;</span></p>
+  <p class="tr">AI mi gercek mi? Kanitla.</p>
+</header>
+
+<main class="wrap">
+<div class="box">
+<span class="label">demir@riseproof:~$ rise-verify</span>
+
+  <div class="dropzone" id="drop">
+    <span class="icon">[+]</span>
+    <div class="main">Drop .rise file here</div>
+    <div class="sub">or click to browse</div>
+    <div class="fmt">.rise / .json / .jpg &mdash; max 1 MB</div>
+    <input type="file" id="fileIn" accept=".rise,.json,.jpg,.jpeg">
+  </div>
+
+  <div class="fileinfo" id="finfo">
+    <span>></span>
+    <span class="fname" id="fname"></span>
+    <span class="fsize" id="fsize"></span>
+    <button class="fx" id="fx" title="Remove">x</button>
+  </div>
+
+  <div class="adv" id="adv">
+    <button class="adv-h" id="advH"><span class="arr">></span> Advanced</button>
+    <div class="adv-b">
+      <label for="frameIn">Frame file (optional)</label>
+      <input type="file" id="frameIn" accept=".jpg,.jpeg,.png,.yuv,.raw,image/*">
+      <label for="pubkeyIn">Signer Public Key (PEM)</label>
+      <textarea id="pubkeyIn" rows="3" spellcheck="false"
+        placeholder="-----BEGIN PUBLIC KEY-----"></textarea>
+    </div>
+  </div>
+
+  <div class="progress" id="prog">
+    <span class="pbar" id="pbar">[........................] 0%</span>
+  </div>
+
+  <button class="go" id="goBtn" disabled>Verify</button>
+
+  <div class="result" id="res">
+    <div class="verdict" id="verdict">&mdash;</div>
+    <p class="why" id="why"></p>
+    <div class="meter" id="meter"></div>
+    <div class="det" id="det">
+      <button class="det-h" id="detH"><span class="arr">></span> Details</button>
+      <div class="det-b" id="detB"></div>
+    </div>
+    <a href="#" class="again" id="again">&laquo; Verify another</a>
+  </div>
+
+</div>
+</main>
+
+<footer>
+  <div><a href="https://github.com/demiralpdev/.RISE" rel="noopener">GitHub</a>
+  <a href="https://github.com/demiralpdev/.RISE/blob/main/spec/RISE-01.md" rel="noopener">Spec</a>
+  <a href="https://github.com/demiralpdev/.RISE/blob/main/REDTEAM_FINDINGS.md" rel="noopener">RedTeam</a></div>
+  <p class="legal">Not evidence. Preliminary finding.</p>
+  <p class="legal">Rust + C2PA + WebCrypto &mdash; MIT License</p>
+</footer>
+
+<script>
+setInterval(function(){
+  var d=new Date();
+  function p(n){return String(n).padStart(2,"0")}
+  document.getElementById("clock").textContent=p(d.getHours())+":"+p(d.getMinutes())+":"+p(d.getSeconds());
+},1000);
+</script>
+
+<script type="module">
+import { verifyBadge, sha256Hex } from "./verify.js";
+
+const drop=document.getElementById("drop"),fin=document.getElementById("fileIn");
+const finfo=document.getElementById("finfo"),fname=document.getElementById("fname");
+const fsize=document.getElementById("fsize"),fx=document.getElementById("fx");
+const goBtn=document.getElementById("goBtn"),prog=document.getElementById("prog");
+const pbar=document.getElementById("pbar"),res=document.getElementById("res");
+const verdict=document.getElementById("verdict"),why=document.getElementById("why");
+const meter=document.getElementById("meter"),det=document.getElementById("det");
+const detH=document.getElementById("detH"),detB=document.getElementById("detB");
+const adv=document.getElementById("adv"),advH=document.getElementById("advH");
+const again=document.getElementById("again");
+let cur=null;
+const fmt=n=>n<1024?n+" B":(n/1024).toFixed(1)+" KB";
+const MAX=1048576;
+
+function set(f){
+  if(!f){clear();return}
+  if(f.size>MAX){alert("Max 1 MB");return}
+  cur=f;fname.textContent=f.name;fsize.textContent=fmt(f.size);
+  finfo.classList.add("on");goBtn.disabled=false;res.classList.remove("on");
+}
+function clear(){
+  cur=null;fin.value="";finfo.classList.remove("on");
+  goBtn.disabled=true;res.classList.remove("on");prog.classList.remove("on");
+}
+fin.addEventListener("change",e=>set(e.target.files[0]));
+drop.addEventListener("click",e=>{if(e.target===fin)return;fin.click()});
+["dragenter","dragover"].forEach(ev=>drop.addEventListener(ev,e=>{
+  e.preventDefault();drop.classList.add("active")}));
+["dragleave","drop"].forEach(ev=>drop.addEventListener(ev,e=>{
+  e.preventDefault();drop.classList.remove("active")}));
+drop.addEventListener("drop",e=>{
+  const f=e.dataTransfer&&e.dataTransfer.files&&e.dataTransfer.files[0];
+  if(f)set(f)});
+fx.addEventListener("click",e=>{e.stopPropagation();clear()});
+advH.addEventListener("click",()=>adv.classList.toggle("open"));
+detH.addEventListener("click",()=>det.classList.toggle("open"));
+again.addEventListener("click",e=>{
+  e.preventDefault();clear();window.scrollTo({top:0,behavior:"smooth"})});
+
+goBtn.addEventListener("click",async()=>{
+  if(!cur)return;
+  goBtn.disabled=true;prog.classList.add("on");res.classList.remove("on");
+  const steps=["Computing SHA-256","Checking Merkle root","Verifying signature"];
+  const W=24;
+  for(let i=0;i<steps.length;i++){
+    for(let p=0;p<=100;p+=25){
+      const fill=Math.round(p/100*W);
+      pbar.textContent="["+"=".repeat(fill)+".".repeat(W-fill)+"] "+p+"%";
+      await new Promise(r=>setTimeout(r,60));
+    }
+  }
+  try{
+    const text=await cur.text();
+    const ff=document.getElementById("frameIn").files[0];
+    const frame=ff?new Uint8Array(await ff.arrayBuffer()):new Uint8Array(0);
+    const pk=document.getElementById("pubkeyIn").value.trim();
+    const r=await verifyBadge(text,frame,{pubkeyPem:pk||null});
+    verdict.className="verdict "+r.badge;
+    verdict.textContent=r.badge==="red"?"X REJECTED":
+      r.badge==="silver"?"- PLAUSIBLE":"* "+r.badge.toUpperCase();
+    why.textContent=r.reason;
+    const pct=r.badge==="red"?4:r.badge==="silver"?14:20;
+    meter.textContent="["+"=".repeat(pct)+".".repeat(20-pct)+"] "+
+      (r.badge==="red"?"LOW":r.badge==="silver"?"MED":"HIGH");
+    detB.innerHTML="";
+    let m={};try{m=JSON.parse(text.replace(/^UNSIGNED:/,""))}catch(e){}
+    const rows=[
+      ["frame_hash",(m.frame_hashes||["--"])[0],1],
+      ["merkle_root",m.merkle_root||"--",1],
+      ["sig_alg",m.sig_alg||"--",0],
+      ["assurance",m.assurance||"--",0],
+      ["device_id",m.device_id||"--",0],
+      ["pqc_alg",m.pqc_alg||"none",0],
+    ];
+    for(const[k,v,h]of rows){
+      const d=document.createElement("div");d.className="row";
+      const vs=String(v).substring(0,50)+(String(v).length>50?"...":"");
+      d.innerHTML='<span class="k">'+k+'</span><span class="v'+
+        (h?" h":"")+'">'+vs+"</span>";
+      detB.appendChild(d);
+    }
+    prog.classList.remove("on");
+    res.classList.add("on");
+  }catch(e){
+    pbar.textContent="[ERROR] "+e.message;
+  }finally{goBtn.disabled=false}
+});
+
+document.addEventListener("keydown",e=>{
+  if(e.key==="Enter"&&cur&&!goBtn.disabled&&
+    !["TEXTAREA","INPUT"].includes(document.activeElement.tagName))goBtn.click();
+  if(e.key==="Escape"&&cur)clear();
+});
+</script>
+</body>
+</html>
