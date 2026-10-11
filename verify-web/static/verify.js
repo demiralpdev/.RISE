@@ -1,318 +1,125 @@
-/* RISE verifier — 100% client-side. No network, no storage, no cookies. */
-(function () {
-  "use strict";
-  var MAX = 1024 * 1024;
-  var drop = document.getElementById("drop");
-  var fileInput = document.getElementById("file");
-  var chip = document.getElementById("filechip");
-  var fname = document.getElementById("filename");
-  var fsize = document.getElementById("filesize");
-  var clearBtn = document.getElementById("clearfile");
-  var btn = document.getElementById("verifyBtn");
-  var prog = document.getElementById("progress");
-  var ptext = document.getElementById("ptext");
-  var result = document.getElementById("result");
-  var badge = document.getElementById("badge");
-  var reason = document.getElementById("reason");
-  var detToggle = document.getElementById("detToggle");
-  var detBody = document.getElementById("detBody");
-  var detailsBox = document.getElementById("detailsBox");
-  var adv = document.getElementById("adv");
-  var advToggle = document.getElementById("advToggle");
-  var termlog = document.getElementById("termlog");
-  var assure = document.getElementById("assure");
-  var assureFill = document.getElementById("assureFill");
-  var assureLabel = document.getElementById("assureLabel");
-  var again = document.getElementById("again");
-  var current = null;
+/* RISE client-side verifier — ES module. 100% browser, no server, no cookies. */
+const GOLD_CAP = "silver";
+const RED = "red";
+const SILVER = "silver";
+const GOLD_L4 = "gold-L4";
+const GOLD_L2 = "gold-L2";
 
-  function fmt(n) {
-    if (n < 1024) return n + " B";
-    return (n / 1024).toFixed(1) + " KB";
-  }
-  function log(msg) {
-    termlog.classList.add("on");
-    termlog.textContent = "$ " + msg;
-  }
-  function failShake() {
-    drop.classList.remove("shake");
-    void drop.offsetWidth;
-    drop.classList.add("shake");
-  }
-  function setFile(f) {
-    if (!f) return clearAll();
-    if (f.size > MAX) {
-      failShake();
-      log("reject: file exceeds 1 MB (" + fmt(f.size) + ")");
-      reason.textContent = "";
-      return;
+async function sha256Hex(data) {
+  const d = await crypto.subtle.digest("SHA-256", data);
+  return [...new Uint8Array(d)].map(b => b.toString(16).padStart(2, "0")).join("");
+}
+
+function tiles(data, maxN = 4) {
+  if (!data.length) return [];
+  const n = Math.min(data.length, maxN);
+  const size = Math.ceil(data.length / n);
+  const out = [];
+  for (let i = 0; i < data.length; i += size) out.push(data.slice(i, i + size));
+  return out;
+}
+
+async function merkleRoot(hashes) {
+  if (!hashes.length) return sha256Hex(new Uint8Array(0));
+  let kat = [...hashes];
+  while (kat.length > 1) {
+    const ust = [];
+    for (let i = 0; i < kat.length; i += 2) {
+      const sag = i + 1 < kat.length ? kat[i + 1] : kat[i];
+      ust.push(await sha256Hex(new TextEncoder().encode(kat[i] + sag)));
     }
-    current = f;
-    fname.textContent = f.name;
-    fsize.textContent = "(" + fmt(f.size) + ")";
-    chip.classList.add("on");
-    btn.disabled = false;
-    result.classList.remove("on");
-    log("loaded " + f.name + " — " + fmt(f.size) + " — ready");
+    kat = ust;
   }
-  function clearAll() {
-    current = null;
-    fileInput.value = "";
-    chip.classList.remove("on");
-    btn.disabled = true;
-    result.classList.remove("on");
-    prog.classList.remove("on");
-    termlog.classList.remove("on");
-  }
+  return kat[0];
+}
 
-  drop.addEventListener("click", function (e) {
-    if (e.target.tagName === "INPUT" || e.target.tagName === "BUTTON") return;
-    fileInput.click();
-  });
-  drop.addEventListener("keydown", function (e) {
-    if (e.key === "Enter" || e.key === " ") { e.preventDefault(); fileInput.click(); }
-  });
-  fileInput.addEventListener("change", function () {
-    if (fileInput.files[0]) setFile(fileInput.files[0]);
-  });
-  ["dragenter", "dragover"].forEach(function (ev) {
-    drop.addEventListener(ev, function (e) { e.preventDefault(); drop.classList.add("dragover"); });
-  });
-  ["dragleave", "drop"].forEach(function (ev) {
-    drop.addEventListener(ev, function (e) { e.preventDefault(); drop.classList.remove("dragover"); });
-  });
-  drop.addEventListener("drop", function (e) {
-    var f = e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files[0];
-    if (f) setFile(f); else failShake();
-  });
-  clearBtn.addEventListener("click", function (e) { e.stopPropagation(); clearAll(); });
+function derToRaw(der) {
+  if (der.length < 8 || der[0] !== 0x30) return der;
+  let p = 2;
+  const readInt = () => {
+    if (der[p] !== 0x02) return null;
+    const len = der[p + 1];
+    const val = der.slice(p + 2, p + 2 + len);
+    p += 2 + len;
+    return val;
+  };
+  const r = readInt(), s = readInt();
+  if (!r || !s) return der;
+  const strip = b => {
+    let a = b;
+    while (a.length > 33 && a[0] === 0) a = a.slice(1);
+    if (a[0] & 0x80) a = new Uint8Array([0, ...a]);
+    return a;
+  };
+  const rs = strip(r), ss = strip(s);
+  const raw = new Uint8Array(64);
+  raw.set(rs.slice(-32), 0);
+  raw.set(ss.slice(-32), 32);
+  return raw;
+}
 
-  advToggle.addEventListener("click", function () {
-    var open = adv.classList.toggle("open");
-    advToggle.setAttribute("aria-expanded", open ? "true" : "false");
-  });
-  detToggle.addEventListener("click", function () {
-    var open = detailsBox.classList.toggle("open");
-    detToggle.setAttribute("aria-expanded", open ? "true" : "false");
-  });
-  again.addEventListener("click", function (e) {
-    e.preventDefault();
-    clearAll();
-    window.scrollTo({ top: 0, behavior: "smooth" });
-    drop.focus();
-  });
+async function verifyEs256(pemText, msgBytes, sigHex) {
+  const b64 = pemText.replace(/-----(BEGIN|END) PUBLIC KEY-----/g, "").replace(/\s+/g, "");
+  const spki = Uint8Array.from(atob(b64), c => c.charCodeAt(0));
+  const key = await crypto.subtle.importKey("spki", spki, { name: "ECDSA", namedCurve: "P-256" }, false, ["verify"]);
+  const sig = derToRaw(Uint8Array.from(sigHex.match(/.{2}/g).map(h => parseInt(h, 16))));
+  return crypto.subtle.verify({ name: "ECDSA", hash: "SHA-256" }, key, sig, msgBytes);
+}
 
-  function hex(buf) {
-    return Array.prototype.map.call(new Uint8Array(buf), function (b) {
-      return ("0" + b.toString(16)).slice(-2);
-    }).join("");
-  }
-  async function sha256Hex(data) {
-    var d = await crypto.subtle.digest("SHA-256", data);
-    return hex(d);
-  }
-  function b64ToBytes(b64) {
-    var bin = atob(b64.replace(/-/g, "+").replace(/_/g, "/"));
-    var out = new Uint8Array(bin.length);
-    for (var i = 0; i < bin.length; i++) out[i] = bin.charCodeAt(i);
-    return out;
-  }
-  function pemToRaw(pem) {
-    var b64 = pem.replace(/-----[^-]+-----/g, "").replace(/\s+/g, "");
-    var der = b64ToBytes(b64);
-    // SPKI P-256: raw point is last 65 bytes (0x04 || X || Y)
-    if (der.length >= 65) return der.slice(der.length - 65);
-    return der;
-  }
+function canonicalJson(m) {
+  const o = {};
+  o.rise_version = m.rise_version ?? 1;
+  o.frame_hashes = m.frame_hashes ?? [];
+  o.tile_hashes = m.tile_hashes ?? [];
+  o.merkle_root = m.merkle_root ?? "";
+  o.sig_alg = m.sig_alg ?? "ES256";
+  o.timestamp_ms = m.timestamp_ms ?? 0;
+  o.device_id = m.device_id ?? "";
+  o.assurance = m.assurance ?? "silver";
+  o.timestamp_token = m.timestamp_token ?? null;
+  o.signature = null;
+  o.signing_key_id = m.signing_key_id ?? null;
+  return JSON.stringify(o);
+}
 
-  function tierOf(r) {
-    if (r.tier === "GOLD" || r.tier === "SILVER" || r.tier === "RED") return r.tier;
-    if (r.sig_valid === true && r.hash_match === true && r.merkle_valid === true) return "GOLD";
-    if (r.hash_match === true && r.merkle_valid !== false) return "SILVER";
-    if (r.hash_match === false || r.merkle_valid === false || r.sig_valid === false) return "RED";
-    return "RED";
-  }
+async function verifyBadge(rawManifest, frameBytes, opts = {}) {
+  let m;
+  try { m = JSON.parse(rawManifest); }
+  catch { return { badge: RED, reason: "Manifest unreadable, unverified." }; }
+  if (!m.signature) return { badge: RED, reason: "No signature, not evidence." };
+  if (!m.sig_alg) return { badge: RED, reason: "No signature algorithm, not evidence." };
 
-  async function verifyPayload(payload, pubkeyPem, frameBytes) {
-    var steps = ["Computing SHA-256…", "Checking Merkle root…", "Verifying signature…"];
-    for (var i = 0; i < steps.length; i++) {
-      ptext.textContent = steps[i];
-      log(steps[i].toLowerCase());
-      await new Promise(function (r) { setTimeout(r, 260); });
-    }
-    var out = {
-      frame_hashes: payload.frame_hashes || payload.hashes || payload.frame_hash || "unavailable",
-      merkle_root: payload.merkle_root || payload.merkleRoot || "unavailable",
-      sig_alg: payload.sig_alg || payload.alg || "ES256",
-      assurance: payload.assurance || payload.tier || "unavailable",
-      device_id: payload.device_id || payload.deviceId || "unavailable",
-      timestamp: payload.timestamp || payload.time || "unavailable",
-      hash_match: null, merkle_valid: null, sig_valid: null, note: ""
-    };
+  const frameHashes = m.frame_hashes;
+  if (!Array.isArray(frameHashes)) return { badge: RED, reason: "Malformed frame hashes." };
+  const tileHashesIn = m.tile_hashes;
+  if (!Array.isArray(tileHashesIn)) return { badge: RED, reason: "Malformed tile hashes." };
+  if (typeof m.merkle_root !== "string") return { badge: RED, reason: "Malformed merkle root." };
+
+  const ts = tiles(frameBytes);
+  const tileList = [];
+  for (const t of ts) tileList.push(await sha256Hex(t));
+  const root = await merkleRoot(tileList);
+
+  if (frameBytes.length && !frameHashes.includes(await sha256Hex(frameBytes)))
+    return { badge: RED, reason: "Frame hash mismatch, content changed." };
+  if (frameBytes.length && JSON.stringify(tileList) !== JSON.stringify(tileHashesIn))
+    return { badge: RED, reason: "Tile hashes mismatch, content changed." };
+  if (frameBytes.length && root !== m.merkle_root)
+    return { badge: RED, reason: "Chain root mismatch, content changed." };
+
+  if (opts.pubkeyPem && m.sig_alg === "ES256") {
+    const canon = canonicalJson(m);
     try {
-      if (frameBytes && payload.frame_hashes) {
-        var expect = Array.isArray(payload.frame_hashes) ? payload.frame_hashes[0] : payload.frame_hashes;
-        var got = await sha256Hex(frameBytes);
-        out.computed_hash = got;
-        out.hash_match = (String(expect).toLowerCase() === got.toLowerCase());
-      } else if (payload.hash_match !== undefined) {
-        out.hash_match = !!payload.hash_match;
-      } else {
-        out.hash_match = true; // manifest-internal consistency only
-      }
-      if (payload.merkle_valid !== undefined) out.merkle_valid = !!payload.merkle_valid;
-      else if (payload.merkle_root) out.merkle_valid = true;
-      else out.merkle_valid = null;
-
-      if (pubkeyPem && pubkeyPem.indexOf("BEGIN PUBLIC KEY") !== -1 && payload.signature) {
-        try {
-          var raw = pemToRaw(pubkeyPem);
-          var key = await crypto.subtle.importKey("raw", raw, { name: "ECDSA", namedCurve: "P-256" }, false, ["verify"]);
-          var sig = b64ToBytes(String(payload.signature));
-          var msg = new TextEncoder().encode(String(payload.merkle_root || payload.frame_hashes || ""));
-          out.sig_valid = await crypto.subtle.verify({ name: "ECDSA", hash: "SHA-256" }, key, sig, msg);
-          out.sig_alg = "ES256 (verified in-browser)";
-        } catch (e) {
-          out.sig_valid = false;
-          out.note = "signature check error: " + (e && e.message ? e.message : e);
-        }
-      } else if (payload.sig_valid !== undefined) {
-        out.sig_valid = !!payload.sig_valid;
-      } else {
-        out.sig_valid = null; // no key supplied → unverified, never claimed valid
-      }
-    } catch (e) {
-      out.note = "verify error: " + (e && e.message ? e.message : e);
-    }
-    return out;
+      const ok = await verifyEs256(opts.pubkeyPem, new TextEncoder().encode(canon), m.signature);
+      if (!ok) return { badge: RED, reason: "Signature invalid for provided key." };
+    } catch { return { badge: RED, reason: "Signature verification error." }; }
   }
 
-  function esc(s) {
-    return String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
-  }
-  function kvRow(k, v, isHash) {
-    var row = document.createElement("div");
-    row.className = "kv";
-    var kk = document.createElement("span");
-    kk.className = "k"; kk.textContent = k;
-    var vv = document.createElement("span");
-    vv.className = "v" + (isHash ? " hash" : "");
-    vv.textContent = v;
-    vv.setAttribute("tabindex", isHash ? "0" : "-1");
-    if (isHash) {
-      var tip = document.createElement("span");
-      tip.className = "copytip"; tip.textContent = "Copied!";
-      vv.appendChild(tip);
-      var copy = function () {
-        var done = function () {
-          tip.classList.add("on");
-          setTimeout(function () { tip.classList.remove("on"); }, 1500);
-        };
-        if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(v).then(done, done);
-        else done();
-      };
-      vv.addEventListener("click", copy);
-      vv.addEventListener("keydown", function (e) { if (e.key === "Enter") copy(); });
-      vv.setAttribute("role", "button");
-      vv.setAttribute("aria-label", "Copy " + k + " to clipboard");
-    }
-    row.appendChild(kk); row.appendChild(vv);
-    return row;
-  }
+  const tier = m.assurance ?? SILVER;
+  if (![GOLD_L4, GOLD_L2, SILVER].includes(tier)) return { badge: RED, reason: "Unknown assurance tier." };
+  if (tier === GOLD_L4 || (tier === GOLD_L2 && !opts.strong_signal))
+    return { badge: GOLD_CAP, reason: "Gold not issued in MS1 (verification limits), downgraded." };
+  return { badge: GOLD_CAP, reason: "Software signature valid (MS1), informational." };
+}
 
-  function render(r) {
-    var tier = tierOf(r);
-    badge.className = "badge " + tier.toLowerCase();
-    badge.textContent = tier === "GOLD" ? "◆ GOLD" : tier === "SILVER" ? "◇ SILVER" : "✕ RED";
-    var reasons = {
-      GOLD: "Authentic — hash, Merkle root and ES256 signature all verified.",
-      SILVER: "Plausible — hashes match, signature not cryptographically confirmed.",
-      RED: "Failed — content does not match its manifest."
-    };
-    reason.textContent = r.reason || reasons[tier];
-    assure.hidden = false;
-    var pct = tier === "GOLD" ? 100 : tier === "SILVER" ? 62 : 18;
-    assureFill.className = "fill " + tier.toLowerCase();
-    assureFill.style.width = "0";
-    assureLabel.textContent = tier + " · " + pct + "%";
-    requestAnimationFrame(function () {
-      requestAnimationFrame(function () { assureFill.style.width = pct + "%"; });
-    });
-    detBody.replaceChildren();
-    var rows = [
-      ["frame_hashes", Array.isArray(r.frame_hashes) ? r.frame_hashes[0] : r.frame_hashes, true],
-      ["merkle_root", r.merkle_root, true],
-      ["sig_alg", r.sig_alg, false],
-      ["sig_valid", r.sig_valid === null ? "unverified (no key)" : String(r.sig_valid), false],
-      ["hash_match", r.hash_match === null ? "unavailable" : String(r.hash_match), false],
-      ["merkle_valid", r.merkle_valid === null ? "unavailable" : String(r.merkle_valid), false],
-      ["assurance", r.assurance, false],
-      ["device_id", r.device_id, false],
-      ["timestamp", r.timestamp, false],
-      ["pqc_alg", payload.pqc_alg || "none", false],
-      ["pqc_signature", payload.pqc_signature ? payload.pqc_signature.substring(0,20) + "…" : "none", payload.pqc_signature ? true : false]
-    ];
-    if (r.computed_hash) rows.splice(1, 0, ["computed_hash", r.computed_hash, true]);
-    if (r.note) rows.push(["note", r.note, false]);
-    rows.forEach(function (x) { detBody.appendChild(kvRow(x[0] + "=", x[1], x[2])); });
-    result.classList.add("on");
-    result.scrollIntoView({ behavior: "smooth", block: "nearest" });
-  }
-
-  btn.addEventListener("click", async function () {
-    if (!current) { failShake(); return; }
-    btn.disabled = true;
-    result.classList.remove("on");
-    prog.classList.add("on");
-    try {
-      var buf = await current.arrayBuffer();
-      var text = new TextDecoder().decode(buf);
-      var payload = null;
-      var name = current.name.toLowerCase();
-      if (name.endsWith(".json") || name.endsWith(".rise")) {
-        try { payload = JSON.parse(text); }
-        catch (e) { payload = { reason: "Unreadable manifest — not valid JSON.", tier: "RED" }; }
-      } else {
-        // opaque image: hash the bytes, manifest-less → RED with honest reason
-        var h = await sha256Hex(buf);
-        payload = {
-          tier: "RED",
-          reason: "No embedded manifest found — raw media alone cannot prove authenticity.",
-          frame_hashes: h, merkle_root: "unavailable", sig_alg: "none",
-          assurance: "none", device_id: "unavailable", timestamp: "unavailable",
-          hash_match: false
-        };
-      }
-      var frameBytes = null;
-      var ff = document.getElementById("frameFile");
-      if (ff && ff.files[0]) frameBytes = await ff.files[0].arrayBuffer();
-      var pem = document.getElementById("pubkey").value.trim();
-      var r = await verifyPayload(payload, pem, frameBytes);
-      if (!r.reason) r.reason = payload.reason || "";
-      var pqcEl = document.getElementById("pqc");
-      if (pqcEl && payload.pqc_alg) pqcEl.classList.add("on"); else if (pqcEl) pqcEl.classList.remove("on");
-      if (payload.tier && (payload.tier === "RED" || payload.tier === "GOLD" || payload.tier === "SILVER")) {
-        // explicit manifest tier wins unless crypto disproves it
-        if (payload.tier === "GOLD" && r.sig_valid === null) r.tier = "SILVER";
-        else if (r.hash_match === false || r.merkle_valid === false || r.sig_valid === false) r.tier = "RED";
-        else r.tier = payload.tier;
-      }
-      render(r);
-      log("done — " + tierOf(r));
-    } catch (e) {
-      failShake();
-      log("error: " + (e && e.message ? e.message : e));
-    } finally {
-      prog.classList.remove("on");
-      btn.disabled = false;
-    }
-  });
-
-  // Keyboard: Enter anywhere (not in textarea) triggers verify if file loaded
-  document.addEventListener("keydown", function (e) {
-    if (e.key === "Enter" && current && !btn.disabled && document.activeElement.tagName !== "TEXTAREA" && document.activeElement.tagName !== "INPUT") {
-      btn.click();
-    }
-    if (e.key === "Escape" && current) clearAll();
-  });
-})();
+export { verifyBadge, sha256Hex, merkleRoot, tiles, derToRaw, canonicalJson, verifyEs256 };
