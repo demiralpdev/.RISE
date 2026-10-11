@@ -10,6 +10,7 @@ import android.os.Build
 import android.security.keystore.KeyGenParameterSpec
 import android.security.keystore.KeyProperties
 import android.security.keystore.StrongBoxUnavailableException
+import android.util.Log
 import java.security.KeyPairGenerator
 import java.security.KeyStore
 import java.security.spec.ECGenParameterSpec
@@ -67,9 +68,15 @@ object RiseKeystore {
     /**
      * Creates (or reuses) the P-256 frame key.
      *
-     * StrongBox is tried first; on [StrongBoxUnavailableException] the same
-     * spec is retried without StrongBox (TEE). Returns where the key lives
-     * so the downgrade table can gate gold correctly.
+     * StrongBox is tried first; on failure the same spec is retried without
+     * StrongBox (TEE). Only [StrongBoxUnavailableException] is the documented
+     * signal, but MIUI/KeyMint builds on devices without a StrongBox chip
+     * (e.g. Xiaomi M2103K19C) throw [java.security.ProviderException],
+     * [IllegalArgumentException] or [IllegalStateException] instead, so the
+     * fallback catches broadly. As a last resort (some KeyMint builds reject
+     * the attestation challenge) TEE generation is retried with no challenge;
+     * silver tier needs no attestation. Every fallback is logged so keygen
+     * failures are never silent.
      *
      * @param challenge fresh server nonce for KeyMint attestation.
      */
@@ -83,9 +90,22 @@ object RiseKeystore {
             generate(alias, challenge, strongBox = true)
             return KeyInfo(alias, KeyHome.STRONG_BOX, challenge)
         } catch (e: StrongBoxUnavailableException) {
+            Log.w("RISE", "KEYGEN_STRONGBOX_UNAVAILABLE, TEE fallback: ${e.message}")
+        } catch (e: Exception) {
+            Log.w("RISE", "KEYGEN_STRONGBOX_FAILED(${e.javaClass.simpleName}), TEE fallback: ${e.message}")
+        }
+        try {
             generate(alias, challenge, strongBox = false)
             return KeyInfo(alias, readHome(alias), challenge)
+        } catch (e: Exception) {
+            Log.w("RISE", "KEYGEN_TEE_ATTEST_FAILED(${e.javaClass.simpleName}), retry without challenge: ${e.message}")
         }
+        try {
+            delete(alias)
+        } catch (_: Exception) {
+        }
+        generate(alias, null, strongBox = false)
+        return KeyInfo(alias, readHome(alias), challenge)
     }
 
     /** True when the alias already exists in AndroidKeyStore. */
@@ -110,17 +130,28 @@ object RiseKeystore {
         return sig.sign()
     }
 
-    private fun generate(alias: String, challenge: ByteArray, strongBox: Boolean) {
+    /** Deletes the alias so a broken/invalidated key can be regenerated. */
+    fun delete(alias: String) {
+        val store = KeyStore.getInstance(ANDROID_KEYSTORE)
+        store.load(null)
+        if (store.containsAlias(alias)) {
+            store.deleteEntry(alias)
+        }
+    }
+
+    private fun generate(alias: String, challenge: ByteArray?, strongBox: Boolean) {
         val specBuilder = KeyGenParameterSpec.Builder(
             alias,
             KeyProperties.PURPOSE_SIGN or KeyProperties.PURPOSE_VERIFY,
         )
             .setAlgorithmParameterSpec(ECGenParameterSpec(CURVE_P256))
             .setDigests(KeyProperties.DIGEST_SHA256)
-            .setAttestationChallenge(challenge)
             // User authentication is NOT required: shutter signing must not
             // block on biometrics; theft mitigation is key rotation (90 days).
             .setUserAuthenticationRequired(false)
+        if (challenge != null) {
+            specBuilder.setAttestationChallenge(challenge)
+        }
         if (strongBox && Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
             specBuilder.setIsStrongBoxBacked(true)
         }

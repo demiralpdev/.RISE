@@ -68,7 +68,8 @@ class MainActivity : Activity() {
                         status.text = "SEALED + SIGNED: ${raw.yuvBytes.size} bytes\nHASH=$hex"
                         Log.i("RISE", "MANIFEST_SAVED=$path")
                     } catch (e: Exception) {
-                        Log.i("RISE", "SIGN_FAIL=${e.message}")
+                        status.text = "SIGNED FAIL: ${e.message}"
+                        Log.e("RISE", "SIGN_ERROR: " + e.message, e)
                     }
                 }.onFailure { e ->
                     status.text = "FAIL: ${e.message}"
@@ -84,13 +85,36 @@ class MainActivity : Activity() {
     }
 
     private fun signAndSeal(raw: RiseCapture.RawFrame, frameHex: String): String {
+        try {
+            return signAndSealInner(raw, frameHex)
+        } catch (e: Exception) {
+            Log.e("RISE", "SIGN_ERROR: " + e.message, e)
+            throw e
+        }
+    }
+
+    private fun signAndSealInner(raw: RiseCapture.RawFrame, frameHex: String): String {
         val alias = RiseKeystore.DEFAULT_ALIAS
         RiseKeystore.ensureP256Key(alias, ByteArray(32).also { java.security.SecureRandom().nextBytes(it) })
         val tiles = splitTiles(raw.yuvBytes).map { sha256Hex(it) }
         val root = merkleRoot(tiles)
         val deviceId = android.provider.Settings.Secure.getString(contentResolver, android.provider.Settings.Secure.ANDROID_ID) ?: "android-unknown"
         val canon = canonicalJson(frameHex, tiles, root, raw.timestampMs, deviceId, alias)
-        val sigHex = derToRawHex(RiseKeystore.sign(alias, canon.toByteArray(Charsets.UTF_8)))
+        val canonBytes = canon.toByteArray(Charsets.UTF_8)
+        val sigDer = try {
+            RiseKeystore.sign(alias, canonBytes)
+        } catch (e: java.security.InvalidKeyException) {
+            Log.w("RISE", "signing key invalidated, regenerating: ${e.message}")
+            RiseKeystore.delete(alias)
+            RiseKeystore.ensureP256Key(alias, ByteArray(32).also { java.security.SecureRandom().nextBytes(it) })
+            RiseKeystore.sign(alias, canonBytes)
+        } catch (e: java.security.UnrecoverableEntryException) {
+            Log.w("RISE", "signing key unrecoverable, regenerating: ${e.message}")
+            RiseKeystore.delete(alias)
+            RiseKeystore.ensureP256Key(alias, ByteArray(32).also { java.security.SecureRandom().nextBytes(it) })
+            RiseKeystore.sign(alias, canonBytes)
+        }
+        val sigHex = derToRawHex(sigDer)
         Log.i("RISE", "SIGNATURE=$sigHex")
         val manifest = canonicalJson(frameHex, tiles, root, raw.timestampMs, deviceId, alias, sigHex)
         val f = java.io.File(getExternalFilesDir(null), "frame-001.manifest.json")
@@ -142,28 +166,40 @@ class MainActivity : Activity() {
     }
 
     private fun derToRawHex(der: ByteArray): String {
+        require(der.size >= 8) { "ECDSA DER too short: ${der.size} bytes" }
+        require(der[0] == 0x30.toByte()) { "ECDSA DER: expected SEQUENCE tag" }
         var p = 1 + lenSize(der, 1)
+        require(p < der.size && der[p] == 0x02.toByte()) { "ECDSA DER: expected INTEGER r" }
         p += 1
         val rLen = readLen(der, p)
         p += lenSize(der, p)
+        require(rLen > 0 && p + rLen <= der.size) { "ECDSA DER: r length $rLen overruns ${der.size} bytes" }
         val r = stripLeadingZero(der.copyOfRange(p, p + rLen))
-        p += rLen + 1
+        p += rLen
+        require(p < der.size && der[p] == 0x02.toByte()) { "ECDSA DER: expected INTEGER s" }
+        p += 1
         val sLen = readLen(der, p)
         p += lenSize(der, p)
+        require(sLen > 0 && p + sLen <= der.size) { "ECDSA DER: s length $sLen overruns ${der.size} bytes" }
         val s = stripLeadingZero(der.copyOfRange(p, p + sLen))
+        require(r.size <= 32 && s.size <= 32) { "ECDSA DER: coordinate oversize r=${r.size} s=${s.size}" }
         return r.joinToString("") { String.format("%02x", it) }.padStart(64, '0') +
             s.joinToString("") { String.format("%02x", it) }.padStart(64, '0')
     }
 
     private fun readLen(der: ByteArray, p: Int): Int {
+        require(p < der.size) { "ECDSA DER: length offset $p out of bounds" }
         val b = der[p].toInt() and 0xFF
         if (b < 0x80) return b
+        val n = b and 0x7F
+        require(n in 1..4 && p + 1 + n <= der.size) { "ECDSA DER: bad long-form length at $p" }
         var v = 0
-        for (i in 1..(b and 0x7F)) v = (v shl 8) or (der[p + i].toInt() and 0xFF)
+        for (i in 1..n) v = (v shl 8) or (der[p + i].toInt() and 0xFF)
         return v
     }
 
     private fun lenSize(der: ByteArray, p: Int): Int {
+        require(p < der.size) { "ECDSA DER: length offset $p out of bounds" }
         val b = der[p].toInt() and 0xFF
         return if (b < 0x80) 1 else 1 + (b and 0x7F)
     }
