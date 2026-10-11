@@ -1,6 +1,6 @@
 [package]
 name = "rise-core"
-version = "0.2.0"
+version = "0.2.2"
 edition = "2021"
 description = "RISE — cryptographic proof that photos and videos are real (C2PA-compatible)"
 license = "Apache-2.0"

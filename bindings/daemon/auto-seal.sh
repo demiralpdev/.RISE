@@ -76,13 +76,6 @@ is_image() {
   esac
 }
 
-is_jpeg() {
-  case "$(lower_ext "$1")" in
-    *.jpg|*.jpeg) return 0 ;;
-    *) return 1 ;;
-  esac
-}
-
 should_skip() {
   local f="$1"
   case "$f" in
@@ -138,16 +131,11 @@ seal_image() {
     rm -f "$manifest"
     return
   fi
-  if is_jpeg "$f"; then
-    if "$RISE_BIN" pack "$f" "$manifest" --out "$out" >> "$LOG_FILE" 2>&1; then
-      log "SEAL-IMAGE ok $f -> $out (packed JPEG)"
-    else
-      log "ERROR pack failed for $f, keeping manifest as .rise fallback"
-      cp -f "$manifest" "$out" && log "SEAL-IMAGE ok $f -> $out (manifest fallback)"
-    fi
+  if "$RISE_BIN" pack "$f" "$manifest" --out "$out" >> "$LOG_FILE" 2>&1; then
+    log "SEAL-IMAGE ok $f -> $out (packed, self-contained)"
   else
-    # pack is JPEG-only; PNG screenshots seal as manifest JSON
-    cp -f "$manifest" "$out" && log "SEAL-IMAGE ok $f -> $out (manifest, PNG has no JPEG pack)"
+    log "ERROR pack failed for $f, keeping manifest as .rise fallback"
+    cp -f "$manifest" "$out" && log "SEAL-IMAGE ok $f -> $out (manifest fallback)"
   fi
 }
 

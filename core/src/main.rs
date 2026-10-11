@@ -547,7 +547,7 @@ fn keygen_cmd(out: &str, alg: &str) -> i32 {
 
 /// pack command: embed the manifest into the JPEG via JUMBF APP11.
 fn pack_cmd(file: &str, manifest_path: &str, out: &str) -> i32 {
-    let Ok(jpg) = fs::read(file) else {
+    let Ok(bytes) = fs::read(file) else {
         eprintln!("frame read error: {file}");
         return 2;
     };
@@ -555,13 +555,31 @@ fn pack_cmd(file: &str, manifest_path: &str, out: &str) -> i32 {
         eprintln!("manifest read error: {manifest_path}");
         return 2;
     };
-    match rise_core::jumbf::jpeg_embed(&jpg, text.as_bytes()) {
+    use rise_core::container::{self, Container};
+    let sealed = match container::detect(&bytes) {
+        Container::Jpeg => rise_core::jumbf::jpeg_embed(&bytes, text.as_bytes()),
+        Container::Png => container::png_insert_chunk(&bytes, text.as_bytes())
+            .map_err(|e| rise_core::RiseError::Crypto(format!("png pack: {e}"))),
+        Container::Mp4 => container::mp4_append_box(&bytes, text.as_bytes())
+            .map_err(|e| rise_core::RiseError::Crypto(format!("mp4 pack: {e}"))),
+        Container::Unknown => {
+            eprintln!("pack error: unsupported file type (JPEG, PNG or MP4): {file}");
+            return 2;
+        }
+    };
+    match sealed {
         Ok(sealed) => {
             if let Err(e) = fs::write(out, sealed) {
                 eprintln!("write error: {e}");
                 return 2;
             }
-            println!("packed: {out}");
+            let kind = match container::detect(&bytes) {
+                Container::Jpeg => "JPEG APP11",
+                Container::Png => "PNG risE chunk",
+                Container::Mp4 => "MP4 rise box",
+                Container::Unknown => unreachable!(),
+            };
+            println!("packed ({kind}): {out}");
             0
         }
         Err(e) => {
@@ -762,14 +780,46 @@ fn video_cmd(
         }
     };
     if let Some(path) = out {
-        if let Err(e) = fs::write(path, &json) {
-            eprintln!("write error: {e}");
-            return 2;
+        let input_bytes = match fs::read(input) {
+            Ok(b) => b,
+            Err(e) => {
+                eprintln!("input re-read error: {e}");
+                return 2;
+            }
+        };
+        use rise_core::container::{self, Container};
+        match container::detect(&input_bytes) {
+            Container::Mp4 => {
+                // Self-contained format: the .rise IS a playable MP4 with
+                // the signed manifest embedded as a `rise` box.
+                let sealed = match container::mp4_append_box(&input_bytes, json.as_bytes()) {
+                    Ok(s) => s,
+                    Err(e) => {
+                        eprintln!("mp4 embed error: {e}");
+                        return 2;
+                    }
+                };
+                if let Err(e) = fs::write(path, &sealed) {
+                    eprintln!("write error: {e}");
+                    return 2;
+                }
+                eprintln!(
+                    "sealed {} frames from {input} -> {path} (playable MP4 + embedded manifest)",
+                    m.frame_hashes.len()
+                );
+            }
+            _ => {
+                // mkv/webm/flv cannot carry an ISO-BMFF box: JSON sidecar.
+                if let Err(e) = fs::write(path, &json) {
+                    eprintln!("write error: {e}");
+                    return 2;
+                }
+                eprintln!(
+                    "sealed {} frames from {input} -> {path} (manifest JSON; convert to MP4 for embedded packing)",
+                    m.frame_hashes.len()
+                );
+            }
         }
-        eprintln!(
-            "sealed {} frames from {input} -> {path}",
-            m.frame_hashes.len()
-        );
     } else {
         println!("{json}");
         eprintln!("sealed {} frames from {input}", m.frame_hashes.len());
@@ -963,23 +1013,34 @@ fn screen_record_cmd(start: bool, stop: bool, out: &str) -> i32 {
     }
 }
 
-/// unpack command: extract the embedded manifest JSON.
+/// Pass-through for raw JSON payloads: None when the bytes are not valid JSON.
+fn json_or_none(raw: &[u8]) -> Option<Vec<u8>> {
+    serde_json::from_slice::<serde_json::Value>(raw).ok()?;
+    Some(raw.to_vec())
+}
+
+/// unpack command: extract the embedded manifest JSON (JPEG APP11,
+/// PNG risE chunk, or MP4 rise box — the FIRST embedded manifest wins).
 fn unpack_cmd(file: &str) -> i32 {
-    let Ok(jpg) = fs::read(file) else {
+    let Ok(bytes) = fs::read(file) else {
         eprintln!("frame read error: {file}");
         return 2;
     };
-    match rise_core::jumbf::jpeg_extract(&jpg) {
-        Some(jumbf) => match rise_core::jumbf::parse_json_payload(&jumbf) {
-            Ok(payload) => {
-                println!("{}", String::from_utf8_lossy(&payload));
-                0
-            }
-            Err(e) => {
-                eprintln!("jumbf parse error: {e}");
-                2
-            }
-        },
+    use rise_core::container::{self, Container};
+    let extracted: Option<Vec<u8>> = match container::detect(&bytes) {
+        // JPEG carries a JUMBF-wrapped payload (C2PA container).
+        Container::Jpeg => rise_core::jumbf::jpeg_extract(&bytes)
+            .and_then(|j| rise_core::jumbf::parse_json_payload(&j).ok()),
+        // PNG risE chunk / MP4 rise box carry the manifest JSON raw.
+        Container::Png => container::png_extract_chunk(&bytes).and_then(|raw| json_or_none(&raw)),
+        Container::Mp4 => container::mp4_extract_box(&bytes).and_then(|raw| json_or_none(&raw)),
+        Container::Unknown => None,
+    };
+    match extracted {
+        Some(payload) => {
+            println!("{}", String::from_utf8_lossy(&payload));
+            0
+        }
         None => {
             eprintln!("no embedded manifest found in: {file}");
             3

@@ -7,6 +7,7 @@ use sha2::{Digest, Sha256};
 use std::io::Read;
 use thiserror::Error;
 
+pub mod container;
 pub mod jumbf;
 pub mod signer;
 pub mod timestamp;

@@ -20,58 +20,112 @@ struct RiseManifest: Decodable {
 }
 
 enum RiseResult {
-    case ok(cleanJPEG: Data, manifest: RiseManifest, hashMatches: Bool)
+    case ok(image: Data?, manifest: RiseManifest, hashMatches: Bool)
     case broken(reason: String)
+}
+
+let pngSignature: [UInt8] = [0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A]
+
+func be32(_ data: Data, _ i: Int) -> Int {
+    Int(data[i]) << 24 | Int(data[i + 1]) << 16 | Int(data[i + 2]) << 8 | Int(data[i + 3])
+}
+
+func decodeManifest(_ json: Data) -> RiseManifest? {
+    try? JSONDecoder().decode(RiseManifest.self, from: json)
 }
 
 /// Strips RISE APP11 segments (FF EB containing "rise_version") from a JPEG,
 /// returning the clean original byte stream and the embedded manifest JSON.
 func parseRise(_ data: Data) -> RiseResult {
-    guard data.count > 4, data[0] == 0xFF, data[1] == 0xD8 else {
-        return .broken(reason: "Not a JPEG-based .rise file.")
-    }
-    var out = Data(data[0...1])
-    var manifestJSON: Data?
-    var i = 2
-    while i + 4 <= data.count {
-        guard data[i] == 0xFF else { return .broken(reason: "JPEG desync at byte \(i).") }
-        let marker = data[i + 1]
-        if marker == 0xD9 { out.append(data[i...i + 1]); i += 2; break }
-        if marker == 0xDA { // SOS: copy header, then entropy stream verbatim
-            let seglen = Int(data[i + 2]) << 8 | Int(data[i + 3])
-            out.append(data[i...i + 1 + seglen])
-            i += 2 + seglen
-            if i < data.count { out.append(data[i...]) }
-            i = data.count
-            break
-        }
-        let seglen = Int(data[i + 2]) << 8 | Int(data[i + 3])
-        let end = i + 2 + seglen
-        guard end <= data.count, seglen >= 2 else { return .broken(reason: "Bad segment length.") }
-        let seg = data[i..<end]
-        if marker == 0xEB, seg.contains("rise_version".data(using: .utf8)!) {
-            if let b = manifestJSON { _ = b } else {
-                if let s = seg.firstIndex(of: UInt8(ascii: "{")),
+    // JPEG: APP11 JUMBF segment.
+    if data.count > 3, data[0] == 0xFF, data[1] == 0xD8, data[2] == 0xFF {
+        var out = Data(data[0...1])
+        var manifestJSON: Data?
+        var i = 2
+        while i + 4 <= data.count {
+            guard data[i] == 0xFF else { return .broken(reason: "JPEG desync at byte \(i).") }
+            let marker = data[i + 1]
+            if marker == 0xD9 { out.append(data[i...i + 1]); break }
+            if marker == 0xDA {
+                let seglen = be32(data, i + 2) >> 16
+                out.append(data[i...i + 1 + seglen])
+                i += 2 + seglen
+                if i < data.count { out.append(data[i...]) }
+                break
+            }
+            let seglen = be32(data, i + 2) >> 16
+            let end = i + 2 + seglen
+            guard end <= data.count, seglen >= 2 else { return .broken(reason: "Bad segment length.") }
+            let seg = data[i..<end]
+            if marker == 0xEB, seg.contains("rise_version".data(using: .utf8)!) {
+                if manifestJSON == nil,
+                   let s = seg.firstIndex(of: UInt8(ascii: "{")),
                    let e = seg.lastIndex(of: UInt8(ascii: "}")), s < e {
                     manifestJSON = seg[s...e]
                 }
+            } else {
+                out.append(seg)
             }
-        } else {
-            out.append(seg)
+            i = end
         }
-        i = end
+        guard let mj = manifestJSON, let manifest = decodeManifest(mj) else {
+            return .broken(reason: "No embedded RISE manifest found.")
+        }
+        var matches = false
+        if let first = manifest.frame_hashes.first {
+            let digest = SHA256.hash(data: out).map { String(format: "%02x", $0) }.joined()
+            matches = (digest == first)
+        }
+        return .ok(image: out, manifest: manifest, hashMatches: matches)
     }
-    guard let mj = manifestJSON,
-          let manifest = try? JSONDecoder().decode(RiseManifest.self, from: mj) else {
+
+    // PNG: ancillary `risE` chunk.
+    if data.count > 8, Array(data[0..<8]) == pngSignature {
+        var out = Data(data[0..<8])
+        var manifestJSON: Data?
+        var i = 8
+        while i + 8 <= data.count {
+            let len = be32(data, i)
+            let end = i + 8 + len + 4
+            guard len >= 0, end <= data.count else { return .broken(reason: "PNG chunk out of range.") }
+            let kind = data[i + 4..<i + 8]
+            if kind == Data("risE".utf8) {
+                if manifestJSON == nil { manifestJSON = data[i + 8..<i + 8 + len] }
+            } else {
+                out.append(data[i..<end])
+            }
+            if kind == Data("IEND".utf8) { break }
+            i = end
+        }
+        guard let mj = manifestJSON, let manifest = decodeManifest(mj) else {
+            return .broken(reason: "No embedded RISE manifest found.")
+        }
+        var matches = false
+        if let first = manifest.frame_hashes.first, manifest.frame_hashes.count == 1 {
+            let digest = SHA256.hash(data: out).map { String(format: "%02x", $0) }.joined()
+            matches = (digest == first)
+        }
+        return .ok(image: out, manifest: manifest, hashMatches: matches)
+    }
+
+    // MP4: top-level `rise` box (video manifest — no image preview).
+    if data.count > 8, String(data: data[4..<8], encoding: .ascii) == "ftyp" {
+        var i = 0
+        while i + 8 <= data.count {
+            let size = be32(data, i)
+            if size == 0 || size < 8 || i + size > data.count { break }
+            if data[i + 4..<i + 8] == Data("rise".utf8) {
+                guard let manifest = decodeManifest(data[i + 8..<i + size]) else {
+                    return .broken(reason: "Corrupted embedded manifest.")
+                }
+                return .ok(image: nil, manifest: manifest, hashMatches: false)
+            }
+            i += size
+        }
         return .broken(reason: "No embedded RISE manifest found.")
     }
-    // Hash check applies to single-frame (photo) seals.
-    var matches = false
-    if let first = manifest.frame_hashes.first {
-        let digest = SHA256.hash(data: out).map { String(format: "%02x", $0) }.joined()
-        matches = (digest == first)
-    }
-    return .ok(cleanJPEG: out, manifest: manifest, hashMatches: matches)
+
+    return .broken(reason: "Not a JPEG, PNG or MP4 based .rise file.")
 }
 
 // MARK: - UI
@@ -176,8 +230,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         switch parseRise(data) {
         case .broken(let reason):
             show(error: reason)
-        case .ok(let clean, let manifest, let matches):
-            imageView.image = NSImage(data: clean)
+        case .ok(let imageData, let manifest, let matches):
+            imageView.image = imageData.flatMap { NSImage(data: $0) }
             let frames = manifest.frame_hashes.count
             let dateStr = manifest.timestamp_ms.map { ms in
                 let d = Date(timeIntervalSince1970: TimeInterval(ms) / 1000)

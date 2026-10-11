@@ -32,6 +32,30 @@ SHA256(raw frame) at shutter + sign + timestamp
 - Raw-frame flows (Windows YUY2) keep a sidecar `<original>.manifest.json`
   plus the raw file — APP11 requires a JPEG container.
 
+## 2.2 Containers
+
+One self-contained file per media type — the proof lives inside the
+media, never in a sidecar:
+
+| Media | Mechanism | Result stays valid for |
+|---|---|---|
+| JPEG | APP11 JUMBF segment (`core/src/jumbf.rs`, C2PA 2.4) | any JPEG viewer, c2patool |
+| PNG | ancillary `risE` chunk, inserted before the first IDAT (`core/src/container.rs`) | any PNG decoder |
+| MP4 | top-level `rise` box, appended at EOF (`core/src/container.rs`) | any ISO-BMFF player |
+
+Payload rules:
+
+- JPEG embeds the manifest in a JUMBF envelope (C2PA compatibility).
+- PNG chunk and MP4 box carry the manifest JSON raw (UTF-8).
+- Extraction rule: the FIRST embedded manifest in file order wins. A
+  second `rise` box or `risE` chunk (e.g. an attacker transplant) is
+  ignored; deleting the original leaves no manifest (fail-closed).
+- PNG chunk insertion position (before IDAT) guarantees the
+  first-inserted seal stays first in file order, so later inserts never
+  displace it.
+- Non-box video containers (mkv/webm/flv) fall back to a manifest JSON
+  sidecar; convert to MP4 for embedded packing.
+
 ## 3. Hash and Signature
 
 - Hash: SHA-256 (mandatory, single algorithm).
