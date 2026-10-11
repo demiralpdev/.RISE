@@ -1,0 +1,10 @@
+services:
+  - type: web
+    name: rise-verify
+    runtime: docker
+    rootDir: verify-web
+    plan: free
+    healthCheckPath: /health
+    envVars:
+      - key: RISE_MONGO_URI
+        sync: false
