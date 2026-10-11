@@ -91,6 +91,11 @@ pub struct ManifestV1 {
     /// ML-DSA signature over the canonical carrying the classic signature (hex).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub pqc_signature: Option<String>,
+    /// Provenance of the sealed bytes (e.g. "screen" for OS screen-capture
+    /// APIs like macOS screencapture / DXGI; None for camera/file flows).
+    /// Part of the signed canonical JSON when present.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub capture_source: Option<String>,
 }
 
 /// Default tier is silver.
@@ -167,6 +172,7 @@ pub fn create_manifest_v1(
         signing_key_id: None,
         pqc_alg: None,
         pqc_signature: None,
+        capture_source: None,
     }
 }
 

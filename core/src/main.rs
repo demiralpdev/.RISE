@@ -127,6 +127,36 @@ enum Cmd {
         #[arg(long)]
         out: Option<String>,
     },
+    /// Seals a screenshot from the REAL OS framebuffer: captures via the
+    /// OS screen-capture API, hashes immediately, signs with
+    /// capture_source "screen", and packs into a sealed JPEG (.rise).
+    Screen {
+        /// Anonymous device id.
+        #[arg(long, default_value = "cli-device")]
+        device: String,
+        /// Signing key file (PKCS#8 PEM for es256, raw 32 bytes for ed25519).
+        #[arg(long)]
+        key: Option<String>,
+        /// Signature algorithm: es256 or ed25519.
+        #[arg(long, default_value = "es256")]
+        alg: String,
+        /// Sealed output path (.rise JPEG with APP11 manifest).
+        #[arg(long)]
+        out: Option<String>,
+    },
+    /// Placeholder screen recording via ffmpeg avfoundation.
+    /// --start begins a background capture, --stop ends it.
+    ScreenRecord {
+        /// Start a background screen recording.
+        #[arg(long, default_value_t = false)]
+        start: bool,
+        /// Stop the background screen recording.
+        #[arg(long, default_value_t = false)]
+        stop: bool,
+        /// Recording output path (used with --start).
+        #[arg(long, default_value = "/tmp/rise-screen-record.mov")]
+        out: String,
+    },
 }
 
 fn main() {
@@ -179,6 +209,13 @@ fn main() {
             alg,
             out,
         } => video_cmd(&input, &device, fps, key.as_deref(), &alg, out.as_deref()),
+        Cmd::Screen {
+            device,
+            key,
+            alg,
+            out,
+        } => screen_cmd(&device, key.as_deref(), &alg, out.as_deref()),
+        Cmd::ScreenRecord { start, stop, out } => screen_record_cmd(start, stop, &out),
     };
     std::process::exit(kod);
 }
@@ -743,6 +780,187 @@ fn video_cmd(
         eprintln!("unsigned (no --key given; not evidence until signed)");
     }
     0
+}
+
+/// screen command: capture the REAL OS framebuffer via the platform
+/// screen-capture API (screencapture on macOS), convert to JPEG, then run
+/// the full chain: hash -> manifest (capture_source "screen") -> sign ->
+/// pack (JPEG APP11). The capture tool talks to the display framebuffer,
+/// which is the "real screen" proof: the pixels came from the OS
+/// compositor, not from a file or an AI generator.
+fn screen_cmd(device: &str, key: Option<&str>, alg: &str, out: Option<&str>) -> i32 {
+    let sig_alg = match alg {
+        "es256" => SigAlg::Es256,
+        "ed25519" => SigAlg::Ed25519,
+        _ => {
+            eprintln!("unknown alg: {alg} (es256|ed25519)");
+            return 2;
+        }
+    };
+    // Unique temp dir for the raw capture plus the JPEG conversion.
+    let tmp = std::env::temp_dir().join(format!("rise-screen-{}-{}", std::process::id(), now_ms()));
+    if let Err(e) = fs::create_dir_all(&tmp) {
+        eprintln!("temp dir error: {e}");
+        return 2;
+    }
+    let png_path = tmp.join("capture.png");
+    let jpg_path = tmp.join("capture.jpg");
+    let png_str = png_path.to_string_lossy().into_owned();
+    // Silent capture of the real framebuffer (no shutter sound).
+    let status = Command::new("screencapture")
+        .args(["-x", &png_str])
+        .status();
+    match status {
+        Ok(s) if s.success() => {}
+        Ok(s) => {
+            eprintln!("screencapture failed (exit {s})");
+            let _ = fs::remove_dir_all(&tmp);
+            return 2;
+        }
+        Err(e) => {
+            eprintln!("screencapture error: {e} (screen capture needs macOS screencapture on PATH)");
+            let _ = fs::remove_dir_all(&tmp);
+            return 2;
+        }
+    }
+    // APP11 packing needs JPEG: convert the PNG capture.
+    let jpg_str = jpg_path.to_string_lossy().into_owned();
+    let converted = Command::new("ffmpeg")
+        .args(["-y", "-loglevel", "error", "-i", &png_str, "-q:v", "2", &jpg_str])
+        .status()
+        .map(|s| s.success())
+        .unwrap_or(false);
+    if !converted {
+        // Fallback when ffmpeg is missing: macOS sips converter.
+        let sips = Command::new("sips")
+            .args(["-s", "format", "jpeg", &png_str, "--out", &jpg_str])
+            .status()
+            .map(|s| s.success())
+            .unwrap_or(false);
+        if !sips {
+            eprintln!("conversion failed: install ffmpeg (`brew install ffmpeg`)");
+            let _ = fs::remove_dir_all(&tmp);
+            return 2;
+        }
+    }
+    let Ok(frame) = fs::read(&jpg_path) else {
+        eprintln!("frame read error: {}", jpg_path.display());
+        let _ = fs::remove_dir_all(&tmp);
+        return 2;
+    };
+    let _ = fs::remove_dir_all(&tmp);
+    // Build the manifest over the exact sealed bytes and tag the source.
+    let mut m = create_manifest_v1(&[&frame[..]], device, now_ms(), sig_alg, "silver");
+    m.capture_source = Some("screen".to_string());
+    if let Some(key_path) = key {
+        let signer = match load_signer(alg, key_path) {
+            Ok(s) => s,
+            Err(e) => {
+                eprintln!("key error: {e}");
+                return 2;
+            }
+        };
+        if let Err(e) = rise_core::sign_manifest_v1(&mut m, signer.as_ref()) {
+            eprintln!("sign error: {e}");
+            return 2;
+        }
+    }
+    let json = match manifest_to_json(&m) {
+        Ok(j) => j,
+        Err(e) => {
+            eprintln!("manifest error: {e}");
+            return 2;
+        }
+    };
+    let out_path = out.map(str::to_string).unwrap_or_else(|| format!("screen-{}.rise", now_ms()));
+    match rise_core::jumbf::jpeg_embed(&frame, json.as_bytes()) {
+        Ok(sealed) => {
+            if let Err(e) = fs::write(&out_path, sealed) {
+                eprintln!("write error: {e}");
+                return 2;
+            }
+            eprintln!("sealed screen capture (capture_source=screen) -> {out_path}");
+        }
+        Err(e) => {
+            eprintln!("pack error: {e}");
+            return 2;
+        }
+    }
+    if m.signature.is_some() {
+        eprintln!("signed ({alg})");
+    } else {
+        eprintln!("unsigned (no --key given; not evidence until signed)");
+    }
+    0
+}
+
+/// Pid file tracking the background ffmpeg screen recording.
+fn screen_record_pid_file() -> std::path::PathBuf {
+    std::env::temp_dir().join("rise-screen-record.pid")
+}
+
+/// screen-record command (placeholder): --start spawns a background
+/// ffmpeg avfoundation capture, --stop kills it. Seal the resulting
+/// .mov afterwards with `rise-core video --input <file>`.
+fn screen_record_cmd(start: bool, stop: bool, out: &str) -> i32 {
+    if start == stop {
+        eprintln!("specify exactly one of --start or --stop");
+        return 2;
+    }
+    let pid_file = screen_record_pid_file();
+    if start {
+        if Command::new("ffmpeg").arg("-version").output().is_err() {
+            eprintln!("ffmpeg not found: install ffmpeg (`brew install ffmpeg`)");
+            return 2;
+        }
+        if pid_file.exists() {
+            eprintln!("already recording (pid file {} exists); --stop first", pid_file.display());
+            return 2;
+        }
+        // macOS display capture via avfoundation, detached background child.
+        let child = Command::new("ffmpeg")
+            .args(["-y", "-loglevel", "error", "-f", "avfoundation", "-framerate", "30", "-i", "1:none", out])
+            .spawn();
+        match child {
+            Ok(c) => {
+                if let Err(e) = fs::write(&pid_file, format!("{}\n{out}\n", c.id())) {
+                    eprintln!("pid write error: {e}");
+                    return 2;
+                }
+                eprintln!("screen recording started (pid {}) -> {out}", c.id());
+                // Child keeps running after the CLI exits; forget the handle.
+                std::mem::forget(c);
+                0
+            }
+            Err(e) => {
+                eprintln!("ffmpeg spawn error: {e}");
+                2
+            }
+        }
+    } else {
+        let Ok(text) = fs::read_to_string(&pid_file) else {
+            eprintln!("not recording (no pid file {})", pid_file.display());
+            return 2;
+        };
+        let mut lines = text.lines();
+        let pid: i32 = match lines.next().and_then(|l| l.trim().parse().ok()) {
+            Some(p) => p,
+            None => {
+                eprintln!("corrupt pid file {}", pid_file.display());
+                return 2;
+            }
+        };
+        let rec_path = lines.next().unwrap_or(out).to_string();
+        // Stop the background ffmpeg.
+        let killed = Command::new("kill").arg(pid.to_string()).status().map(|s| s.success()).unwrap_or(false);
+        let _ = fs::remove_file(&pid_file);
+        if !killed {
+            eprintln!("could not signal pid {pid}; recording may have already exited");
+        }
+        eprintln!("screen recording stopped -> {rec_path}");
+        eprintln!("seal it next: rise-core video --input {rec_path} --device <id> --key <key> --out manifest.json");
+        0
+    }
 }
 
 /// unpack command: extract the embedded manifest JSON.
