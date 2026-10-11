@@ -7,8 +7,8 @@ const fs = require("fs");
 const PLATFORMS = {
   "darwin-arm64": "rise-core-aarch64-apple-darwin",
   "darwin-x64": "rise-core-x86_64-apple-darwin",
-  "linux-arm64": "rise-core-aarch64-unknown-linux-gnu",
-  "linux-x64": "rise-core-x86_64-unknown-linux-gnu",
+  "linux-arm64": "rise-core-aarch64-unknown-linux-musl",
+  "linux-x64": "rise-core-x86_64-unknown-linux-musl",
   "win32-x64": "rise-core-x86_64-pc-windows-msvc.exe",
 };
 
