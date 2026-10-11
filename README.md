@@ -1,12 +1,12 @@
-# .rise
-
-```
-▄▄▄██▀▀▀█▌  ▄▄█  ▄▄▄██▀▀▄▄   ▄▄▄██▀▀▀█▌
-░▐███▀ ▄▄██░░▐███▌▀▀███▄▄▄▄▄ ░▐███▀▄▄██▀░
-▐█▄▓▌   ▀▀  ▐█▄▓█ ▄▄▄▄▄ ░▐██▌▐█▄▓█▀▀▀▄▄
- ▀▀▀█        ▀▀██▌░▀▀██▄▄██▀  ▀▀▀▀█▄▄██▌
-               ▀▀▀                  ▀▀▀
-```
+<h1 align="center">
+<pre>
+    ____  _________ ______
+   / __ \/  _/ ___// ____/
+  / /_/ // / \___ \/ / __  
+ / _, _// / ____/ / /_/ /  
+/_/ |_/___//____/\____/   
+</pre>
+</h1>
 
 [![CI](https://github.com/demiralpdev/.RISE/actions/workflows/ci.yml/badge.svg)](https://github.com/demiralpdev/.RISE/actions)
 [![Rust tests](https://img.shields.io/badge/rust_tests-36_passed_3_ignored-blue)](https://github.com/demiralpdev/.RISE/tree/main/core)
