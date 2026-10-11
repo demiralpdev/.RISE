@@ -2,6 +2,13 @@
 name = "rise-core"
 version = "0.2.0"
 edition = "2021"
+description = "RISE — cryptographic proof that photos and videos are real (C2PA-compatible)"
+license = "Apache-2.0"
+repository = "https://github.com/demiralpdev/.RISE"
+homepage = "https://riseproof.me"
+readme = "../README.md"
+keywords = ["c2pa", "provenance", "authenticity", "forensics", "camera"]
+categories = ["cryptography", "multimedia::images"]
 
 [lib]
 name = "rise_core"
