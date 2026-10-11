@@ -72,6 +72,7 @@ def _build_report_bundle(vid: str, stored: dict):
 class VerifyIn(BaseModel):
     manifest: str
     frame_b64: str = ""
+    signer_pub: str = ""
 
 
 class ReportIn(BaseModel):
@@ -92,7 +93,7 @@ def verify(inp: VerifyIn):
         frame = base64.b64decode(inp.frame_b64) if inp.frame_b64 else b""
     except (ValueError, TypeError):
         return {"badge": "red", "reason": "Frame undecodable, unverified.", "verify_url": ""}
-    r = verify_badge(inp.manifest, frame)
+    r = verify_badge(inp.manifest, frame, signer_pub=inp.signer_pub or None)
     t = _apply_trust(r["badge"], r["reason"], inp.manifest)
     vid = verify_id(hashlib.sha256(inp.manifest.encode()).hexdigest())
     _results[vid] = {

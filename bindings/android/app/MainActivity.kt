@@ -67,6 +67,13 @@ class MainActivity : Activity() {
                         val path = signAndSeal(raw, hex)
                         status.text = "SEALED + SIGNED: ${raw.yuvBytes.size} bytes\nHASH=$hex"
                         Log.i("RISE", "MANIFEST_SAVED=$path")
+                        try {
+                            val risePath = packRise(raw)
+                            status.text = "SEALED + SIGNED + PACKED: ${raw.yuvBytes.size} bytes\nHASH=$hex"
+                            Log.i("RISE", "RISE_FILE_SAVED=$risePath")
+                        } catch (e: Exception) {
+                            Log.e("RISE", "PACK_ERROR: " + e.message, e)
+                        }
                     } catch (e: Exception) {
                         status.text = "SIGNED FAIL: ${e.message}"
                         Log.e("RISE", "SIGN_ERROR: " + e.message, e)
@@ -120,6 +127,98 @@ class MainActivity : Activity() {
         val f = java.io.File(getExternalFilesDir(null), "frame-001.manifest.json")
         f.writeText(manifest, Charsets.UTF_8)
         return f.absolutePath
+    }
+
+    /** Packs the sealed manifest into a .rise file (JPEG + APP11 JUMBF). */
+    private fun packRise(raw: RiseCapture.RawFrame): String {
+        val mf = java.io.File(getExternalFilesDir(null), "frame-001.manifest.json")
+        val manifestBytes = mf.readBytes()
+        val jpg = frameToJpeg(raw)
+        val sealed = jpegEmbed(jpg, manifestBytes)
+        val out = java.io.File(getExternalFilesDir(null), "frame-001.rise")
+        out.writeBytes(sealed)
+        return out.absolutePath
+    }
+
+    /** Best-effort YUV -> JPEG via YuvImage; falls back to a minimal SOI+EOI JPEG. */
+    private fun frameToJpeg(raw: RiseCapture.RawFrame): ByteArray {
+        try {
+            val yuv = android.graphics.YuvImage(
+                raw.yuvBytes,
+                android.graphics.ImageFormat.NV21,
+                raw.width, raw.height, null,
+            )
+            val bos = java.io.ByteArrayOutputStream()
+            if (yuv.compressToJpeg(android.graphics.Rect(0, 0, raw.width, raw.height), 90, bos)) {
+                val b = bos.toByteArray()
+                if (b.size >= 2 && b[0] == 0xFF.toByte() && b[1] == 0xD8.toByte()) return b
+            }
+        } catch (_: Exception) {
+        }
+        return byteArrayOf(0xFF.toByte(), 0xD8.toByte(), 0xFF.toByte(), 0xD9.toByte())
+    }
+
+    /**
+     * Embeds the manifest JSON as an APP11 JUMBF segment right after the JPEG
+     * SOI marker (mirrors core/src/jumbf.rs build_superbox + jpeg_embed):
+     * APP11 = FF EB + len(2BE) + "JUMBF\0" + superbox, where
+     * superbox = len(4BE) + "jumb" + descBox + jsonBox,
+     * descBox = len(4BE) + "jumd" + C2PA_UUID(16) + toggles(0x00),
+     * jsonBox = len(4BE) + "json" + manifest bytes.
+     */
+    private fun jpegEmbed(jpg: ByteArray, manifestJson: ByteArray): ByteArray {
+        require(jpg.size >= 2 && jpg[0] == 0xFF.toByte() && jpg[1] == 0xD8.toByte()) {
+            "not a JPEG: missing SOI"
+        }
+        val c2paUuid = byteArrayOf(
+            0x63.toByte(), 0x32.toByte(), 0x70.toByte(), 0x61.toByte(),
+            0x00, 0x11.toByte(), 0x00, 0x10.toByte(),
+            0x80.toByte(), 0x00, 0x00, 0xAA.toByte(),
+            0x00, 0x38.toByte(), 0x9B.toByte(), 0x71.toByte(),
+        )
+        // description box: len + "jumd" + UUID + toggles
+        val descLen = 4 + 4 + 16 + 1
+        val desc = java.io.ByteArrayOutputStream(descLen)
+        desc.write(be32(descLen))
+        desc.write("jumd".toByteArray(Charsets.US_ASCII))
+        desc.write(c2paUuid)
+        desc.write(0x00)
+        val descBytes = desc.toByteArray()
+        // json content box: len + "json" + payload
+        val jsonLen = 4 + 4 + manifestJson.size
+        val jsonBox = java.io.ByteArrayOutputStream(jsonLen)
+        jsonBox.write(be32(jsonLen))
+        jsonBox.write("json".toByteArray(Charsets.US_ASCII))
+        jsonBox.write(manifestJson)
+        val jsonBytes = jsonBox.toByteArray()
+        // superbox: len + "jumb" + desc + json
+        val superLen = 4 + 4 + descBytes.size + jsonBytes.size
+        val sup = java.io.ByteArrayOutputStream(superLen)
+        sup.write(be32(superLen))
+        sup.write("jumb".toByteArray(Charsets.US_ASCII))
+        sup.write(descBytes)
+        sup.write(jsonBytes)
+        val superbox = sup.toByteArray()
+        // APP11 segment: FF EB + segLen(2BE, includes its own 2 bytes) + "JUMBF\0" + superbox
+        val segLen = 2 + 6 + superbox.size
+        require(segLen <= 0xFFFF) { "manifest too large for single APP11 segment: $segLen" }
+        val out = java.io.ByteArrayOutputStream(2 + 2 + segLen - 2 + (jpg.size - 2))
+        out.write(byteArrayOf(0xFF.toByte(), 0xD8.toByte()))
+        out.write(byteArrayOf(0xFF.toByte(), 0xEB.toByte()))
+        out.write(byteArrayOf(((segLen shr 8) and 0xFF).toByte(), (segLen and 0xFF).toByte()))
+        out.write("JUMBF\u0000".toByteArray(Charsets.US_ASCII))
+        out.write(superbox)
+        out.write(jpg, 2, jpg.size - 2)
+        return out.toByteArray()
+    }
+
+    private fun be32(n: Int): ByteArray {
+        return byteArrayOf(
+            ((n shr 24) and 0xFF).toByte(),
+            ((n shr 16) and 0xFF).toByte(),
+            ((n shr 8) and 0xFF).toByte(),
+            (n and 0xFF).toByte(),
+        )
     }
 
     private fun canonicalJson(frameHex: String, tiles: List<String>, root: String, ts: Long, deviceId: String, alias: String, sigHex: String? = null): String {
