@@ -2,342 +2,368 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>RISE — Is it real? Prove it.</title>
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>RISE</title>
 <style>
 :root{
-  --bg:#090c10;--card:#0f1218;--border:#1a212e;--text:#d5dde5;
-  --dim:#5b6470;--blue:#58a6ff;--green:#00e080;--red:#ff3b3b;--gold:#d29922;
-  --silver:#8b949e;--font:ui-monospace,'SF Mono','Fira Code',Menlo,Consolas,monospace;
+  --ph:#FFB000; --ph-dim:#8B5F00; --ph-bright:#FFD700;
+  --bg:#0A0800; --bg-panel:#120E00;
+  --text:#E8D5A0; --dim:#6B5A30; --faint:#3A3020;
+  --red:#FF4444; --green:#00FF66;
+  --font:'Courier New','IBM Plex Mono','JetBrains Mono',monospace;
 }
 *{margin:0;padding:0;box-sizing:border-box}
-body{background:var(--bg);color:var(--text);font-family:var(--font);font-size:14px;line-height:1.6}
-::selection{background:var(--blue);color:#fff}
+html{scroll-behavior:smooth}
+body{background:var(--bg);color:var(--text);font-family:var(--font);font-size:14px;
+  line-height:1.5;overflow-x:hidden}
+::selection{background:var(--ph);color:var(--bg)}
+::-webkit-scrollbar{width:8px}
+::-webkit-scrollbar-track{background:var(--bg)}
+::-webkit-scrollbar-thumb{background:var(--faint);border-radius:0}
+::-webkit-scrollbar-thumb:hover{background:var(--ph-dim)}
 
-.topbar{display:flex;align-items:center;justify-content:space-between;padding:10px 20px;
-  border-bottom:1px solid var(--border);background:rgba(9,12,16,.95);backdrop-filter:blur(8px);
-  position:sticky;top:0;z-index:10;font-size:11px;color:var(--dim)}
-.topbar .live{color:var(--green)}
-.topbar .live::before{content:"●";margin-right:5px;animation:blink 2s infinite}
-@keyframes blink{50%{opacity:.4}}
+/* CRT effect */
+body::before{content:"";position:fixed;inset:0;z-index:99;pointer-events:none;
+  background:repeating-linear-gradient(0deg,transparent 0 2px,rgba(0,0,0,.08) 2px 4px)}
+body::after{content:"";position:fixed;inset:0;z-index:98;pointer-events:none;
+  background:radial-gradient(ellipse at 50% 50%,transparent 60%,rgba(0,0,0,.4) 100%);
+  animation:flicker 4s infinite}
+@keyframes flicker{0%,100%{opacity:1}50%{opacity:.97}}
+@media(prefers-reduced-motion:reduce){body::before,body::after{display:none}}
 
-.hero{text-align:center;padding:64px 20px 32px}
-.hero h1{font-size:42px;font-weight:800;letter-spacing:10px;color:var(--text);
-  text-shadow:0 0 30px rgba(88,166,255,.25)}
-.hero .sub{font-size:15px;color:var(--dim);margin-top:8px;font-style:italic}
-.hero .sub-tr{font-size:12px;color:#3a4250;margin-top:4px}
-@media(max-width:480px){.hero h1{font-size:32px;letter-spacing:6px}}
+/* ─── top status line ─── */
+#status{display:flex;justify-content:space-between;padding:4px 12px;
+  font-size:11px;color:var(--dim);border-bottom:1px solid var(--faint);
+  position:sticky;top:0;background:var(--bg);z-index:10}
+#status .ok{color:var(--green)}
+#status .ok::before{content:"●";margin-right:4px;animation:blink 1.5s infinite}
+#status .time{color:var(--ph-dim)}
+@keyframes blink{50%{opacity:.3}}
 
-.container{max-width:720px;margin:0 auto;padding:0 16px 32px}
-.term{border:1px solid var(--border);border-radius:10px;overflow:hidden;
-  background:linear-gradient(135deg,var(--card),#0b0e13);
-  box-shadow:0 4px 24px rgba(0,0,0,.4)}
-.term-head{display:flex;align-items:center;gap:8px;padding:10px 14px;
-  border-bottom:1px solid var(--border);font-size:11px;color:var(--dim)}
-.term-head .dots{display:flex;gap:6px}
-.term-head .dots span{width:10px;height:10px;border-radius:50%}
-.term-head .dots .r{background:#ff5f57}.term-head .dots .y{background:#febc2e}.term-head .dots .g{background:#28c840}
-.term-head .title{flex:1;text-align:center}
-.term-head .cmd{color:var(--blue)}
-.term-head .cmd::after{content:"▮";animation:blink 1s infinite}
+/* ─── hero ASCII art ─── */
+.hero{padding:48px 16px 24px;text-align:center;overflow:hidden}
+.hero pre{font-size:10px;line-height:1.15;color:var(--ph);
+  text-shadow:0 0 8px rgba(255,176,0,.3);white-space:pre;display:inline-block}
+@media(max-width:600px){.hero pre{font-size:7px}}
+.hero .tagline{margin-top:12px;font-size:13px;color:var(--dim);font-style:italic}
+.hero .tagline .cursor{display:inline-block;width:8px;height:14px;
+  background:var(--ph);animation:blink 1s steps(1) infinite;vertical-align:middle;margin-left:4px}
 
-.upload-zone{padding:48px 24px;text-align:center;cursor:pointer;
-  border:2px dashed var(--border);margin:20px;border-radius:8px;
-  transition:border-color .2s,background .2s}
-.upload-zone:hover,.upload-zone.drag{border-color:var(--blue);background:rgba(88,166,255,.04)}
-.upload-zone svg{width:36px;height:36px;stroke:var(--dim);margin-bottom:12px}
-.upload-zone .main{font-size:16px;font-weight:600;color:var(--text)}
-.upload-zone .hint{font-size:12px;color:var(--dim);margin-top:6px}
-.upload-zone .ext{font-size:10px;color:#3a4250;margin-top:10px}
-.upload-zone input[type=file]{position:absolute;width:0;height:0;opacity:0}
+/* typewriter */
+.type{overflow:hidden;white-space:nowrap;
+  animation:typing 2.5s steps(40) 0.5s forwards,width 0}
+@keyframes typing{from{max-width:0}to{max-width:100%}}
 
-.file-info{display:none;align-items:center;gap:8px;padding:10px 14px;margin:0 20px 16px;
-  border:1px solid var(--border);border-radius:6px;font-size:12px;background:var(--bg)}
-.file-info.on{display:flex}
-.file-info .name{flex:1;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.file-info .size{color:var(--dim);font-size:11px}
-.file-info .rm{background:none;border:0;color:var(--dim);cursor:pointer;font-size:16px;padding:4px}
-.file-info .rm:hover{color:var(--red)}
+/* ─── main panel ─── */
+.panel{max-width:680px;margin:0 auto 24px;padding:0 12px}
+.frame{border:1px solid var(--faint);position:relative;padding:16px;
+  background:var(--bg-panel)}
+.frame::before{content:"┌";position:absolute;top:-1px;left:-1px;
+  color:var(--ph-dim);font-size:14px}
+.frame::after{content:"┘";position:absolute;bottom:-1px;right:-1px;
+  color:var(--ph-dim);font-size:14px}
+.frame .frame-t{position:absolute;top:-8px;left:16px;background:var(--bg);
+  padding:0 8px;font-size:11px;color:var(--ph-dim)}
 
-.adv{margin:0 20px 20px;border:1px solid var(--border);border-radius:8px;overflow:hidden}
-.adv-toggle{display:flex;align-items:center;gap:6px;width:100%;padding:10px 14px;
-  background:none;border:0;color:var(--dim);font-family:var(--font);font-size:12px;
-  cursor:pointer;text-align:left}
-.adv-toggle:hover{color:var(--text);background:rgba(255,255,255,.02)}
-.adv-toggle .arrow{transition:transform .2s}
-.adv.open .adv-toggle .arrow{transform:rotate(90deg)}
-.adv-body{display:none;padding:12px 14px;border-top:1px solid var(--border);
+/* ─── drop zone ─── */
+.dropzone{border:1px dashed var(--faint);padding:36px 16px;text-align:center;
+  cursor:pointer;transition:border-color .3s,background .3s;margin-bottom:12px;position:relative}
+.dropzone:hover,.dropzone.active{border-color:var(--ph);background:rgba(255,176,0,.03)}
+.dropzone .ascii-icon{color:var(--ph-dim);font-size:20px;line-height:1;margin-bottom:8px}
+.dropzone .main{font-size:14px;color:var(--text)}
+.dropzone .sub{font-size:11px;color:var(--dim);margin-top:4px}
+.dropzone .fmt{font-size:10px;color:var(--faint);margin-top:8px}
+.dropzone input[type=file]{position:absolute;inset:0;width:100%;height:100%;opacity:0;cursor:pointer}
+
+/* file loaded chip */
+.fileinfo{display:none;padding:8px 12px;border:1px solid var(--faint);
+  font-size:12px;margin-bottom:12px;align-items:center;gap:8px}
+.fileinfo.on{display:flex}
+.fileinfo .fname{flex:1;color:var(--ph);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.fileinfo .fsize{color:var(--dim);font-size:11px}
+.fileinfo .fx{background:none;border:0;color:var(--dim);cursor:pointer;font-size:14px}
+.fileinfo .fx:hover{color:var(--red)}
+
+/* ─── advanced ─── */
+.adv{margin-bottom:12px}
+.adv-h{display:flex;align-items:center;gap:6px;padding:8px 12px;
+  background:none;border:1px solid var(--faint);color:var(--dim);
+  font-family:var(--font);font-size:12px;cursor:pointer;width:100%;text-align:left}
+.adv-h:hover{color:var(--ph)}
+.adv-h .arr{transition:transform .2s}
+.adv.open .adv-h .arr{transform:rotate(90deg)}
+.adv-b{display:none;padding:12px;border:1px solid var(--faint);border-top:0;
   font-size:12px;color:var(--dim)}
-.adv.open .adv-body{display:block}
-.adv-body label{display:block;margin-bottom:6px;font-size:11px}
-.adv-body input[type=file]{width:100%;padding:8px;font-family:var(--font);font-size:11px;
-  background:var(--bg);color:var(--text);border:1px solid var(--border);border-radius:6px;margin-bottom:12px}
-.adv-body textarea{width:100%;min-height:80px;padding:8px;font-family:var(--font);font-size:11px;
-  background:var(--bg);color:var(--text);border:1px solid var(--border);border-radius:6px;
-  resize:vertical;line-height:1.5}
-.adv-body textarea::placeholder{color:#3a4250}
+.adv.open .adv-b{display:block}
+.adv-b label{display:block;margin-bottom:4px;font-size:11px;color:var(--ph-dim)}
+.adv-b input[type=file]{width:100%;padding:6px;font-family:var(--font);font-size:11px;
+  background:var(--bg);color:var(--text);border:1px solid var(--faint);margin-bottom:10px}
+.adv-b textarea{width:100%;min-height:64px;padding:8px;font-family:var(--font);font-size:11px;
+  background:var(--bg);color:var(--text);border:1px solid var(--faint);
+  resize:vertical;line-height:1.4}
+.adv-b textarea::placeholder{color:var(--faint)}
 
-.btn-row{padding:0 20px 20px}
-.verify-btn{display:block;width:100%;padding:14px;border:0;border-radius:8px;
-  font-family:var(--font);font-size:15px;font-weight:700;
-  background:var(--blue);color:#04121f;cursor:pointer;
-  transition:filter .15s,transform .1s}
-.verify-btn:hover:not(:disabled){filter:brightness(1.1)}
-.verify-btn:active:not(:disabled){transform:scale(.98)}
-.verify-btn:disabled{opacity:.35;cursor:not-allowed}
+/* ─── verify button ─── */
+.go-btn{display:block;width:100%;padding:12px;border:1px solid var(--ph);
+  background:var(--bg);color:var(--ph);font-family:var(--font);font-size:15px;
+  font-weight:700;cursor:pointer;transition:all .2s;text-transform:uppercase;
+  letter-spacing:4px}
+.go-btn:hover:not(:disabled){background:var(--ph);color:var(--bg);
+  box-shadow:0 0 16px rgba(255,176,0,.3)}
+.go-btn:active:not(:disabled){transform:scale(.99)}
+.go-btn:disabled{opacity:.3;cursor:not-allowed}
 
-.progress{display:none;padding:20px;text-align:center}
+/* ─── progress ─── */
+.progress{display:none;padding:16px;text-align:center;font-size:12px;color:var(--ph)}
 .progress.on{display:block}
-.progress .spin{display:inline-block;width:24px;height:24px;
-  border:2px solid var(--border);border-top-color:var(--blue);border-radius:50%;
-  animation:rot .7s linear infinite;vertical-align:middle;margin-right:8px}
-@keyframes rot{to{transform:rotate(360deg)}}
-.progress .msg{font-size:12px;color:var(--blue);vertical-align:middle}
+.progress .bar{display:inline-block;min-width:200px;text-align:left;
+  color:var(--ph);letter-spacing:1px}
 
-.result{display:none;padding:8px 20px 20px;animation:fadeIn .3s ease-out}
+/* ─── result ─── */
+.result{display:none;padding:8px 0 0;animation:fadeUp .4s ease-out}
 .result.on{display:block}
-@keyframes fadeIn{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
-.badge{display:block;text-align:center;font-size:36px;font-weight:800;
-  padding:16px;border-radius:8px;margin-bottom:12px;animation:pop .25s ease-out}
-@keyframes pop{from{transform:scale(.92)}to{transform:scale(1)}}
-@media(max-width:480px){.badge{font-size:26px}}
-.badge.red{background:var(--red);color:#fff;box-shadow:0 0 24px rgba(255,59,59,.25)}
-.badge.silver{background:linear-gradient(135deg,#7d8590,#a8b2bd);color:#090c10}
-.badge.gold{background:linear-gradient(135deg,var(--gold),#f0b93e);color:#090c10}
-.reason{text-align:center;font-size:14px;color:var(--text);margin-bottom:16px}
-.bar{margin:0 0 16px}
-.bar .labels{display:flex;justify-content:space-between;font-size:10px;color:var(--dim);margin-bottom:4px}
-.bar .track{height:4px;background:var(--border);border-radius:2px;overflow:hidden}
-.bar .fill{height:100%;border-radius:2px;transition:width .5s ease-out}
-.bar .fill.red{background:var(--red)}.bar .fill.silver{background:var(--silver)}.bar .fill.gold{background:var(--gold)}
+@keyframes fadeUp{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
+.result .verdict{text-align:center;font-size:18px;font-weight:700;
+  padding:12px;margin-bottom:8px;letter-spacing:2px}
+.verdict.red{color:var(--red);border:1px solid rgba(255,68,68,.3)}
+.verdict.silver{color:#A8A8A8;border:1px solid rgba(168,168,168,.3)}
+.verdict.gold{color:var(--ph-bright);border:1px solid rgba(255,215,0,.3)}
+.result .why{text-align:center;font-size:13px;color:var(--dim);margin-bottom:12px}
+.result .ascii-bar{text-align:center;font-size:12px;color:var(--ph);margin-bottom:12px}
 
-.details{border:1px solid var(--border);border-radius:8px;overflow:hidden}
-.details-toggle{display:flex;align-items:center;gap:6px;width:100%;padding:10px 14px;
-  background:none;border:0;color:var(--dim);font-family:var(--font);font-size:12px;
-  cursor:pointer;text-align:left}
-.details-toggle:hover{color:var(--text)}
-.details-toggle .arrow{transition:transform .2s}
-.details.open .details-toggle .arrow{transform:rotate(90deg)}
-.details-body{display:none;padding:8px 14px 14px;font-size:11px;line-height:1.8;
-  border-top:1px solid var(--border)}
-.details.open .details-body{display:block}
-.kv{display:flex;gap:10px;padding:4px 0;border-bottom:1px solid rgba(26,33,46,.5)}
-.kv:last-child{border-bottom:0}
-.kv .k{color:var(--dim);flex-shrink:0;min-width:100px}
-.kv .v{color:var(--text);word-break:break-all}
-.kv .v.hash{color:var(--blue);cursor:pointer}
-.kv .v.hash:hover{text-decoration:underline}
+/* details */
+.det{border:1px solid var(--faint);margin-bottom:12px}
+.det-h{display:flex;align-items:center;gap:6px;padding:8px 12px;
+  background:none;border:0;color:var(--dim);font-family:var(--font);
+  font-size:12px;cursor:pointer;width:100%;text-align:left}
+.det-h:hover{color:var(--ph)}
+.det-h .arr{transition:transform .2s}
+.det.open .det-h .arr{transform:rotate(90deg)}
+.det-b{display:none;padding:8px 12px;font-size:11px;line-height:1.7;
+  border-top:1px solid var(--faint)}
+.det.open .det-b{display:block}
+.det-b .row{display:flex;gap:8px;padding:2px 0}
+.det-b .k{color:var(--dim);flex-shrink:0;min-width:90px}
+.det-b .v{color:var(--text);word-break:break-all}
+.det-b .v.h{color:var(--ph)}
 
-.again{display:block;text-align:center;margin-top:14px;font-size:13px;
-  color:var(--blue);text-decoration:none}
+/* again */
+.again{display:block;text-align:center;padding:8px;font-size:13px;
+  color:var(--ph);text-decoration:none}
 .again:hover{text-decoration:underline}
 
-footer{padding:32px 20px;text-align:center;border-top:1px solid var(--border);margin-top:16px}
-footer .row{font-size:11px;color:var(--dim);display:flex;justify-content:center;gap:16px;flex-wrap:wrap}
-footer a{color:var(--dim);text-decoration:none}
-footer a:hover{color:var(--blue)}
-footer .copy{font-size:10px;color:#2a3140;margin-top:12px}
-footer .disc{font-size:10px;color:#3a4250;margin-top:4px}
+/* ─── footer ─── */
+footer{padding:24px 12px;text-align:center;border-top:1px solid var(--faint);
+  margin-top:16px;font-size:11px;color:var(--faint)}
+footer .links{margin-bottom:8px}
+footer a{color:var(--dim);text-decoration:none;margin:0 8px}
+footer a:hover{color:var(--ph)}
+footer .legal{font-size:10px;color:var(--faint);margin-top:4px}
 
-@media(prefers-reduced-motion:reduce){*,*::before,*::after{animation:none!important;transition:none!important}}
+@media(max-width:480px){
+  .hero pre{font-size:6px}
+  .go-btn{letter-spacing:2px;font-size:13px}
+  .result .verdict{font-size:15px}
+}
+@media(prefers-reduced-motion:reduce){
+  *,*::before,*::after{animation:none!important;transition:none!important}
+}
 </style>
 </head>
 <body>
 
-<nav class="topbar">
-  <span class="live">ONLINE</span>
-  <span>riseproof.me</span>
-  <span>v0.2.0 · Rust + C2PA</span>
-</nav>
+<div id="status">
+  <span class="ok">ONLINE</span>
+  <span class="time" id="clock">--:--:--</span>
+  <span>v0.2.0</span>
+</div>
 
-<header class="hero">
-  <h1>RISE</h1>
-  <p class="sub">Is it real? Prove it.</p>
-  <p class="sub-tr">AI mı, gerçek mi? Kanıtla.</p>
-</header>
+<div class="hero">
+<pre id="asciiLogo">
+ ██████╗ ███████╗██╗██████╗ ██╗███╗   ██╗
+ ██╔══██╗██╗   ██║██║      ██║████╗  ██║
+ ██████╔╝███████║██║  ██╗  ██║██╔██╗ ██║
+ ██╔═══╝ ╚════██║██║ ██║  ██║██║╚██╗██║
+ ██║      ███████║██║██████╔╝██║ ╚████║
+ ╚═╝      ╚══════╝╚═╝╚═════╝ ╚═╝  ╚═══╝
+</pre>
+<p class="tagline"><span class="type">Is it real? Prove it.</span><span class="cursor"></span></p>
+</div>
 
-<main class="container">
-  <div class="term">
-    <div class="term-head">
-      <div class="dots"><span class="r"></span><span class="y"></span><span class="g"></span></div>
-      <span class="title">rise-verify</span>
-      <span class="cmd">~ $ rise verify&nbsp;</span>
-    </div>
+<div class="panel">
+<div class="frame">
+<span class="frame-t"> rise-verify </span>
 
-    <div class="upload-zone" id="drop">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
-        <path d="M12 3v12"/><path d="M7 10l5-5 5 5"/><path d="M4 19h16"/>
-      </svg>
-      <div class="main">Drop .rise file here</div>
-      <div class="hint">or click to browse</div>
-      <div class="ext">.rise · .json · .jpg — max 1 MB</div>
-      <input type="file" id="fileInput" accept=".rise,.json,.jpg,.jpeg,application/json,image/jpeg">
-    </div>
+<div class="dropzone" id="drop">
+<div class="ascii-icon">┌─────────────────┐
+│  ▄▄▄  ▄▄▄  ▄▄▄  │
+│  ███  ███  ███  │
+│  ▀▀▀  ▀▀▀  ▀▀▀  │
+└─────────────────┘</div>
+<div class="main">Drop .rise file here</div>
+<div class="sub">or click to browse</div>
+<div class="fmt">.rise · .json · .jpg — max 1 MB</div>
+<input type="file" id="fileIn" accept=".rise,.json,.jpg,.jpeg">
+</div>
 
-    <div class="file-info" id="fileInfo">
-      <span>▸</span>
-      <span class="name" id="fileName"></span>
-      <span class="size" id="fileSize"></span>
-      <button class="rm" id="removeFile" title="Remove">✕</button>
-    </div>
+<div class="fileinfo" id="finfo">
+<span>▸</span>
+<span class="fname" id="fname"></span>
+<span class="fsize" id="fsize"></span>
+<button class="fx" id="fx" title="Remove">✕</button>
+</div>
 
-    <div class="adv" id="adv">
-      <button class="adv-toggle" id="advToggle">
-        <span class="arrow">▸</span> Advanced Options
-      </button>
-      <div class="adv-body">
-        <label for="frameFile">Frame file (optional — raw or JPEG)</label>
-        <input type="file" id="frameFile" accept=".jpg,.jpeg,.png,.yuv,.raw,image/*">
-        <label for="pubkey">Signer Public Key (SPKI PEM) — enables real ES256 verification</label>
-        <textarea id="pubkey" rows="4" spellcheck="false" placeholder="-----BEGIN PUBLIC KEY-----"></textarea>
-      </div>
-    </div>
+<div class="adv" id="adv">
+<button class="adv-h" id="advH">
+<span class="arr">▸</span> Advanced
+</button>
+<div class="adv-b">
+<label for="frameIn">Frame file (optional)</label>
+<input type="file" id="frameIn" accept=".jpg,.jpeg,.png,.yuv,.raw,image/*">
+<label for="pubkeyIn" style="margin-top:8px">Signer Public Key (PEM)</label>
+<textarea id="pubkeyIn" rows="3" spellcheck="false" placeholder="-----BEGIN PUBLIC KEY-----"></textarea>
+</div>
+</div>
 
-    <div class="progress" id="progress">
-      <span class="spin"></span>
-      <span class="msg" id="progressMsg">Computing SHA-256…</span>
-    </div>
+<div class="progress" id="prog">
+<div class="bar" id="bar">[░░░░░░░░░░░░░░░░░░░░░░░░░░] 0%</div>
+</div>
 
-    <div class="btn-row">
-      <button class="verify-btn" id="verifyBtn" disabled>VERIFY</button>
-    </div>
+<button class="go-btn" id="goBtn" disabled>Verify</button>
 
-    <div class="result" id="result">
-      <div class="badge" id="badge">—</div>
-      <p class="reason" id="reason"></p>
-      <div class="bar" id="bar">
-        <div class="labels"><span>ASSURANCE</span><span id="barLabel"></span></div>
-        <div class="track"><div class="fill" id="barFill"></div></div>
-      </div>
-      <div class="details" id="details">
-        <button class="details-toggle" id="detailsToggle">
-          <span class="arrow">▸</span> Verification Details
-        </button>
-        <div class="details-body" id="detailsBody"></div>
-      </div>
-      <a href="#" class="again" id="again">↩ Verify another file</a>
-    </div>
-  </div>
-</main>
+<div class="result" id="res">
+<div class="verdict" id="verdict">—</div>
+<p class="why" id="why"></p>
+<div class="ascii-bar" id="abar"></div>
+<div class="det" id="det">
+<button class="det-h" id="detH">
+<span class="arr">▸</span> Details
+</button>
+<div class="det-b" id="detB"></div>
+</div>
+<a href="#" class="again" id="again">↩ Verify another</a>
+</div>
+
+</div>
+</div>
 
 <footer>
-  <div class="row">
-    <a href="https://github.com/demiralpdev/.RISE" rel="noopener">GitHub</a>
-    <a href="https://github.com/demiralpdev/.RISE/blob/main/spec/RISE-01.md" rel="noopener">Spec</a>
-    <a href="https://github.com/demiralpdev/.RISE/blob/main/REDTEAM_FINDINGS.md" rel="noopener">Red Team</a>
-    <a href="https://github.com/demiralpdev/.RISE/blob/main/QTSP_GUIDE.md" rel="noopener">QTSP Guide</a>
-  </div>
-  <p class="disc">Not evidence, preliminary finding. Powered by Rust + C2PA + WebCrypto.</p>
-  <p class="copy">© 2026 RISE Project — MIT License</p>
+<div class="links">
+<a href="https://github.com/demiralpdev/.RISE" rel="noopener">GitHub</a>
+<a href="https://github.com/demiralpdev/.RISE/blob/main/spec/RISE-01.md" rel="noopener">Spec</a>
+<a href="https://github.com/demiralpdev/.RISE/blob/main/REDTEAM_FINDINGS.md" rel="noopener">RedTeam</a>
+</div>
+<p class="legal">Not evidence. Preliminary finding.</p>
+<p class="legal">© 2026 RISE — MIT — Rust · C2PA · WebCrypto</p>
 </footer>
+
+<script>
+// clock
+setInterval(()=>{
+  const d=new Date();
+  document.getElementById("clock").textContent=
+    String(d.getHours()).padStart(2,"0")+":"+
+    String(d.getMinutes()).padStart(2,"0")+":"+
+    String(d.getSeconds()).padStart(2,"0");
+},1000);
+</script>
 
 <script type="module">
 import { verifyBadge, sha256Hex } from "./verify.js";
 
-const drop = document.getElementById("drop");
-const fileInput = document.getElementById("fileInput");
-const fileInfo = document.getElementById("fileInfo");
-const fileName = document.getElementById("fileName");
-const fileSize = document.getElementById("fileSize");
-const removeFile = document.getElementById("removeFile");
-const verifyBtn = document.getElementById("verifyBtn");
-const progress = document.getElementById("progress");
-const progressMsg = document.getElementById("progressMsg");
-const result = document.getElementById("result");
-const badge = document.getElementById("badge");
-const reason = document.getElementById("reason");
-const barFill = document.getElementById("barFill");
-const barLabel = document.getElementById("barLabel");
-const details = document.getElementById("details");
-const detailsToggle = document.getElementById("detailsToggle");
-const detailsBody = document.getElementById("detailsBody");
-const adv = document.getElementById("adv");
-const advToggle = document.getElementById("advToggle");
-const again = document.getElementById("again");
-let current = null;
+const drop=document.getElementById("drop"), fin=document.getElementById("fileIn");
+const finfo=document.getElementById("finfo"), fname=document.getElementById("fname");
+const fsize=document.getElementById("fsize"), fx=document.getElementById("fx");
+const goBtn=document.getElementById("goBtn"), prog=document.getElementById("prog");
+const bar=document.getElementById("bar"), res=document.getElementById("res");
+const verdict=document.getElementById("verdict"), why=document.getElementById("why");
+const abar=document.getElementById("abar"), det=document.getElementById("det");
+const detH=document.getElementById("detH"), detB=document.getElementById("detB");
+const adv=document.getElementById("adv"), advH=document.getElementById("advH");
+const again=document.getElementById("again");
+let cur=null;
+const fmt=n=>n<1024?n+" B":(n/1024).toFixed(1)+" KB";
+const MAX=1048576;
 
-const fmt = n => n < 1024 ? n + " B" : (n / 1024).toFixed(1) + " KB";
-const MAX = 1024 * 1024;
-
-function setFile(f) {
-  if (!f) { clearAll(); return; }
-  if (f.size > MAX) { alert("File exceeds 1 MB limit"); return; }
-  current = f;
-  fileName.textContent = f.name;
-  fileSize.textContent = fmt(f.size);
-  fileInfo.classList.add("on");
-  verifyBtn.disabled = false;
-  result.classList.remove("on");
+function set(f){
+  if(!f){clear();return}
+  if(f.size>MAX){alert("Max 1 MB");return}
+  cur=f;fname.textContent=f.name;fsize.textContent=fmt(f.size);
+  finfo.classList.add("on");goBtn.disabled=false;res.classList.remove("on");
 }
-
-function clearAll() {
-  current = null;
-  fileInput.value = "";
-  fileInfo.classList.remove("on");
-  verifyBtn.disabled = true;
-  result.classList.remove("on");
-  progress.classList.remove("on");
+function clear(){
+  cur=null;fin.value="";finfo.classList.remove("on");
+  goBtn.disabled=true;res.classList.remove("on");prog.classList.remove("on");
 }
+fin.addEventListener("change",e=>set(e.target.files[0]));
+drop.addEventListener("click",e=>{if(e.target===fin)return;fin.click()});
+["dragenter","dragover"].forEach(ev=>drop.addEventListener(ev,e=>{e.preventDefault();drop.classList.add("active")}));
+["dragleave","drop"].forEach(ev=>drop.addEventListener(ev,e=>{e.preventDefault();drop.classList.remove("active")}));
+drop.addEventListener("drop",e=>{const f=e.dataTransfer?.files?.[0];if(f)set(f)});
+fx.addEventListener("click",e=>{e.stopPropagation();clear()});
+advH.addEventListener("click",()=>adv.classList.toggle("open"));
+detH.addEventListener("click",()=>det.classList.toggle("open"));
+again.addEventListener("click",e=>{e.preventDefault();clear();scrollTo({top:0,behavior:"smooth"})});
 
-fileInput.addEventListener("change", e => setFile(e.target.files[0]));
-drop.addEventListener("click", e => { if (e.target === fileInput) return; fileInput.click(); });
-drop.addEventListener("keydown", e => { if (e.key === "Enter") { e.preventDefault(); fileInput.click(); } });
-["dragenter","dragover"].forEach(ev => drop.addEventListener(ev, e => { e.preventDefault(); drop.classList.add("drag"); }));
-["dragleave","drop"].forEach(ev => drop.addEventListener(ev, e => { e.preventDefault(); drop.classList.remove("drag"); }));
-drop.addEventListener("drop", e => { const f = e.dataTransfer?.files?.[0]; if (f) setFile(f); });
-removeFile.addEventListener("click", e => { e.stopPropagation(); clearAll(); });
-advToggle.addEventListener("click", () => adv.classList.toggle("open"));
-detailsToggle.addEventListener("click", () => details.classList.toggle("open"));
+goBtn.addEventListener("click",async()=>{
+  if(!cur)return;
+  goBtn.disabled=true;prog.classList.add("on");res.classList.remove("on");
 
-verifyBtn.addEventListener("click", async () => {
-  if (!current) return;
-  verifyBtn.disabled = true;
-  progress.classList.add("on");
-  result.classList.remove("on");
-  const steps = ["Computing SHA-256…", "Checking Merkle root…", "Verifying signature…"];
-  for (const s of steps) { progressMsg.textContent = s; await new Promise(r => setTimeout(r, 250)); }
-  try {
-    const text = await current.text();
-    const ff = document.getElementById("frameFile").files[0];
-    const frame = ff ? new Uint8Array(await ff.arrayBuffer()) : new Uint8Array(0);
-    const pubkey = document.getElementById("pubkey").value.trim();
-    const r = await verifyBadge(text, frame, { pubkeyPem: pubkey || null });
-    badge.className = "badge " + r.badge;
-    badge.textContent = r.badge === "red" ? "✕ RED" : r.badge === "silver" ? "◇ SILVER" : "◆ " + r.badge.toUpperCase();
-    reason.textContent = r.reason;
-    const pct = r.badge === "red" ? 18 : 62;
-    barFill.style.width = "0"; barFill.className = "fill " + r.badge;
-    barLabel.textContent = r.badge + " · " + pct + "%";
-    requestAnimationFrame(() => requestAnimationFrame(() => barFill.style.width = pct + "%"));
-    detailsBody.innerHTML = "";
-    let m = {}; try { m = JSON.parse(text.replace(/^UNSIGNED:/, "")); } catch {}
-    const rows = [
-      ["frame_hashes", (m.frame_hashes || ["—"])[0], true],
-      ["merkle_root", m.merkle_root || "—", true],
-      ["sig_alg", m.sig_alg || "—", false],
-      ["assurance", m.assurance || "—", false],
-      ["device_id", m.device_id || "—", false],
-      ["timestamp_ms", m.timestamp_ms || "—", false],
-      ["pqc_alg", m.pqc_alg || "none", false],
-    ];
-    for (const [k, v, isHash] of rows) {
-      const d = document.createElement("div"); d.className = "kv";
-      const vs = String(v).substring(0, 64) + (String(v).length > 64 ? "…" : "");
-      d.innerHTML = `<span class="k">${k}</span><span class="v${isHash ? " hash" : ""}">${vs}</span>`;
-      detailsBody.appendChild(d);
+  const steps=["Computing SHA-256","Checking Merkle root","Verifying signature"];
+  const W=28;
+  for(let i=0;i<steps.length;i++){
+    for(let p=0;p<=100;p+=20){
+      const fill=Math.round(p/100*W);
+      bar.textContent=`[${"█".repeat(fill)}${"░".repeat(W-fill)}] ${p}%`;
+      await new Promise(r=>setTimeout(r,50));
     }
-    progress.classList.remove("on");
-    result.classList.add("on");
-  } catch (e) {
-    progressMsg.textContent = "Error: " + e.message;
-    setTimeout(() => progress.classList.remove("on"), 1500);
-  } finally { verifyBtn.disabled = false; }
+    await new Promise(r=>setTimeout(r,150));
+  }
+
+  try{
+    const text=await cur.text();
+    const ff=document.getElementById("frameIn").files[0];
+    const frame=ff?new Uint8Array(await ff.arrayBuffer()):new Uint8Array(0);
+    const pk=document.getElementById("pubkeyIn").value.trim();
+    const r=await verifyBadge(text,frame,{pubkeyPem:pk||null});
+
+    verdict.className="verdict "+r.badge;
+    verdict.textContent=r.badge==="red"?"✕ REJECTED":r.badge==="silver"?"◇ PLAUSIBLE":"◆ "+r.badge.toUpperCase();
+    why.textContent=r.reason;
+
+    // ascii assurance bar
+    const pct=r.badge==="red"?4:r.badge==="silver"?14:20;
+    abar.textContent="["+"█".repeat(pct)+"░".repeat(20-pct)+"] "+(r.badge==="red"?"LOW":r.badge==="silver"?"MED":"HIGH");
+
+    // details
+    detB.innerHTML="";
+    let m={};try{m=JSON.parse(text.replace(/^UNSIGNED:/,""))}catch{}
+    const rows=[
+      ["frame_hash",(m.frame_hashes||["—"])[0],1],
+      ["merkle_root",m.merkle_root||"—",1],
+      ["sig_alg",m.sig_alg||"—",0],
+      ["assurance",m.assurance||"—",0],
+      ["device_id",m.device_id||"—",0],
+      ["pqc_alg",m.pqc_alg||"none",0],
+    ];
+    for(const[k,v,h]of rows){
+      const d=document.createElement("div");d.className="row";
+      const vs=String(v).substring(0,56)+(String(v).length>56?"…":"");
+      d.innerHTML=`<span class="k">${k}</span><span class="v${h?" h":""}">${vs}</span>`;
+      detB.appendChild(d);
+    }
+
+    prog.classList.remove("on");
+    res.classList.add("on");
+  }catch(e){
+    bar.textContent="[ERROR] "+e.message;
+  }finally{goBtn.disabled=false}
 });
 
-again.addEventListener("click", e => { e.preventDefault(); clearAll(); window.scrollTo({ top: 0, behavior: "smooth" }); });
-document.addEventListener("keydown", e => {
-  if (e.key === "Enter" && current && !verifyBtn.disabled && !["TEXTAREA","INPUT"].includes(document.activeElement.tagName)) verifyBtn.click();
-  if (e.key === "Escape" && current) clearAll();
+document.addEventListener("keydown",e=>{
+  if(e.key==="Enter"&&cur&&!goBtn.disabled&&
+     !["TEXTAREA","INPUT"].includes(document.activeElement.tagName))goBtn.click();
+  if(e.key==="Escape"&&cur)clear();
 });
 </script>
 </body>
