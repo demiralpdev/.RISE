@@ -11,6 +11,7 @@ import android.widget.TextView
 import com.rise.core.RiseCore
 import rise.android.capture.RiseCapture
 import rise.android.capture.RiseCameraPermission
+import rise.android.attest.RiseKeystore
 
 /** Wave 1: tap -> camera permission -> one raw frame -> core hash via JNI ->
  *  YUV bytes saved for cross-platform comparison. */
@@ -62,6 +63,13 @@ class MainActivity : Activity() {
                     f.writeBytes(raw.yuvBytes)
                     Log.i("RISE", "SAVED=${f.absolutePath}")
                     status.text = "SEALED: ${raw.yuvBytes.size} bytes\nHASH=$hex"
+                    try {
+                        val path = signAndSeal(raw, hex)
+                        status.text = "SEALED + SIGNED: ${raw.yuvBytes.size} bytes\nHASH=$hex"
+                        Log.i("RISE", "MANIFEST_SAVED=$path")
+                    } catch (e: Exception) {
+                        Log.i("RISE", "SIGN_FAIL=${e.message}")
+                    }
                 }.onFailure { e ->
                     status.text = "FAIL: ${e.message}"
                     Log.i("RISE", "FAIL=${e.message}")
@@ -73,5 +81,111 @@ class MainActivity : Activity() {
     override fun onDestroy() {
         super.onDestroy()
         capture.close()
+    }
+
+    private fun signAndSeal(raw: RiseCapture.RawFrame, frameHex: String): String {
+        val alias = RiseKeystore.DEFAULT_ALIAS
+        RiseKeystore.ensureP256Key(alias, ByteArray(32).also { java.security.SecureRandom().nextBytes(it) })
+        val tiles = splitTiles(raw.yuvBytes).map { sha256Hex(it) }
+        val root = merkleRoot(tiles)
+        val deviceId = android.provider.Settings.Secure.getString(contentResolver, android.provider.Settings.Secure.ANDROID_ID) ?: "android-unknown"
+        val canon = canonicalJson(frameHex, tiles, root, raw.timestampMs, deviceId, alias)
+        val sigHex = derToRawHex(RiseKeystore.sign(alias, canon.toByteArray(Charsets.UTF_8)))
+        Log.i("RISE", "SIGNATURE=$sigHex")
+        val manifest = canonicalJson(frameHex, tiles, root, raw.timestampMs, deviceId, alias, sigHex)
+        val f = java.io.File(getExternalFilesDir(null), "frame-001.manifest.json")
+        f.writeText(manifest, Charsets.UTF_8)
+        return f.absolutePath
+    }
+
+    private fun canonicalJson(frameHex: String, tiles: List<String>, root: String, ts: Long, deviceId: String, alias: String, sigHex: String? = null): String {
+        val frames = "[\"$frameHex\"]"
+        val tileArr = tiles.joinToString(",", "[", "]") { "\"$it\"" }
+        val sigPart = if (sigHex != null) ",\"signature\":\"$sigHex\"" else ""
+        return "{\"rise_version\":1,\"frame_hashes\":$frames,\"tile_hashes\":$tileArr,\"merkle_root\":\"$root\",\"sig_alg\":\"ES256\",\"timestamp_ms\":$ts,\"device_id\":\"${jsonEscape(deviceId)}\",\"assurance\":\"silver\",\"timestamp_token\":null$sigPart,\"signing_key_id\":\"$alias\"}"
+    }
+
+    private fun splitTiles(data: ByteArray): List<ByteArray> {
+        if (data.isEmpty()) return emptyList()
+        val n = minOf(data.size, 4)
+        val size = (data.size + n - 1) / n
+        val out = ArrayList<ByteArray>()
+        var off = 0
+        while (off < data.size) {
+            out.add(data.copyOfRange(off, minOf(off + size, data.size)))
+            off += size
+        }
+        return out
+    }
+
+    private fun sha256Hex(data: ByteArray): String {
+        val d = java.security.MessageDigest.getInstance("SHA-256").digest(data)
+        val sb = StringBuilder(d.size * 2)
+        for (b in d) sb.append(String.format("%02x", b))
+        return sb.toString()
+    }
+
+    private fun merkleRoot(leaves: List<String>): String {
+        if (leaves.isEmpty()) return sha256Hex(ByteArray(0))
+        var level = leaves
+        while (level.size > 1) {
+            val next = ArrayList<String>(level.size / 2 + 1)
+            var i = 0
+            while (i < level.size) {
+                val right = if (i + 1 < level.size) level[i + 1] else level[i]
+                next.add(sha256Hex((level[i] + right).toByteArray(Charsets.UTF_8)))
+                i += 2
+            }
+            level = next
+        }
+        return level[0]
+    }
+
+    private fun derToRawHex(der: ByteArray): String {
+        var p = 1 + lenSize(der, 1)
+        p += 1
+        val rLen = readLen(der, p)
+        p += lenSize(der, p)
+        val r = stripLeadingZero(der.copyOfRange(p, p + rLen))
+        p += rLen + 1
+        val sLen = readLen(der, p)
+        p += lenSize(der, p)
+        val s = stripLeadingZero(der.copyOfRange(p, p + sLen))
+        return r.joinToString("") { String.format("%02x", it) }.padStart(64, '0') +
+            s.joinToString("") { String.format("%02x", it) }.padStart(64, '0')
+    }
+
+    private fun readLen(der: ByteArray, p: Int): Int {
+        val b = der[p].toInt() and 0xFF
+        if (b < 0x80) return b
+        var v = 0
+        for (i in 1..(b and 0x7F)) v = (v shl 8) or (der[p + i].toInt() and 0xFF)
+        return v
+    }
+
+    private fun lenSize(der: ByteArray, p: Int): Int {
+        val b = der[p].toInt() and 0xFF
+        return if (b < 0x80) 1 else 1 + (b and 0x7F)
+    }
+
+    private fun stripLeadingZero(a: ByteArray): ByteArray {
+        var i = 0
+        while (i < a.size - 1 && a[i] == 0.toByte()) i++
+        return a.copyOfRange(i, a.size)
+    }
+
+    private fun jsonEscape(s: String): String {
+        val sb = StringBuilder(s.length)
+        for (c in s) {
+            when (c) {
+                '"' -> sb.append("\\\"")
+                '\\' -> sb.append("\\\\")
+                '\n' -> sb.append("\\n")
+                '\r' -> sb.append("\\r")
+                '\t' -> sb.append("\\t")
+                else -> if (c < ' ') sb.append(String.format("\\u%04x", c.code)) else sb.append(c)
+            }
+        }
+        return sb.toString()
     }
 }

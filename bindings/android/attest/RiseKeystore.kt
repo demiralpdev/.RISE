@@ -95,6 +95,21 @@ object RiseKeystore {
         return store.containsAlias(alias)
     }
 
+    /**
+     * Signs [message] with the stored P-256 private key.
+     * The key material never leaves hardware; only the signature bytes return.
+     */
+    fun sign(alias: String, message: ByteArray): ByteArray {
+        val store = KeyStore.getInstance(ANDROID_KEYSTORE)
+        store.load(null)
+        val key = store.getKey(alias, null)
+            ?: throw IllegalStateException("no key for alias $alias")
+        val sig = java.security.Signature.getInstance("SHA256withECDSA")
+        sig.initSign(key as java.security.PrivateKey)
+        sig.update(message)
+        return sig.sign()
+    }
+
     private fun generate(alias: String, challenge: ByteArray, strongBox: Boolean) {
         val specBuilder = KeyGenParameterSpec.Builder(
             alias,
