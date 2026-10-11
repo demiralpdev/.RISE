@@ -127,11 +127,11 @@ body::before{content:"";position:fixed;inset:0;z-index:50;pointer-events:none;
 .result .verdict{text-align:center;font-size:18px;font-weight:700;
   padding:12px;margin-bottom:8px;letter-spacing:2px;border-radius:2px}
 .verdict.red{color:var(--red);border:1px solid rgba(255,68,68,.3);
-  background:rgba(255,68,68,.05)}
+  background:rgba(255,68,68,.05);box-shadow:0 0 12px rgba(255,68,68,.1)}
 .verdict.silver{color:#AAA;border:1px solid rgba(170,170,170,.3);
-  background:rgba(170,170,170,.05)}
+  background:rgba(170,170,170,.05);box-shadow:0 0 12px rgba(170,170,170,.08)}
 .verdict.gold{color:var(--amber);border:1px solid rgba(255,176,0,.3);
-  background:rgba(255,176,0,.05)}
+  background:rgba(255,176,0,.05);box-shadow:0 0 16px rgba(255,176,0,.15)}
 
 .result .why{text-align:center;font-size:13px;color:var(--dim);margin-bottom:12px}
 .result .meter{text-align:center;font-size:12px;color:var(--amber);
@@ -194,14 +194,20 @@ footer .legal{font-size:10px;margin-top:4px}
 </div>
 
 <header class="hero">
-  <h1>RISE</h1>
-  <p class="tag"><span class="tw">Is it real? Prove it.</span><span class="cursor"></span></p>
-  <p class="tr">AI mi, gercek mi? Kanitla.</p>
+  <pre class="banner">
+ ####  ####  ####   ###  ####
+ #  #  #  #  #     #   #  #
+ ####  ####  ####  #    ####
+ #     #  #     #  #   #  #
+ #     #  #  ####   ### #  #
+  </pre>
+  <p class="tag"><span class="tw">Is it real? Prove it.</span><span class="cursor">&nbsp;</span></p>
+  <p class="tr">AI mi gercek mi? Kanitla.</p>
 </header>
 
 <main class="wrap">
 <div class="box">
-<span class="label">rise-verify</span>
+<span class="label">demir@riseproof:~$ rise-verify</span>
 
   <div class="dropzone" id="drop">
     <span class="icon">[+]</span>
