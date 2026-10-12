@@ -28,9 +28,7 @@ pub enum Container {
 pub fn detect(data: &[u8]) -> Container {
     if data.len() >= 3 && data[0] == 0xFF && data[1] == 0xD8 && data[2] == 0xFF {
         Container::Jpeg
-    } else if data.len() >= 8
-        && data[..8] == [0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A]
-    {
+    } else if data.len() >= 8 && data[..8] == [0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A] {
         Container::Png
     } else if data.len() >= 8 && &data[4..8] == b"ftyp" {
         Container::Mp4
@@ -47,8 +45,7 @@ pub fn detect(data: &[u8]) -> Container {
 /// Embedded in a top-level `uuid` box, matching how C2PA stores manifests
 /// in MP4; strict BMFF scanners handle `uuid` universally.
 pub const RISE_MP4_UUID: [u8; 16] = [
-    0x72, 0x69, 0x73, 0x65, 0x00, 0x00, 0x40, 0x80,
-    0x00, 0x00, 0x00, 0x00, 0x52, 0x49, 0x53, 0x45,
+    0x72, 0x69, 0x73, 0x65, 0x00, 0x00, 0x40, 0x80, 0x00, 0x00, 0x00, 0x00, 0x52, 0x49, 0x53, 0x45,
 ];
 
 /// Appends a top-level `uuid` box containing the manifest to an MP4.
@@ -232,7 +229,8 @@ fn png_find_chunk(data: &[u8]) -> Option<Vec<u8>> {
             let mut crc_input = Vec::with_capacity(len + 4);
             crc_input.extend_from_slice(kind);
             crc_input.extend_from_slice(&data[i + 8..end]);
-            let stored = u32::from_be_bytes([data[end], data[end + 1], data[end + 2], data[end + 3]]);
+            let stored =
+                u32::from_be_bytes([data[end], data[end + 1], data[end + 2], data[end + 3]]);
             if crc32(&crc_input) != stored {
                 return None; // corrupted proof chunk: fail closed
             }
@@ -410,8 +408,10 @@ mod tests {
         // IHDR: len 13, type, 13 zero bytes, CRC (bogus CRC fine for walker,
         // but compute a real one for cleanliness)
         let mut ihdr_data = [0u8; 13];
-        ihdr_data[0] = 0; ihdr_data[1] = 1; // width 1
-        ihdr_data[2] = 0; ihdr_data[3] = 1; // height 1
+        ihdr_data[0] = 0;
+        ihdr_data[1] = 1; // width 1
+        ihdr_data[2] = 0;
+        ihdr_data[3] = 1; // height 1
         let mut ihdr = Vec::new();
         ihdr.extend_from_slice(&13u32.to_be_bytes());
         ihdr.extend_from_slice(b"IHDR");

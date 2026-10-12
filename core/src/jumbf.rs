@@ -229,34 +229,36 @@ fn assertion_box(uuid: &[u8; 16], label: &str, content: Vec<u8>) -> (Vec<u8>, Ve
     (boxed(b"jumb", &payload), hash)
 }
 
-/// V1 CBOR claim (C2PA §10.2). Field set is exactly the V1 vocabulary —
+/// V1 CBOR claim fields (C2PA §10.2). Field set is exactly the V1 vocabulary —
 /// readers reject unknown V1 fields, so nothing extra goes here.
-fn claim_cbor(
-    generator: &str,
-    generator_name: &str,
-    generator_version: &str,
-    sig_uri: &str,
-    refs: &[AssertionRef],
-    format: &str,
-    title: &str,
-    instance_id: &str,
-) -> Vec<u8> {
+struct ClaimFields<'a> {
+    generator: &'a str,
+    generator_name: &'a str,
+    generator_version: &'a str,
+    sig_uri: &'a str,
+    refs: &'a [AssertionRef],
+    format: &'a str,
+    title: &'a str,
+    instance_id: &'a str,
+}
+
+fn claim_cbor(f: &ClaimFields) -> Vec<u8> {
     let mut c = Cbor::new();
     c.map(8);
     c.text("claim_generator");
-    c.text(generator);
+    c.text(f.generator);
     c.text("claim_generator_info");
     c.array(1);
     c.map(2);
     c.text("name");
-    c.text(generator_name);
+    c.text(f.generator_name);
     c.text("version");
-    c.text(generator_version);
+    c.text(f.generator_version);
     c.text("signature");
-    c.text(sig_uri);
+    c.text(f.sig_uri);
     c.text("assertions");
-    c.array(refs.len());
-    for r in refs {
+    c.array(f.refs.len());
+    for r in f.refs {
         c.map(3);
         c.text("url");
         c.text(&format!("self#jumbf=c2pa.assertions/{}", r.label));
@@ -266,13 +268,13 @@ fn claim_cbor(
         c.bytes(&r.hash);
     }
     c.text("dc:format");
-    c.text(format);
+    c.text(f.format);
     c.text("alg");
     c.text("sha256");
     c.text("dc:title");
-    c.text(title);
+    c.text(f.title);
     c.text("instanceID");
-    c.text(instance_id);
+    c.text(f.instance_id);
     c.buf
 }
 
@@ -489,9 +491,7 @@ fn self_signed_cert_der(
     // Validity: now → now + 90 days.
     let mut validity = Vec::new();
     validity.extend_from_slice(&der_utctime(&unix_to_utctime(not_before_secs)));
-    validity.extend_from_slice(&der_utctime(&unix_to_utctime(
-        not_before_secs + 90 * 86400,
-    )));
+    validity.extend_from_slice(&der_utctime(&unix_to_utctime(not_before_secs + 90 * 86400)));
     let validity = der_seq(&validity);
 
     // Extensions: AKI + KeyUsage(digitalSignature, critical) + EKU(emailProtection).
@@ -550,7 +550,11 @@ fn claim_generator() -> String {
 fn seal_meta(manifest_json: &[u8]) -> (String, String) {
     let device = serde_json::from_slice::<serde_json::Value>(manifest_json)
         .ok()
-        .and_then(|v| v.get("device_id").and_then(|d| d.as_str()).map(str::to_string))
+        .and_then(|v| {
+            v.get("device_id")
+                .and_then(|d| d.as_str())
+                .map(str::to_string)
+        })
         .unwrap_or_else(|| "unknown-device".to_string());
     let title = format!("RISE sealed frame ({device})");
     (device, title)
@@ -653,11 +657,7 @@ fn build_store(
             "c2pa.hash.data",
             boxed(b"cbor", &data_hash_cbor(exclusion_len, data_hash)),
         ),
-        (
-            &CBOR_UUID,
-            "c2pa.actions",
-            boxed(b"cbor", &actions_cbor()),
-        ),
+        (&CBOR_UUID, "c2pa.actions", boxed(b"cbor", &actions_cbor())),
         (
             &JSON_UUID,
             "stds.schema-org.CreativeWork",
@@ -681,16 +681,16 @@ fn build_store(
 
     // Claim + COSE signature.
     let sig_uri = format!("self#jumbf=/c2pa/{manifest_label}/c2pa.signature");
-    let claim = claim_cbor(
-        &generator,
-        "rise-core",
-        env!("CARGO_PKG_VERSION"),
-        &sig_uri,
-        &refs,
-        "image/jpeg",
-        &title,
+    let claim = claim_cbor(&ClaimFields {
+        generator: &generator,
+        generator_name: "rise-core",
+        generator_version: env!("CARGO_PKG_VERSION"),
+        sig_uri: &sig_uri,
+        refs: &refs,
+        format: "image/jpeg",
+        title: &title,
         instance_id,
-    );
+    });
     let claim_box = jumb_box(&C2CL_UUID, "c2pa.claim", &boxed(b"cbor", &claim));
     let cose = cose_sign1(key, cert_der, &claim)?;
     let sig_box = jumb_box(&C2CS_UUID, "c2pa.signature", &boxed(b"cbor", &cose));
@@ -877,7 +877,9 @@ fn find_rise_manifest(data: &[u8], depth: usize) -> Option<Vec<u8>> {
             // first child is the description box
             let (dlen, dtype) = box_head(payload)?;
             if &dtype == b"jumd" {
-                let label = desc_info(&payload[8..dlen]).map(|(_, l)| l).unwrap_or_default();
+                let label = desc_info(&payload[8..dlen])
+                    .map(|(_, l)| l)
+                    .unwrap_or_default();
                 let children = &payload[dlen..];
                 if label == RISE_ASSERTION_LABEL {
                     // direct json child carries the manifest
@@ -946,7 +948,8 @@ pub fn jpeg_extract(jpg: &[u8]) -> Option<Vec<u8>> {
     }
     let mut legacy: Vec<u8> = Vec::new();
     // En -> list of (Z, segment index, data-after-header)
-    let mut groups: Vec<(Vec<u8>, Vec<(u32, usize, Vec<u8>)>)> = Vec::new();
+    type SegGroups = Vec<(Vec<u8>, Vec<(u32, usize, Vec<u8>)>)>;
+    let mut groups: SegGroups = Vec::new();
     let mut pos = 2usize;
     // walk segments
     while pos + 4 <= jpg.len() {
@@ -981,10 +984,15 @@ pub fn jpeg_extract(jpg: &[u8]) -> Option<Vec<u8>> {
     }
     // prefer the CAI store (XT group whose first segment carries c2pa)
     let mut groups_by_pos = groups;
-    groups_by_pos.sort_by_key(|(_, segs)| segs.iter().map(|(_, p, _)| *p).min().unwrap_or(usize::MAX));
+    groups_by_pos
+        .sort_by_key(|(_, segs)| segs.iter().map(|(_, p, _)| *p).min().unwrap_or(usize::MAX));
     for (_, mut segs) in groups_by_pos {
         segs.sort_by_key(|(z, p, _)| (*z, *p));
-        if segs.first().map(|(_, _, d)| d.len() > 20 && d[16..20] == *b"c2pa").unwrap_or(false) {
+        if segs
+            .first()
+            .map(|(_, _, d)| d.len() > 20 && d[16..20] == *b"c2pa")
+            .unwrap_or(false)
+        {
             let mut store = Vec::new();
             for (i, (_, _, d)) in segs.iter().enumerate() {
                 if i == 0 {
@@ -1054,7 +1062,7 @@ mod tests {
         // old sealed files (flat json superbox in JUMBF\0 segments) keep verifying
         let payload = br#"{"rise_version":1,"device_id":"old"}"#;
         let sb = build_superbox(payload);
-        let jpg = vec![0xFF, 0xD8, 0xFF, 0xDA, 0x00, 0x02, 0x11, 0x22];
+        let jpg = [0xFF, 0xD8, 0xFF, 0xDA, 0x00, 0x02, 0x11, 0x22];
         let mut out = Vec::from(&jpg[..2]);
         for chunk in sb.chunks(60000) {
             out.extend_from_slice(&[0xFF, 0xEB]);
@@ -1119,7 +1127,7 @@ mod tests {
 
     #[test]
     fn cose_signature_self_verifies() {
-        use p256::ecdsa::signature::{Signer as _, Verifier as _};
+        use p256::ecdsa::signature::Verifier as _;
         let mut key_bytes = [7u8; 32];
         key_bytes[0] &= 0x7F;
         let key = p256::ecdsa::SigningKey::from_bytes(&key_bytes.into()).unwrap();
@@ -1208,9 +1216,7 @@ mod tests {
     }
 
     #[cfg(test)]
-    fn ephemeral_key(
-        rng: &mut impl rand::TryRngCore,
-    ) -> p256::ecdsa::SigningKey {
+    fn ephemeral_key(rng: &mut impl rand::TryRngCore) -> p256::ecdsa::SigningKey {
         let mut b = [0u8; 32];
         rng.try_fill_bytes(&mut b).unwrap();
         b[0] &= 0x7F;

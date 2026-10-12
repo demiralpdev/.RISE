@@ -8,9 +8,9 @@ use rise_core::{
 };
 use std::fs;
 use std::fs::File;
-use std::process::Command;
 #[cfg(unix)]
 use std::os::unix::fs::PermissionsExt;
+use std::process::Command;
 use std::time::{SystemTime, UNIX_EPOCH};
 
 /// Command-line entry point.
@@ -182,16 +182,16 @@ fn main() {
             tsa,
             tsa2,
             pqc_key,
-        } => sign_cmd(
-            &file,
-            &device,
-            key.as_deref(),
-            &alg,
-            out.as_deref(),
-            tsa.as_deref(),
-            tsa2.as_deref(),
-            pqc_key.as_deref(),
-        ),
+        } => sign_cmd(&SignArgs {
+            file: &file,
+            device: &device,
+            key: key.as_deref(),
+            alg: &alg,
+            out: out.as_deref(),
+            tsa: tsa.as_deref(),
+            tsa2: tsa2.as_deref(),
+            pqc_key: pqc_key.as_deref(),
+        }),
         Cmd::Verify {
             manifest,
             file,
@@ -280,16 +280,28 @@ fn load_signer(alg: &str, key: &str) -> Result<Box<dyn rise_core::signer::Signer
 /// sign command: build manifest v1; stamp-then-sign when --tsa is given,
 /// sign when --key is given. Without both flags the unsigned path is
 /// byte-identical to before (capture.sh relies on it).
-fn sign_cmd(
-    file: &str,
-    device: &str,
-    key: Option<&str>,
-    alg: &str,
-    out: Option<&str>,
-    tsa: Option<&str>,
-    tsa2: Option<&str>,
-    pqc_key: Option<&str>,
-) -> i32 {
+struct SignArgs<'a> {
+    file: &'a str,
+    device: &'a str,
+    key: Option<&'a str>,
+    alg: &'a str,
+    out: Option<&'a str>,
+    tsa: Option<&'a str>,
+    tsa2: Option<&'a str>,
+    pqc_key: Option<&'a str>,
+}
+
+fn sign_cmd(a: &SignArgs) -> i32 {
+    let SignArgs {
+        file,
+        device,
+        key,
+        alg,
+        out,
+        tsa,
+        tsa2,
+        pqc_key,
+    } = *a;
     // MS1 flow is single-frame: read the file
     let Ok(b) = fs::read(file) else {
         eprintln!("read error: {file}");
@@ -378,7 +390,10 @@ fn sign_cmd(
                 }
             };
             m.pqc_signature = Some(
-                pq_sig.iter().map(|b| format!("{b:02x}")).collect::<String>(),
+                pq_sig
+                    .iter()
+                    .map(|b| format!("{b:02x}"))
+                    .collect::<String>(),
             );
             println!("PQC dual-signed (ML-DSA-65)");
             // re-serialize + re-write to include the PQC fields
@@ -457,13 +472,14 @@ fn verify_cmd(manifest_path: &str, file: &str, pubkey: Option<&str>, pqc_pub: Op
                 Ok(()) => {
                     // PQC verification if a verification key is provided
                     if let Some(pqc_path) = pqc_pub {
-                        let pv = match rise_core::signer::MlDsa65Verifier::from_pubkey_file(pqc_path) {
-                            Ok(v) => v,
-                            Err(e) => {
-                                eprintln!("PQC pubkey error: {e}");
-                                return 2;
-                            }
-                        };
+                        let pv =
+                            match rise_core::signer::MlDsa65Verifier::from_pubkey_file(pqc_path) {
+                                Ok(v) => v,
+                                Err(e) => {
+                                    eprintln!("PQC pubkey error: {e}");
+                                    return 2;
+                                }
+                            };
                         match rise_core::verify_pqc(&m, &pv) {
                             Ok(()) => {
                                 println!("VALID (signed + PQC ML-DSA-65)");
@@ -892,7 +908,9 @@ fn screen_cmd(device: &str, key: Option<&str>, alg: &str, out: Option<&str>) -> 
             return 2;
         }
         Err(e) => {
-            eprintln!("screencapture error: {e} (screen capture needs macOS screencapture on PATH)");
+            eprintln!(
+                "screencapture error: {e} (screen capture needs macOS screencapture on PATH)"
+            );
             let _ = fs::remove_dir_all(&tmp);
             return 2;
         }
@@ -900,7 +918,16 @@ fn screen_cmd(device: &str, key: Option<&str>, alg: &str, out: Option<&str>) -> 
     // APP11 packing needs JPEG: convert the PNG capture.
     let jpg_str = jpg_path.to_string_lossy().into_owned();
     let converted = Command::new("ffmpeg")
-        .args(["-y", "-loglevel", "error", "-i", &png_str, "-q:v", "2", &jpg_str])
+        .args([
+            "-y",
+            "-loglevel",
+            "error",
+            "-i",
+            &png_str,
+            "-q:v",
+            "2",
+            &jpg_str,
+        ])
         .status()
         .map(|s| s.success())
         .unwrap_or(false);
@@ -946,7 +973,9 @@ fn screen_cmd(device: &str, key: Option<&str>, alg: &str, out: Option<&str>) -> 
             return 2;
         }
     };
-    let out_path = out.map(str::to_string).unwrap_or_else(|| format!("screen-{}.rise", now_ms()));
+    let out_path = out
+        .map(str::to_string)
+        .unwrap_or_else(|| format!("screen-{}.rise", now_ms()));
     match rise_core::jumbf::jpeg_embed(&frame, json.as_bytes()) {
         Ok(sealed) => {
             if let Err(e) = fs::write(&out_path, sealed) {
@@ -983,8 +1012,12 @@ fn detect_avfoundation_screen() -> Option<u32> {
         .ok()?;
     let text = String::from_utf8_lossy(&out.stderr);
     for line in text.lines() {
-        let Some(pos) = line.find("Capture screen") else { continue };
-        let Some(open) = line[..pos].rfind('[') else { continue };
+        let Some(pos) = line.find("Capture screen") else {
+            continue;
+        };
+        let Some(open) = line[..pos].rfind('[') else {
+            continue;
+        };
         let Some(idx) = line[open + 1..pos]
             .trim_end_matches(']')
             .trim()
@@ -1022,7 +1055,10 @@ fn screen_record_cmd(
             return 2;
         }
         if pid_file.exists() {
-            eprintln!("already recording (pid file {} exists); --stop first", pid_file.display());
+            eprintln!(
+                "already recording (pid file {} exists); --stop first",
+                pid_file.display()
+            );
             return 2;
         }
         // Record to a .part name: the .rvid only appears once sealed.
@@ -1031,17 +1067,29 @@ fn screen_record_cmd(
         let input = format!("{screen_idx}:none");
         let child = Command::new("ffmpeg")
             .args([
-                "-y", "-loglevel", "error",
-                "-f", "avfoundation", "-pixel_format", "uyvy422",
-                "-i", &input,
-                "-movflags", "+faststart",
-                "-f", "mov",
+                "-y",
+                "-loglevel",
+                "error",
+                "-f",
+                "avfoundation",
+                "-pixel_format",
+                "uyvy422",
+                "-i",
+                &input,
+                "-movflags",
+                "+faststart",
+                "-f",
+                "mov",
                 &part_path,
             ])
             .spawn();
         match child {
             Ok(c) => {
-                let stash = format!("{}\n{out}\n{}\n{device}\n{alg}\n", c.id(), key.unwrap_or(""));
+                let stash = format!(
+                    "{}\n{out}\n{}\n{device}\n{alg}\n",
+                    c.id(),
+                    key.unwrap_or("")
+                );
                 if let Err(e) = fs::write(&pid_file, stash) {
                     eprintln!("pid write error: {e}");
                     return 2;
@@ -1074,7 +1122,11 @@ fn screen_record_cmd(
         let stashed_device = lines.next().unwrap_or("auto").to_string();
         let stashed_alg = lines.next().unwrap_or("es256").to_string();
         let _ = fs::remove_file(&pid_file);
-        let killed = Command::new("kill").arg(pid.to_string()).status().map(|s| s.success()).unwrap_or(false);
+        let killed = Command::new("kill")
+            .arg(pid.to_string())
+            .status()
+            .map(|s| s.success())
+            .unwrap_or(false);
         if !killed {
             eprintln!("could not signal pid {pid}; recording may have already exited");
         }
@@ -1088,7 +1140,9 @@ fn screen_record_cmd(
         let mut prev: i64 = -1;
         for _ in 0..20 {
             std::thread::sleep(std::time::Duration::from_secs(1));
-            let sz = fs::metadata(&rec_path).map(|m| m.len() as i64).unwrap_or(prev);
+            let sz = fs::metadata(&rec_path)
+                .map(|m| m.len() as i64)
+                .unwrap_or(prev);
             if sz == prev {
                 break;
             }
@@ -1099,12 +1153,21 @@ fn screen_record_cmd(
             .to_string_lossy()
             .into_owned();
         eprintln!("sealing {rec_path} -> {rvid_out}");
-        let code = video_cmd(&rec_path, &stashed_device, 1, stashed_key.as_deref(), &stashed_alg, Some(&rvid_out));
+        let code = video_cmd(
+            &rec_path,
+            &stashed_device,
+            1,
+            stashed_key.as_deref(),
+            &stashed_alg,
+            Some(&rvid_out),
+        );
         if code == 0 {
             let _ = fs::remove_file(&rec_path);
             eprintln!("done: {rvid_out}");
         } else {
-            eprintln!("seal failed; recording kept at {rec_path} (seal manually with rise-core video)");
+            eprintln!(
+                "seal failed; recording kept at {rec_path} (seal manually with rise-core video)"
+            );
         }
         code
     }

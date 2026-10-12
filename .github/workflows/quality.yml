@@ -57,16 +57,20 @@ jobs:
 
   sonar:
     runs-on: ubuntu-latest
+    env:
+      # secrets context is not allowed in if: conditions (actionlint
+      # enforces this), so the token is mapped to env here and the step
+      # gates on env. Skips cleanly until the user: (1) adds the
+      # SONAR_TOKEN repo secret, (2) disables Automatic Analysis in
+      # SonarCloud (Administration -> Analysis Method) — CI scans and
+      # automatic analysis conflict with each other.
+      SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
     steps:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-      # Step-level if supports the secrets context (job-level does not).
-      # Skips cleanly until the user: (1) adds the SONAR_TOKEN repo secret,
-      # (2) disables Automatic Analysis in SonarCloud (Administration ->
-      # Analysis Method), which would otherwise conflict with CI scans.
       - name: SonarCloud scan
-        if: ${{ secrets.SONAR_TOKEN != '' }}
+        if: ${{ env.SONAR_TOKEN != '' }}
         uses: SonarSource/sonarqube-scan-action@v5
         env:
-          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+          SONAR_TOKEN: ${{ env.SONAR_TOKEN }}

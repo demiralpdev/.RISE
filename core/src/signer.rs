@@ -184,6 +184,76 @@ pub fn key_expired(created_ms: u64, now_ms: u64) -> bool {
     now_ms.saturating_sub(created_ms) > ROTATION_MS
 }
 
+/// ML-DSA-65 (FIPS 204) post-quantum signer — seed file = 32 raw bytes.
+pub struct MlDsa65Signer {
+    key: ml_dsa::SigningKey<ml_dsa::MlDsa65>,
+}
+
+impl MlDsa65Signer {
+    pub fn from_seed_file(path: &str) -> Result<Self, crate::RiseError> {
+        let seed = std::fs::read(path)?;
+        let arr: [u8; 32] = seed
+            .as_slice()
+            .try_into()
+            .map_err(|_| crate::RiseError::Crypto("ML-DSA seed must be 32 bytes".into()))?;
+        let seed = ml_dsa::Seed::from(arr);
+        Ok(Self {
+            key: ml_dsa::SigningKey::<ml_dsa::MlDsa65>::from_seed(&seed),
+        })
+    }
+
+    /// Encoded verification key (1952 bytes for ML-DSA-65).
+    pub fn public_key_bytes(&self) -> Vec<u8> {
+        self.key.verifying_key().encode().to_vec()
+    }
+
+    /// Deterministic ML-DSA-65 signature with an empty context.
+    pub fn sign(&self, message: &[u8]) -> Result<Vec<u8>, crate::RiseError> {
+        use ml_dsa::signature::Signer as _;
+        Ok(self.key.sign(message).to_vec())
+    }
+
+    /// Generates (seed, verification-key) raw bytes.
+    pub fn generate() -> Result<(Vec<u8>, Vec<u8>), crate::RiseError> {
+        use rand::TryRngCore as _;
+        let mut seed = [0u8; 32];
+        rand::rngs::OsRng
+            .try_fill_bytes(&mut seed)
+            .map_err(|e| crate::RiseError::Crypto(format!("rng: {e}")))?;
+        let key = ml_dsa::SigningKey::<ml_dsa::MlDsa65>::from_seed(&ml_dsa::Seed::from(seed));
+        Ok((seed.to_vec(), key.verifying_key().encode().to_vec()))
+    }
+}
+
+/// ML-DSA-65 verifier — pubkey file = encoded verification key (1952 bytes).
+pub struct MlDsa65Verifier {
+    key: ml_dsa::VerifyingKey<ml_dsa::MlDsa65>,
+}
+
+impl MlDsa65Verifier {
+    pub fn from_pubkey_file(path: &str) -> Result<Self, crate::RiseError> {
+        let raw = std::fs::read(path)?;
+        let arr: [u8; 1952] = raw
+            .as_slice()
+            .try_into()
+            .map_err(|_| crate::RiseError::Crypto("ML-DSA-65 pubkey must be 1952 bytes".into()))?;
+        let enc = ml_dsa::EncodedVerifyingKey::<ml_dsa::MlDsa65>::from(arr);
+        Ok(Self {
+            key: ml_dsa::VerifyingKey::<ml_dsa::MlDsa65>::decode(&enc),
+        })
+    }
+
+    pub fn verify(&self, message: &[u8], signature: &[u8]) -> Result<(), crate::RiseError> {
+        let sig = ml_dsa::Signature::<ml_dsa::MlDsa65>::try_from(signature)
+            .map_err(|e| crate::RiseError::Crypto(format!("sig parse: {e}")))?;
+        if self.key.verify_with_context(message, &[], &sig) {
+            Ok(())
+        } else {
+            Err(crate::RiseError::InvalidSignature)
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -381,75 +451,5 @@ mod tests {
         let now = 1_000_000_000_000u64;
         assert!(!key_expired(now - 89 * 24 * 3600 * 1000, now));
         assert!(key_expired(now - 91 * 24 * 3600 * 1000, now));
-    }
-}
-
-/// ML-DSA-65 (FIPS 204) post-quantum signer — seed file = 32 raw bytes.
-pub struct MlDsa65Signer {
-    key: ml_dsa::SigningKey<ml_dsa::MlDsa65>,
-}
-
-impl MlDsa65Signer {
-    pub fn from_seed_file(path: &str) -> Result<Self, crate::RiseError> {
-        let seed = std::fs::read(path)?;
-        let arr: [u8; 32] = seed
-            .as_slice()
-            .try_into()
-            .map_err(|_| crate::RiseError::Crypto("ML-DSA seed must be 32 bytes".into()))?;
-        let seed = ml_dsa::Seed::from(arr);
-        Ok(Self {
-            key: ml_dsa::SigningKey::<ml_dsa::MlDsa65>::from_seed(&seed),
-        })
-    }
-
-    /// Encoded verification key (1952 bytes for ML-DSA-65).
-    pub fn public_key_bytes(&self) -> Vec<u8> {
-        self.key.verifying_key().encode().to_vec()
-    }
-
-    /// Deterministic ML-DSA-65 signature with an empty context.
-    pub fn sign(&self, message: &[u8]) -> Result<Vec<u8>, crate::RiseError> {
-        use ml_dsa::signature::Signer as _;
-        Ok(self.key.sign(message).to_vec())
-    }
-
-    /// Generates (seed, verification-key) raw bytes.
-    pub fn generate() -> Result<(Vec<u8>, Vec<u8>), crate::RiseError> {
-        use rand::TryRngCore as _;
-        let mut seed = [0u8; 32];
-        rand::rngs::OsRng
-            .try_fill_bytes(&mut seed)
-            .map_err(|e| crate::RiseError::Crypto(format!("rng: {e}")))?;
-        let key = ml_dsa::SigningKey::<ml_dsa::MlDsa65>::from_seed(&ml_dsa::Seed::from(seed));
-        Ok((seed.to_vec(), key.verifying_key().encode().to_vec()))
-    }
-}
-
-/// ML-DSA-65 verifier — pubkey file = encoded verification key (1952 bytes).
-pub struct MlDsa65Verifier {
-    key: ml_dsa::VerifyingKey<ml_dsa::MlDsa65>,
-}
-
-impl MlDsa65Verifier {
-    pub fn from_pubkey_file(path: &str) -> Result<Self, crate::RiseError> {
-        let raw = std::fs::read(path)?;
-        let arr: [u8; 1952] = raw
-            .as_slice()
-            .try_into()
-            .map_err(|_| crate::RiseError::Crypto("ML-DSA-65 pubkey must be 1952 bytes".into()))?;
-        let enc = ml_dsa::EncodedVerifyingKey::<ml_dsa::MlDsa65>::from(arr);
-        Ok(Self {
-            key: ml_dsa::VerifyingKey::<ml_dsa::MlDsa65>::decode(&enc),
-        })
-    }
-
-    pub fn verify(&self, message: &[u8], signature: &[u8]) -> Result<(), crate::RiseError> {
-        let sig = ml_dsa::Signature::<ml_dsa::MlDsa65>::try_from(signature)
-            .map_err(|e| crate::RiseError::Crypto(format!("sig parse: {e}")))?;
-        if self.key.verify_with_context(message, &[], &sig) {
-            Ok(())
-        } else {
-            Err(crate::RiseError::InvalidSignature)
-        }
     }
 }
