@@ -40,16 +40,24 @@ pub fn detect(data: &[u8]) -> Container {
 }
 
 // ---------------------------------------------------------------------------
-// MP4 — top-level `rise` box
+// MP4 — top-level `uuid` box (C2PA convention) with a legacy `rise` fallback
 // ---------------------------------------------------------------------------
 
-/// Appends a top-level `rise` box containing the manifest to an MP4.
-/// The result is still a valid, playable MP4: players skip unknown boxes.
+/// RISE manifest box UUID (RFC 4122 layout, "rise"…​"RISE" byte marks).
+/// Embedded in a top-level `uuid` box, matching how C2PA stores manifests
+/// in MP4; strict BMFF scanners handle `uuid` universally.
+pub const RISE_MP4_UUID: [u8; 16] = [
+    0x72, 0x69, 0x73, 0x65, 0x00, 0x00, 0x40, 0x80,
+    0x00, 0x00, 0x00, 0x00, 0x52, 0x49, 0x53, 0x45,
+];
+
+/// Appends a top-level `uuid` box containing the manifest to an MP4.
+/// The result is still a valid, playable MP4: players skip unknown uuid boxes.
 pub fn mp4_append_box(mp4: &[u8], manifest: &[u8]) -> Result<Vec<u8>, String> {
     if detect(mp4) != Container::Mp4 {
         return Err("not an MP4 (no ftyp box)".to_string());
     }
-    let payload_len = manifest.len();
+    let payload_len = manifest.len() + RISE_MP4_UUID.len();
     if payload_len + 8 > u32::MAX as usize {
         return Err("manifest too large for a single box".to_string());
     }
@@ -57,14 +65,45 @@ pub fn mp4_append_box(mp4: &[u8], manifest: &[u8]) -> Result<Vec<u8>, String> {
     let mut out = Vec::with_capacity(mp4.len() + box_len as usize);
     out.extend_from_slice(mp4);
     out.extend_from_slice(&box_len.to_be_bytes());
-    out.extend_from_slice(b"rise");
+    out.extend_from_slice(b"uuid");
+    out.extend_from_slice(&RISE_MP4_UUID);
     out.extend_from_slice(manifest);
     Ok(out)
 }
 
-/// Walks top-level boxes and returns the FIRST `rise` box payload.
-/// Malformed boxes terminate the walk (never panics).
+/// A RISE manifest box is either the `uuid` form carrying OUR UUID, or the
+/// legacy `rise` 4CC written by v0.2.2/0.2.3. Foreign uuid boxes are not
+/// RISE manifests and never match. Returns the manifest payload slice.
+fn split_rise_box<'a>(kind: &[u8], body: &'a [u8]) -> Option<&'a [u8]> {
+    if kind == b"rise" {
+        return Some(body);
+    }
+    if kind == b"uuid" && body.len() >= 16 && body[..16] == RISE_MP4_UUID {
+        return Some(&body[16..]);
+    }
+    None
+}
+
+/// Walks top-level boxes and returns the FIRST RISE manifest payload
+/// (uuid-with-our-UUID or legacy `rise` box). Malformed boxes terminate
+/// the walk (never panics).
 pub fn mp4_extract_box(data: &[u8]) -> Option<Vec<u8>> {
+    find_rise_box(data).map(|(_, payload)| payload.to_vec())
+}
+
+/// Removes the FIRST RISE box, reproducing the pre-seal byte stream
+/// (used for hash verification of the original media).
+pub fn mp4_strip_box(data: &[u8]) -> Option<Vec<u8>> {
+    let (range, _) = find_rise_box(data)?;
+    let mut out = Vec::with_capacity(data.len() - range.len());
+    out.extend_from_slice(&data[..range.start]);
+    out.extend_from_slice(&data[range.end..]);
+    Some(out)
+}
+
+/// Locates the first RISE box: returns (byte range of the whole box,
+/// manifest payload slice). Handles size==0 and 64-bit sizes safely.
+fn find_rise_box(data: &[u8]) -> Option<(std::ops::Range<usize>, &[u8])> {
     let mut i = 0usize;
     while i + 8 <= data.len() {
         let size = u32::from_be_bytes([data[i], data[i + 1], data[i + 2], data[i + 3]]) as usize;
@@ -92,28 +131,9 @@ pub fn mp4_extract_box(data: &[u8]) -> Option<Vec<u8>> {
         if size > data.len() - i {
             break; // declared box runs past EOF; stop
         }
-        if kind == b"rise" {
-            return Some(data[i + 8..i + size].to_vec());
-        }
-        i += size;
-    }
-    None
-}
-
-/// Removes the FIRST `rise` box, reproducing the pre-seal byte stream
-/// (used for hash verification of the original media).
-pub fn mp4_strip_box(data: &[u8]) -> Option<Vec<u8>> {
-    let mut i = 0usize;
-    while i + 8 <= data.len() {
-        let size = u32::from_be_bytes([data[i], data[i + 1], data[i + 2], data[i + 3]]) as usize;
-        if size == 0 || size < 8 || size > data.len() - i {
-            break;
-        }
-        if &data[i + 4..i + 8] == b"rise" {
-            let mut out = Vec::with_capacity(data.len() - size);
-            out.extend_from_slice(&data[..i]);
-            out.extend_from_slice(&data[i + size..]);
-            return Some(out);
+        let body = &data[i + 8..i + size];
+        if let Some(payload) = split_rise_box(kind, body) {
+            return Some((i..i + size, payload));
         }
         i += size;
     }
@@ -310,8 +330,42 @@ mod tests {
         // sealed keeps the original prefix byte-identical
         assert_eq!(&sealed[..mp4.len()], &mp4[..]);
         assert_eq!(mp4_extract_box(&sealed).unwrap(), b"{\"rise_version\":1}");
+        // the embedded box is the uuid form with our UUID
+        let tail = &sealed[mp4.len()..];
+        assert_eq!(&tail[4..8], b"uuid");
+        assert_eq!(&tail[8..24], &RISE_MP4_UUID);
         // strip reproduces the original stream exactly
         assert_eq!(mp4_strip_box(&sealed).unwrap(), mp4);
+    }
+
+    #[test]
+    fn mp4_legacy_rise_box_still_reads() {
+        // v0.2.2/0.2.3 wrote a plain `rise` 4CC box; those files must verify.
+        let mp4 = synth_mp4();
+        let mut sealed = mp4.clone();
+        sealed.extend_from_slice(&((b"legacy".len() + 8) as u32).to_be_bytes());
+        sealed.extend_from_slice(b"rise");
+        sealed.extend_from_slice(b"legacy");
+        assert_eq!(mp4_extract_box(&sealed).unwrap(), b"legacy");
+        assert_eq!(mp4_strip_box(&sealed).unwrap(), mp4);
+    }
+
+    #[test]
+    fn mp4_foreign_uuid_ignored() {
+        // an attacker-supplied uuid box (different UUID) never matches
+        let mp4 = synth_mp4();
+        let mut data = mp4.clone();
+        let foreign_body: &[u8] = &[0u8; 16]; // foreign UUID
+        let junk: &[u8] = b"not-rise";
+        data.extend_from_slice(&((foreign_body.len() + junk.len() + 8) as u32).to_be_bytes());
+        data.extend_from_slice(b"uuid");
+        data.extend_from_slice(foreign_body);
+        data.extend_from_slice(junk);
+        assert!(mp4_extract_box(&data).is_none());
+        assert!(mp4_strip_box(&data).is_none());
+        // our box after a foreign one still wins
+        let sealed = mp4_append_box(&data, b"ours").unwrap();
+        assert_eq!(mp4_extract_box(&sealed).unwrap(), b"ours");
     }
 
     #[test]

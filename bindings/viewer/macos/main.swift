@@ -108,12 +108,22 @@ func parseRise(_ data: Data) -> RiseResult {
         return .ok(image: out, manifest: manifest, hashMatches: matches)
     }
 
-    // MP4: top-level `rise` box (video manifest — no image preview).
+    // MP4: top-level `uuid` box (RISE UUID, C2PA convention) or legacy `rise` box
+    // (video manifest — no image preview).
     if data.count > 8, String(data: data[4..<8], encoding: .ascii) == "ftyp" {
+        let riseUuid: [UInt8] = [0x72, 0x69, 0x73, 0x65, 0x00, 0x00, 0x40, 0x80,
+                                 0x00, 0x00, 0x00, 0x00, 0x52, 0x49, 0x53, 0x45]
         var i = 0
         while i + 8 <= data.count {
             let size = be32(data, i)
             if size == 0 || size < 8 || i + size > data.count { break }
+            if data[i + 4..<i + 8] == Data("uuid".utf8),
+               i + 24 <= data.count, Array(data[i + 8..<i + 24]) == riseUuid {
+                guard let manifest = decodeManifest(data[i + 24..<i + size]) else {
+                    return .broken(reason: "Corrupted embedded manifest.")
+                }
+                return .ok(image: nil, manifest: manifest, hashMatches: false)
+            }
             if data[i + 4..<i + 8] == Data("rise".utf8) {
                 guard let manifest = decodeManifest(data[i + 8..<i + size]) else {
                     return .broken(reason: "Corrupted embedded manifest.")

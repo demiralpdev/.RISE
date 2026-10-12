@@ -44,15 +44,27 @@ media, never in a sidecar:
 |---|---|---|
 | JPEG | APP11 JUMBF segment (`core/src/jumbf.rs`, C2PA 2.4) | any JPEG viewer, c2patool |
 | PNG | ancillary `risE` chunk, inserted before the first IDAT (`core/src/container.rs`) | any PNG decoder |
-| MP4 | top-level `rise` box, appended at EOF (`core/src/container.rs`) | any ISO-BMFF player |
+| MP4 | top-level `uuid` box, appended at EOF (`core/src/container.rs`) | any ISO-BMFF player |
+
+MP4 box layout (since v0.2.4, C2PA-aligned):
+
+```
+[size u32 BE] "uuid" [RISE_MP4_UUID, 16 bytes] [manifest JSON, UTF-8]
+RISE_MP4_UUID = 72697365-0000-4000-8000-000052495345
+```
 
 Payload rules:
 
 - JPEG embeds the manifest in a JUMBF envelope (C2PA compatibility).
 - PNG chunk and MP4 box carry the manifest JSON raw (UTF-8).
 - Extraction rule: the FIRST embedded manifest in file order wins. A
-  second `rise` box or `risE` chunk (e.g. an attacker transplant) is
+  second RISE box or `risE` chunk (e.g. an attacker transplant) is
   ignored; deleting the original leaves no manifest (fail-closed).
+- A `uuid` box counts as RISE only when its leading 16 bytes equal
+  `RISE_MP4_UUID` — foreign UUID boxes are never treated as RISE
+  manifests.
+- Legacy: v0.2.2/v0.2.3 wrote a plain `rise` 4CC box; readers accept it
+  as a deprecated fallback, writers emit the `uuid` form only.
 - PNG chunk insertion position (before IDAT) guarantees the
   first-inserted seal stays first in file order, so later inserts never
   displace it.

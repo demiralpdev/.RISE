@@ -150,12 +150,21 @@ enum Cmd {
         /// Start a background screen recording.
         #[arg(long, default_value_t = false)]
         start: bool,
-        /// Stop the background screen recording.
+        /// Stop the background screen recording and seal it to .rvid.
         #[arg(long, default_value_t = false)]
         stop: bool,
         /// Recording output path (used with --start).
         #[arg(long, default_value = "/tmp/rise-screen-record.mov")]
         out: String,
+        /// Signing key: seal the recording when --stop runs.
+        #[arg(long)]
+        key: Option<String>,
+        /// Anonymous device id stamped into the manifest.
+        #[arg(long, default_value = "auto")]
+        device: String,
+        /// Signature algorithm (es256|ed25519).
+        #[arg(long, default_value = "es256")]
+        alg: String,
     },
 }
 
@@ -215,7 +224,14 @@ fn main() {
             alg,
             out,
         } => screen_cmd(&device, key.as_deref(), &alg, out.as_deref()),
-        Cmd::ScreenRecord { start, stop, out } => screen_record_cmd(start, stop, &out),
+        Cmd::ScreenRecord {
+            start,
+            stop,
+            out,
+            key,
+            device,
+            alg,
+        } => screen_record_cmd(start, stop, &out, key.as_deref(), &device, &alg),
     };
     std::process::exit(kod);
 }
@@ -741,6 +757,14 @@ fn video_cmd(
         let _ = fs::remove_dir_all(&tmp);
         return 2;
     }
+    // Long recordings: cap the manifest at ~256 evenly-sampled frames so
+    // an hour-long capture does not bloat the sealed box (fps is a
+    // sampling rate, not a claim about every frame).
+    const MAX_FRAMES: usize = 256;
+    if paths.len() > MAX_FRAMES {
+        let step = (paths.len() / MAX_FRAMES).max(1);
+        paths = paths.iter().step_by(step).cloned().collect();
+    }
     // read every frame into memory for hashing
     let mut frames: Vec<Vec<u8>> = Vec::with_capacity(paths.len());
     for p in &paths {
@@ -949,10 +973,44 @@ fn screen_record_pid_file() -> std::path::PathBuf {
     std::env::temp_dir().join("rise-screen-record.pid")
 }
 
-/// screen-record command (placeholder): --start spawns a background
-/// ffmpeg avfoundation capture, --stop kills it. Seal the resulting
-/// .mov afterwards with `rise-core video --input <file>`.
-fn screen_record_cmd(start: bool, stop: bool, out: &str) -> i32 {
+/// Finds the first avfoundation "Capture screen" video device index, so
+/// screen recording targets the display instead of a webcam. Indices are
+/// per-machine (webcams occupy the low slots), so this must be dynamic.
+fn detect_avfoundation_screen() -> Option<u32> {
+    let out = Command::new("ffmpeg")
+        .args(["-f", "avfoundation", "-list_devices", "true", "-i", ""])
+        .output()
+        .ok()?;
+    let text = String::from_utf8_lossy(&out.stderr);
+    for line in text.lines() {
+        let Some(pos) = line.find("Capture screen") else { continue };
+        let Some(open) = line[..pos].rfind('[') else { continue };
+        let Some(idx) = line[open + 1..pos]
+            .trim_end_matches(']')
+            .trim()
+            .parse()
+            .ok()
+        else {
+            continue;
+        };
+        return Some(idx);
+    }
+    None
+}
+
+/// screen-record command: --start spawns a background ffmpeg avfoundation
+/// capture into `<out>.part` (a crash never exposes a partial sealed file),
+/// stashing the seal parameters in the pid file. --stop kills ffmpeg,
+/// waits for the container to settle, then seals IN PROCESS into a
+/// playable `.rvid` next to the recording. One command, no sidecars.
+fn screen_record_cmd(
+    start: bool,
+    stop: bool,
+    out: &str,
+    key: Option<&str>,
+    device: &str,
+    alg: &str,
+) -> i32 {
     if start == stop {
         eprintln!("specify exactly one of --start or --stop");
         return 2;
@@ -967,18 +1025,29 @@ fn screen_record_cmd(start: bool, stop: bool, out: &str) -> i32 {
             eprintln!("already recording (pid file {} exists); --stop first", pid_file.display());
             return 2;
         }
-        // macOS display capture via avfoundation, detached background child.
+        // Record to a .part name: the .rvid only appears once sealed.
+        let part_path = format!("{out}.part");
+        let screen_idx = detect_avfoundation_screen().unwrap_or(3);
+        let input = format!("{screen_idx}:none");
         let child = Command::new("ffmpeg")
-            .args(["-y", "-loglevel", "error", "-f", "avfoundation", "-framerate", "30", "-i", "1:none", out])
+            .args([
+                "-y", "-loglevel", "error",
+                "-f", "avfoundation", "-pixel_format", "uyvy422",
+                "-i", &input,
+                "-movflags", "+faststart",
+                "-f", "mov",
+                &part_path,
+            ])
             .spawn();
         match child {
             Ok(c) => {
-                if let Err(e) = fs::write(&pid_file, format!("{}\n{out}\n", c.id())) {
+                let stash = format!("{}\n{out}\n{}\n{device}\n{alg}\n", c.id(), key.unwrap_or(""));
+                if let Err(e) = fs::write(&pid_file, stash) {
                     eprintln!("pid write error: {e}");
                     return 2;
                 }
-                eprintln!("screen recording started (pid {}) -> {out}", c.id());
-                // Child keeps running after the CLI exits; forget the handle.
+                eprintln!("screen recording started (pid {}) -> {part_path}", c.id());
+                eprintln!("stop and seal with: rise-core screen-record --stop");
                 std::mem::forget(c);
                 0
             }
@@ -1000,16 +1069,44 @@ fn screen_record_cmd(start: bool, stop: bool, out: &str) -> i32 {
                 return 2;
             }
         };
-        let rec_path = lines.next().unwrap_or(out).to_string();
-        // Stop the background ffmpeg.
-        let killed = Command::new("kill").arg(pid.to_string()).status().map(|s| s.success()).unwrap_or(false);
+        let out_path = lines.next().unwrap_or(out).to_string();
+        let stashed_key = lines.next().map(str::to_string).filter(|s| !s.is_empty());
+        let stashed_device = lines.next().unwrap_or("auto").to_string();
+        let stashed_alg = lines.next().unwrap_or("es256").to_string();
         let _ = fs::remove_file(&pid_file);
+        let killed = Command::new("kill").arg(pid.to_string()).status().map(|s| s.success()).unwrap_or(false);
         if !killed {
             eprintln!("could not signal pid {pid}; recording may have already exited");
         }
-        eprintln!("screen recording stopped -> {rec_path}");
-        eprintln!("seal it next: rise-core video --input {rec_path} --device <id> --key <key> --out manifest.json");
-        0
+        let part_path = format!("{out_path}.part");
+        let rec_path = if std::path::Path::new(&part_path).exists() {
+            part_path
+        } else {
+            out_path.clone()
+        };
+        // Let ffmpeg flush and the file settle before hashing frames.
+        let mut prev: i64 = -1;
+        for _ in 0..20 {
+            std::thread::sleep(std::time::Duration::from_secs(1));
+            let sz = fs::metadata(&rec_path).map(|m| m.len() as i64).unwrap_or(prev);
+            if sz == prev {
+                break;
+            }
+            prev = sz;
+        }
+        let rvid_out = std::path::Path::new(&out_path)
+            .with_extension("rvid")
+            .to_string_lossy()
+            .into_owned();
+        eprintln!("sealing {rec_path} -> {rvid_out}");
+        let code = video_cmd(&rec_path, &stashed_device, 1, stashed_key.as_deref(), &stashed_alg, Some(&rvid_out));
+        if code == 0 {
+            let _ = fs::remove_file(&rec_path);
+            eprintln!("done: {rvid_out}");
+        } else {
+            eprintln!("seal failed; recording kept at {rec_path} (seal manually with rise-core video)");
+        }
+        code
     }
 }
 

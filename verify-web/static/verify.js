@@ -194,12 +194,17 @@ function extractRise(data) {
     return { kind: "png", manifest, clean: Uint8Array.from(out) };
   }
 
-  // MP4
+  // MP4: top-level `uuid` box (RISE UUID, C2PA convention) or legacy `rise` box
   if (u8.length > 8 && asciiEq(4, "ftyp")) {
+    const RISE_UUID = [0x72,0x69,0x73,0x65,0x00,0x00,0x40,0x80,
+                       0x00,0x00,0x00,0x00,0x52,0x49,0x53,0x45];
     let i = 0;
     while (i + 8 <= u8.length) {
       const size = be32(i);
       if (size === 0 || size < 8 || i + size > u8.length) break;
+      if (asciiEq(i + 4, "uuid") && i + 24 <= u8.length &&
+          RISE_UUID.every((b, k) => u8[i + 8 + k] === b))
+        return { kind: "mp4", manifest: new TextDecoder().decode(u8.slice(i + 24, i + size)), clean: u8 };
       if (asciiEq(i + 4, "rise"))
         return { kind: "mp4", manifest: new TextDecoder().decode(u8.slice(i + 8, i + size)), clean: u8 };
       i += size;
