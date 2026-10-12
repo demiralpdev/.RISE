@@ -61,6 +61,47 @@ jobs:
         with:
           extra_args: --only-verified
 
+  shellcheck:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      # shellcheck ships preinstalled on ubuntu-latest runners.
+      - run: |
+          fail=0
+          while IFS= read -r f; do
+            shellcheck -S warning "$f" || fail=1
+          done < <(git ls-files '*.sh')
+          exit "$fail"
+
+  python-audit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install pip-audit
+      - run: pip-audit -r verify-web/requirements.txt
+
+  fuzz:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: core
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: dtolnay/rust-toolchain@nightly
+      - uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-fuzz
+      # Bounded smoke fuzz: regression-runs the committed corpus (incl. the
+      # two former phantom-box crashers) and explores for 60s.
+      - run: cargo +nightly fuzz run parsers fuzz/seeds/parsers -- -max_total_time=60
+        env:
+          RUSTUP_TOOLCHAIN: nightly
+
   sonar:
     runs-on: ubuntu-latest
     env:

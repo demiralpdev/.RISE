@@ -57,3 +57,13 @@ infrastructure lands — exactly as designed.
 
 Post-fix re-attack: prefix_same=True but ids_now_differ=True — the poisoning
 path is closed. Gold remains unreachable.
+
+## Round 3 — Continuous fuzzing (cargo-fuzz, v0.2.4+)
+
+| ID | Attack | Result |
+|---|---|---|
+| F1 (fuzzer-proven) | Phantom RISE box: an attacker-supplied pre-seal file declares an over-long foreign box (ISO BMFF sizes are honored by the walker); after sealing, the walk lands INSIDE the appended box and surfaces a crafted `rise`/`uuid` shape from the embedded bytes, so extraction can return attacker-positioned bytes instead of the appended manifest | **No parser panic** (1,255,782 fuzz executions, 0 crashes). Impact equals the R6 transplant class: a swapped manifest must still pass signature verification against trusted anchors — self-asserted keys fail closed to red. Documented as a known property of size-honoring walkers; a byte-scanning extractor would be strictly worse. |
+| F2 | Arbitrary bytes into every container walker (JPEG APP11, PNG chunk, MP4 box) + JUMBF payload parse | 0 panics — walkers are bounds-checked and fail-closed |
+| F3 | Strict round-trip (append->extract==embedded, strip==original) on crafted inputs | Property does NOT universally hold on crafted inputs (by the F1 mechanism); holds on all clean-walking inputs. Fuzz target now asserts it under a clean-walk oracle. |
+
+Fuzz target: `core/fuzz/fuzz_targets/parsers.rs` (ASan + sancov, `cargo +nightly fuzz run parsers`).

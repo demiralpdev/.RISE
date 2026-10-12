@@ -5,9 +5,9 @@
 set -eu
 
 # Resolve locations relative to this script.
-SCRIPT_DIR=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
-CORE_DIR=$(CDPATH= cd -- "$SCRIPT_DIR/.." && pwd)
-REPO_ROOT=$(CDPATH= cd -- "$CORE_DIR/.." && pwd)
+SCRIPT_DIR=$(CDPATH='' cd -- "$(dirname -- "$0")" && pwd)
+CORE_DIR=$(CDPATH='' cd -- "$SCRIPT_DIR/.." && pwd)
+REPO_ROOT=$(CDPATH='' cd -- "$CORE_DIR/.." && pwd)
 HEADER="$REPO_ROOT/bindings/macos/capture/core.h"
 
 # Toolchain checks with a clear reason and non-zero exit.

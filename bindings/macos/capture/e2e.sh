@@ -6,7 +6,7 @@
 # Exits 0 only if every stage passes; prints one line per stage.
 # Temp keys live in /tmp and are deleted at end via trap. No secrets in repo.
 set -uo pipefail
-cd "$(dirname "$0")"
+cd "$(dirname "$0")" || exit 1
 
 CORE="../../../core/target/debug/rise-core"
 TSA="https://freetsa.org/tsr"
