@@ -7,22 +7,18 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
+from app import app
 from cryptography.hazmat.primitives import hashes
 from cryptography.hazmat.primitives.asymmetric import ec
 from cryptography.hazmat.primitives.asymmetric.utils import (
     decode_dss_signature,
-    encode_dss_signature,
 )
 from cryptography.hazmat.primitives.serialization import (
     Encoding,
-    NoEncryption,
-    PrivateFormat,
     PublicFormat,
 )
-from fastapi.testclient import TestClient  # noqa: E402
-
-from app import app  # noqa: E402
-from verify import _canonical_bytes, verify_badge, verify_signature  # noqa: E402
+from fastapi.testclient import TestClient
+from verify import _canonical_bytes, verify_badge, verify_signature
 
 client = TestClient(app)
 FRAME = b"frame-data-es256"

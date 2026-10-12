@@ -1,0 +1,67 @@
+name: quality
+
+# Scans: Rust CVE advisories, Python lint+security, JS lint+format, secrets.
+# SonarCloud job runs only when the user adds the SONAR_TOKEN repo secret
+# (free for open source: sonarcloud.io -> import this repo).
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  rust-audit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: rustsec/audit-check@v2
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+  python-quality:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install ruff bandit
+      - run: ruff check verify-web
+      # App code only: tests/ is intentionally excluded - assert_used (B101)
+      # and attack-simulation subprocess calls (B603/B404) are expected in
+      # red-team test files, and ruff would flag the same style there.
+      - run: >
+          bandit verify-web/app.py verify-web/verify.py verify-web/db.py
+          verify-web/report.py verify-web/trust.py verify-web/sync_trust.py -q
+
+  js-quality:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - run: npx -y prettier@latest --check verify-web/static/verify.js verify-web/static/index.html package/rise.js package/install.js
+      - run: npx -y eslint@latest verify-web/static/verify.js package/rise.js package/install.js
+
+  secrets:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: trufflesecurity/trufflehog@main
+        with:
+          base: ${{ github.event.repository.default_branch }}
+          head: HEAD
+          extra_args: --debug --only-verified
+
+  sonar:
+    runs-on: ubuntu-latest
+    if: secrets.SONAR_TOKEN != ''
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: SonarSource/sonarqube-scan-action@v5
+        env:
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}

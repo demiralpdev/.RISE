@@ -4,9 +4,8 @@ The connection string lives in .env (gitignored, never committed).
 If MongoDB is unreachable, the in-memory dict in app.py still serves.
 """
 import hashlib
-import json
 import os
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 _client = None
 
@@ -19,10 +18,11 @@ def _get_client():
     if not uri:
         _env = os.path.join(os.path.dirname(__file__), ".env")
         if os.path.exists(_env):
-            for line in open(_env):
-                line = line.strip()
-                if line.startswith("RISE_MONGO_URI="):
-                    uri = line.split("=", 1)[1].strip().strip('"').strip("'")
+            with open(_env) as fh:
+                for line in fh:
+                    line = line.strip()
+                    if line.startswith("RISE_MONGO_URI="):
+                        uri = line.split("=", 1)[1].strip().strip('"').strip("'")
                     break
     if not uri:
         return None
@@ -56,7 +56,7 @@ def store(vid: str, badge: str, reason: str, manifest: str, trust: dict) -> bool
             "manifest_hash": manifest_hash,
             "manifest": manifest,
             "trust": trust,
-            "stored_at": datetime.now(timezone.utc),
+            "stored_at": datetime.now(UTC),
         })
         return True
     except Exception:

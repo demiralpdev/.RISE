@@ -13,14 +13,17 @@ const PLATFORMS = {
   "win32-x64": "rise-core-x86_64-pc-windows-gnu.exe",
 };
 
-const RELEASES_URL = "https://github.com/demiralpdev/.RISE/releases/latest/download";
+const RELEASES_URL =
+  "https://github.com/demiralpdev/.RISE/releases/latest/download";
 const BIN_DIR = path.join(__dirname, "bin");
 const key = `${process.platform}-${process.arch}`;
 const binary = PLATFORMS[key];
 
 if (!binary) {
   console.error(`No prebuilt binary for ${key}. Build from source:`);
-  console.error("  git clone https://github.com/demiralpdev/.RISE.git && cd .RISE/core && cargo build --release");
+  console.error(
+    "  git clone https://github.com/demiralpdev/.RISE.git && cd .RISE/core && cargo build --release",
+  );
   process.exit(1);
 }
 
@@ -33,13 +36,16 @@ async function main() {
   const url = `${RELEASES_URL}/${binary}`;
   try {
     console.log(`Downloading ${binary} from GitHub Releases...`);
-    execSync(`curl -fsSL -o "${localPath}" "${url}"`, { stdio: "pipe", timeout: 30000 });
+    execSync(`curl -fsSL -o "${localPath}" "${url}"`, {
+      stdio: "pipe",
+      timeout: 30000,
+    });
     if (fs.existsSync(localPath) && fs.statSync(localPath).size > 1000) {
       fs.chmodSync(localPath, 0o755);
       console.log(`Installed: ${localPath}`);
       return;
     }
-  } catch (e) {
+  } catch {
     console.log("No prebuilt binary available (Releases not published yet).");
   }
 
@@ -50,9 +56,13 @@ async function main() {
     if (fs.existsSync(path.join(tmp, "Cargo.toml"))) {
       execSync("cargo build --release", { cwd: tmp, stdio: "inherit" });
       console.log("Built from source. Binary at core/target/release/rise-core");
-      console.log("Note: `rise` CLI wrapper will fall back to the source-built binary.");
+      console.log(
+        "Note: `rise` CLI wrapper will fall back to the source-built binary.",
+      );
     } else {
-      console.log("To build: git clone https://github.com/demiralpdev/.RISE.git && cd .RISE/core && cargo build --release");
+      console.log(
+        "To build: git clone https://github.com/demiralpdev/.RISE.git && cd .RISE/core && cargo build --release",
+      );
     }
   } catch (e) {
     console.log("Build failed:", e.message?.slice(0, 100));

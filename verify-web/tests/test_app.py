@@ -7,10 +7,9 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from fastapi.testclient import TestClient  # noqa: E402
-
-from app import app  # noqa: E402
-from verify import _merkle  # noqa: E402
+from app import app
+from fastapi.testclient import TestClient
+from verify import _merkle
 
 client = TestClient(app)
 
@@ -63,7 +62,7 @@ def test_prod_trust_list_has_no_test_anchor():
     # issuer by default (empty anchors until a verified upstream snapshot).
     import app as app_module
 
-    assert not app_module.check_trust_list("leaf", ANCHOR)[0] == "trusted"
+    assert app_module.check_trust_list("leaf", ANCHOR)[0] != "trusted"
 
 
 def test_verify_unknown_demotes_to_red():

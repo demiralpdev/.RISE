@@ -19,17 +19,33 @@ const binary = PLATFORMS[key];
 const candidates = [
   path.join(__dirname, "bin", binary || ""),
   path.join(__dirname, "bin", "rise-core"),
-  path.join(__dirname, "..", "core", "target", "release",
-    process.platform === "win32" ? "rise-core.exe" : "rise-core"),
-  path.join(__dirname, "..", "core", "target", "debug",
-    process.platform === "win32" ? "rise-core.exe" : "rise-core"),
+  path.join(
+    __dirname,
+    "..",
+    "core",
+    "target",
+    "release",
+    process.platform === "win32" ? "rise-core.exe" : "rise-core",
+  ),
+  path.join(
+    __dirname,
+    "..",
+    "core",
+    "target",
+    "debug",
+    process.platform === "win32" ? "rise-core.exe" : "rise-core",
+  ),
 ];
 
 const exe = candidates.find((p) => fs.existsSync(p) && fs.statSync(p).size > 0);
 
 if (!exe) {
-  console.error("rise-core binary not found. Run: npm install -g @rise/cli (rebuilds)");
-  console.error("Or: git clone https://github.com/demiralpdev/.RISE.git && cd .RISE/core && cargo build --release");
+  console.error(
+    "rise-core binary not found. Run: npm install -g @rise/cli (rebuilds)",
+  );
+  console.error(
+    "Or: git clone https://github.com/demiralpdev/.RISE.git && cd .RISE/core && cargo build --release",
+  );
   process.exit(1);
 }
 

@@ -5,7 +5,6 @@ import json
 
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
-
 from trust import check_trust_list
 from verify import verify_badge, verify_id
 

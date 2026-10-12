@@ -10,8 +10,8 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from trust import check_trust_list  # noqa: E402
-from verify import _merkle, _sha256, _tiles, verify_badge  # noqa: E402
+from trust import check_trust_list
+from verify import _merkle, _sha256, _tiles, verify_badge
 
 ALLOWED = ("red", "unknown")
 

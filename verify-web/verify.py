@@ -103,7 +103,8 @@ def verify_signature(manifest, pubkey_pem: str) -> bool:
             return False
         public_key.verify(der_sig, _canonical_bytes(m), ec.ECDSA(hashes.SHA256()))
         return True
-    except Exception:  # noqa: BLE001 - fail-closed: any verification error means invalid
+    # fail-closed: any verification error means the signature is invalid
+    except Exception:
         return False
 
 

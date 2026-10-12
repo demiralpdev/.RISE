@@ -5,7 +5,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from trust import check_ocsp, check_trust_list, cross_check_tsa  # noqa: E402
+from trust import check_ocsp, check_trust_list, cross_check_tsa
 
 ANCHOR = "test-anchor-ca"
 

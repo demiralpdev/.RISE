@@ -3,6 +3,7 @@ import json
 import os
 import ssl
 import sys
+import urllib.parse
 import urllib.request
 from pathlib import Path
 
@@ -18,9 +19,15 @@ class SyncError(Exception):
 
 
 def fetch(url=UPSTREAM_URL):
-    """Download the upstream Trust List; any network error propagates."""
+    """Download the upstream Trust List; any network error propagates.
+    Only https URLs are accepted, so a stray CLI argument can never turn
+    the sync into a local-file read (fail-closed)."""
+    if urllib.parse.urlsplit(url).scheme != "https":
+        raise SyncError(f"Refusing non-https trust-list URL: {url!r}")
     req = urllib.request.Request(url, headers={"Accept": "application/json"})
-    with urllib.request.urlopen(req, timeout=_TIMEOUT_SECS) as resp:
+    # The scheme is pinned to https by the check above (fail-closed), so this
+    # urlopen can never reach file:// or other unexpected schemes.
+    with urllib.request.urlopen(req, timeout=_TIMEOUT_SECS) as resp:  # nosec B310
         return resp.read()
 
 

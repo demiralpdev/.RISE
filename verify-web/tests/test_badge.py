@@ -6,7 +6,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from verify import GOLD_CAP, _merkle, verify_badge, verify_id  # noqa: E402
+from verify import GOLD_CAP, _merkle, verify_badge, verify_id
 
 
 def _valid_manifest(kare: bytes, **extra) -> str:

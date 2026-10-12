@@ -34,9 +34,9 @@ def _witness_note(witnesses) -> str:
     try:
         devs = [str(w.get("device_id", "")) for w in witnesses if isinstance(w, dict)]
         ips = [str(w.get("ip", "")) for w in witnesses if isinstance(w, dict)]
-        if len(set(d for d in devs if d)) < len([d for d in devs if d]):
+        if len({d for d in devs if d}) < len([d for d in devs if d]):
             return "Witness collusion suspected: shared device (stub)."
-        if len(set(i for i in ips if i)) < len([i for i in ips if i]):
+        if len({i for i in ips if i}) < len([i for i in ips if i]):
             return "Witness collusion suspected: shared IP (stub)."
         return "Witnesses appear independent (stub check)."
     except Exception:

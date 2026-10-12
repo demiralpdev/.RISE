@@ -8,7 +8,7 @@ import pytest
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from sync_trust import SyncError, sync  # noqa: E402
+from sync_trust import SyncError, sync
 
 _PEM = ("-----BEGIN CERTIFICATE-----\n"
         + base64.b64encode(b"recorded-test-anchor").decode()

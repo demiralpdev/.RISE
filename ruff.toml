@@ -1,0 +1,11 @@
+# Ruff configuration for the whole repo (Python lives in verify-web/).
+#
+# BLE001 (blind except) is ignored DELIBERATELY: badge and sync paths are
+# fail-closed by design (RISE-01 §7) — an unexpected exception must
+# downgrade the verdict to red/unknown or abort the sync without writing,
+# never crash a verdict into a 500 or half-state. Broad catches in the
+# verdict code ARE the security posture here.
+target-version = "py311"
+
+[lint]
+ignore = ["BLE001"]

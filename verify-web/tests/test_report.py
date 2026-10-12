@@ -6,8 +6,8 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from report import DISCLAIMER, build_report, render_text  # noqa: E402
-from verify import _merkle  # noqa: E402
+from report import DISCLAIMER, build_report, render_text
+from verify import _merkle
 
 
 def _manifest(kare: bytes, **extra) -> str:
