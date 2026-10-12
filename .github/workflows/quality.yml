@@ -57,11 +57,16 @@ jobs:
 
   sonar:
     runs-on: ubuntu-latest
-    if: secrets.SONAR_TOKEN != ''
     steps:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-      - uses: SonarSource/sonarqube-scan-action@v5
+      # Step-level if supports the secrets context (job-level does not).
+      # Skips cleanly until the user: (1) adds the SONAR_TOKEN repo secret,
+      # (2) disables Automatic Analysis in SonarCloud (Administration ->
+      # Analysis Method), which would otherwise conflict with CI scans.
+      - name: SonarCloud scan
+        if: ${{ secrets.SONAR_TOKEN != '' }}
+        uses: SonarSource/sonarqube-scan-action@v5
         env:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
