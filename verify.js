@@ -122,4 +122,92 @@ async function verifyBadge(rawManifest, frameBytes, opts = {}) {
   return { badge: GOLD_CAP, reason: "Software signature valid (MS1), informational." };
 }
 
-export { verifyBadge, sha256Hex, merkleRoot, tiles, derToRaw, canonicalJson, verifyEs256 };
+/* Container extraction: pulls the embedded manifest out of a packed file.
+ * Mirrors core/src/container.rs + jumbf.rs (RISE-01 §2.2).
+ * JPEG: APP11 JUMBF segment. PNG: ancillary `risE` chunk (raw JSON).
+ * MP4: top-level `rise` box (raw JSON). Returns {kind, manifest, clean} or null. */
+function extractRise(data) {
+  const u8 = data instanceof Uint8Array ? data : new Uint8Array(data);
+  const at = (i, ...bs) => bs.every((b, k) => u8[i + k] === b);
+  const asciiEq = (i, s) => [...s].every((c, k) => u8[i + k] === c.charCodeAt(0));
+  const be32 = i => (u8[i] << 24 | u8[i + 1] << 16 | u8[i + 2] << 8 | u8[i + 3]) >>> 0;
+  const hasKey = (from, to) => {
+    const needle = "rise_version";
+    outer: for (let i = from; i + needle.length <= to; i++) {
+      for (let k = 0; k < needle.length; k++)
+        if (u8[i + k] !== needle.charCodeAt(k)) continue outer;
+      return true;
+    }
+    return false;
+  };
+  const jsonSlice = (from, to) => {
+    let s = -1, e = -1;
+    for (let i = from; i < to; i++) if (u8[i] === 0x7b) { s = i; break; }
+    for (let i = to - 1; i >= from; i--) if (u8[i] === 0x7d) { e = i; break; }
+    return s >= 0 && e > s ? new TextDecoder().decode(u8.slice(s, e + 1)) : null;
+  };
+
+  // JPEG
+  if (u8.length > 3 && at(0, 0xff, 0xd8, 0xff)) {
+    let out = [u8[0], u8[1]], i = 2, manifest = null;
+    while (i + 4 <= u8.length) {
+      if (u8[i] !== 0xff) return null;
+      const marker = u8[i + 1];
+      if (marker === 0xd9) { out.push(0xff, 0xd9); break; }
+      if (marker === 0xda) {
+        const seglen = be32(i + 2) >> 16;
+        out.push(...u8.slice(i, i + 2 + seglen));
+        i += 2 + seglen;
+        if (i < u8.length) out.push(...u8.slice(i));
+        break;
+      }
+      const seglen = be32(i + 2) >> 16;
+      const end = i + 2 + seglen;
+      if (end > u8.length || seglen < 2) return null;
+      if (marker === 0xeb && hasKey(i, end)) {
+        if (manifest === null) manifest = jsonSlice(i, end);
+      } else {
+        out.push(...u8.slice(i, end));
+      }
+      i = end;
+    }
+    if (manifest === null) return null;
+    return { kind: "jpeg", manifest, clean: Uint8Array.from(out) };
+  }
+
+  // PNG
+  if (u8.length > 8 && at(0, 0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a)) {
+    let out = [...u8.slice(0, 8)], i = 8, manifest = null;
+    while (i + 8 <= u8.length) {
+      const len = be32(i);
+      const end = i + 8 + len + 4;
+      if (end > u8.length) return null;
+      if (asciiEq(i + 4, "risE")) {
+        if (manifest === null) manifest = new TextDecoder().decode(u8.slice(i + 8, i + 8 + len));
+      } else {
+        out.push(...u8.slice(i, end));
+      }
+      if (asciiEq(i + 4, "IEND")) break;
+      i = end;
+    }
+    if (manifest === null) return null;
+    return { kind: "png", manifest, clean: Uint8Array.from(out) };
+  }
+
+  // MP4
+  if (u8.length > 8 && asciiEq(4, "ftyp")) {
+    let i = 0;
+    while (i + 8 <= u8.length) {
+      const size = be32(i);
+      if (size === 0 || size < 8 || i + size > u8.length) break;
+      if (asciiEq(i + 4, "rise"))
+        return { kind: "mp4", manifest: new TextDecoder().decode(u8.slice(i + 8, i + size)), clean: u8 };
+      i += size;
+    }
+    return null;
+  }
+
+  return null;
+}
+
+export { verifyBadge, sha256Hex, merkleRoot, tiles, derToRaw, canonicalJson, verifyEs256, extractRise };

@@ -3,7 +3,24 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1.0">
-<title>RISE — Verify</title>
+<title>RISE — Photo & Video Authenticity Verifier (.rise / .rvid)</title>
+<meta name="description" content="Verify sealed photos and videos right in your browser. .rise and .rvid files carry cryptographic proof (SHA-256, ES256, C2PA-compatible JUMBF) that media came from a real camera or screen — not AI-generated.">
+<meta name="keywords" content="photo authenticity, video authenticity, C2PA, content credentials, deepfake detection, AI image detection, media forensics, provenance, rise format, rvid, riseproof">
+<link rel="canonical" href="https://riseproof.me/">
+<meta property="og:type" content="website">
+<meta property="og:url" content="https://riseproof.me/">
+<meta property="og:title" content="RISE — Photo & Video Authenticity Verifier">
+<meta property="og:description" content="Cryptographic proof that photos and videos are real. Drop a .rise or .rvid file — verification runs 100% in your browser.">
+<meta property="og:image" content="https://raw.githubusercontent.com/demiralpdev/.RISE/main/.github/banner.svg">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:title" content="RISE — Photo & Video Authenticity Verifier">
+<meta name="twitter:description" content="Cryptographic proof that photos and videos are real. Verify .rise / .rvid files in your browser.">
+<script type="application/ld+json">
+{"@context":"https://schema.org","@type":"WebApplication","name":"RISE Verifier",
+"url":"https://riseproof.me/","applicationCategory":"SecurityApplication",
+"operatingSystem":"Web","offers":{"@type":"Offer","price":"0","priceCurrency":"USD"},
+"description":"Browser-based verifier for .rise and .rvid sealed media files with cryptographic provenance."}
+</script>
 <style>
 *{margin:0;padding:0;box-sizing:border-box}
 :root{
@@ -219,10 +236,10 @@ footer .legal{font-size:10px;margin-top:4px}
 
   <div class="dropzone" id="drop">
     <span class="icon">[+]</span>
-    <div class="main">Drop .rise file here</div>
+    <div class="main">Drop .rise / .rvid file here</div>
     <div class="sub">or click to browse</div>
-    <div class="fmt">.rise / .json / .jpg &mdash; max 1 MB</div>
-    <input type="file" id="fileIn" accept=".rise,.json,.jpg,.jpeg">
+    <div class="fmt">.rise / .rvid / .json &mdash; packed files verified locally</div>
+    <input type="file" id="fileIn" accept=".rise,.rvid,.json,.jpg,.jpeg,.png,.mp4,.mov">
   </div>
 
   <div class="fileinfo" id="finfo">
@@ -280,7 +297,7 @@ setInterval(function(){
 </script>
 
 <script type="module">
-import { verifyBadge, sha256Hex } from "./verify.js";
+import { verifyBadge, sha256Hex, extractRise } from "./verify.js";
 
 const drop=document.getElementById("drop"),fin=document.getElementById("fileIn");
 const finfo=document.getElementById("finfo"),fname=document.getElementById("fname");
@@ -334,10 +351,18 @@ goBtn.addEventListener("click",async()=>{
     }
   }
   try{
-    const text=await cur.text();
+    const buf=new Uint8Array(await cur.arrayBuffer());
+    const ex=extractRise(buf);
     const ff=document.getElementById("frameIn").files[0];
-    const frame=ff?new Uint8Array(await ff.arrayBuffer()):new Uint8Array(0);
     const pk=document.getElementById("pubkeyIn").value.trim();
+    let text,frame;
+    if(ex){
+      text=ex.manifest;
+      frame=ex.kind==="mp4"?new Uint8Array(0):ex.clean;
+    }else{
+      text=new TextDecoder().decode(buf);
+      frame=ff?new Uint8Array(await ff.arrayBuffer()):new Uint8Array(0);
+    }
     const r=await verifyBadge(text,frame,{pubkeyPem:pk||null});
     verdict.className="verdict "+r.badge;
     verdict.textContent=r.badge==="red"?"X REJECTED":
