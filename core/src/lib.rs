@@ -8,6 +8,7 @@ use std::io::Read;
 use thiserror::Error;
 
 pub mod container;
+pub mod fuzz_oracle;
 pub mod jumbf;
 pub mod signer;
 pub mod timestamp;
