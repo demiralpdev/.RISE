@@ -889,7 +889,7 @@ fn find_rise_manifest(data: &[u8], depth: usize) -> Option<Vec<u8>> {
                         if &ctype == b"json" {
                             return Some(children[cpos + 8..cpos + clen].to_vec());
                         }
-                        cpos += clen;
+                        cpos *= clen;
                     }
                     return None;
                 }
@@ -1105,6 +1105,128 @@ mod tests {
     }
 
     #[test]
+    fn cbor_head_boundary_vectors() {
+        fn head(major: u8, n: u64) -> Vec<u8> {
+            let mut c = Cbor::new();
+            c.head(major, n);
+            c.buf
+        }
+        // major 0 boundaries: <24 inline, <256 one-byte, <65536 two-byte,
+        // <2^32 four-byte, else eight-byte.
+        assert_eq!(head(0, 0), vec![0x00]);
+        assert_eq!(head(0, 1), vec![0x01]);
+        assert_eq!(head(0, 23), vec![0x17]);
+        assert_eq!(head(0, 24), vec![0x18, 0x18]);
+        assert_eq!(head(0, 100), vec![0x18, 0x64]);
+        assert_eq!(head(0, 255), vec![0x18, 0xFF]);
+        assert_eq!(head(0, 256), vec![0x19, 0x01, 0x00]);
+        assert_eq!(head(0, 1000), vec![0x19, 0x03, 0xE8]);
+        assert_eq!(head(0, 65535), vec![0x19, 0xFF, 0xFF]);
+        assert_eq!(head(0, 65536), vec![0x1A, 0x00, 0x01, 0x00, 0x00]);
+        assert_eq!(head(0, 70000), vec![0x1A, 0x00, 0x01, 0x11, 0x70]);
+        assert_eq!(
+            head(0, 0xFFFF_FFFF),
+            vec![0x1A, 0xFF, 0xFF, 0xFF, 0xFF]
+        );
+        assert_eq!(
+            head(0, 0x1_0000_0000),
+            vec![0x1B, 0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x00]
+        );
+        assert_eq!(
+            head(0, u64::MAX),
+            vec![0x1B, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF]
+        );
+    }
+
+    #[test]
+    fn cbor_head_major_type_bits() {
+        fn head(major: u8, n: u64) -> Vec<u8> {
+            let mut c = Cbor::new();
+            c.head(major, n);
+            c.buf
+        }
+        // major type occupies the top 3 bits; the low bits carry small values.
+        assert_eq!(head(1, 0), vec![0x20]);
+        assert_eq!(head(2, 0), vec![0x40]);
+        assert_eq!(head(3, 0), vec![0x60]);
+        assert_eq!(head(4, 0), vec![0x80]);
+        assert_eq!(head(5, 0), vec![0xA0]);
+        assert_eq!(head(6, 0), vec![0xC0]);
+        assert_eq!(head(7, 23), vec![0xF7]);
+        // multi-byte heads keep the major bits in the first byte.
+        assert_eq!(head(1, 6), vec![0x26]); // COSE -7
+        assert_eq!(head(1, 24), vec![0x38, 0x18]);
+        assert_eq!(head(2, 32), vec![0x58, 0x20]);
+        assert_eq!(head(3, 256), vec![0x79, 0x01, 0x00]);
+        assert_eq!(head(4, 65536), vec![0x9A, 0x00, 0x01, 0x00, 0x00]);
+        assert_eq!(
+            head(5, 0x1_0000_0000),
+            vec![0xBB, 0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x00]
+        );
+        // NOTE: `m | x` vs `m ^ x` mutants in `head` are equivalent — the
+        // major bits (top 3) and the additional-info bits (low 5) never
+        // overlap, so OR and XOR produce identical bytes for every input.
+        // Byte-pinning kills `| -> &` but `| -> ^` is unkillable by testing.
+    }
+
+    #[test]
+    fn der_len_boundary_vectors() {
+        fn enc(n: usize) -> Vec<u8> {
+            let mut out = Vec::new();
+            der_len(n, &mut out);
+            out
+        }
+        assert_eq!(enc(0), vec![0x00]);
+        assert_eq!(enc(1), vec![0x01]);
+        assert_eq!(enc(127), vec![0x7F]);
+        assert_eq!(enc(128), vec![0x81, 0x80]);
+        assert_eq!(enc(200), vec![0x81, 0xC8]);
+        assert_eq!(enc(255), vec![0x81, 0xFF]);
+        assert_eq!(enc(256), vec![0x82, 0x01, 0x00]);
+        assert_eq!(enc(1000), vec![0x82, 0x03, 0xE8]);
+        assert_eq!(enc(65535), vec![0x82, 0xFF, 0xFF]);
+        assert_eq!(enc(65536), vec![0x83, 0x01, 0x00, 0x00]);
+        assert_eq!(enc(0x123456), vec![0x83, 0x12, 0x34, 0x56]);
+        assert_eq!(enc(0xFFFFFF), vec![0x83, 0xFF, 0xFF, 0xFF]);
+    }
+
+    #[test]
+    fn der_primitive_vectors() {
+        assert_eq!(der_null(), vec![0x05, 0x00]);
+        assert!(der_null().len() > 1);
+        let t = der_utctime("700101000000Z");
+        assert_eq!(&t[..2], &[0x17, 0x0D]);
+        assert_eq!(&t[2..], b"700101000000Z");
+        assert_eq!(t.len(), 15);
+        let inner = b"abc";
+        assert_eq!(der_explicit(0, inner), vec![0xA0, 0x03, b'a', b'b', b'c']);
+        assert_eq!(der_explicit(3, inner), vec![0xA3, 0x03, b'a', b'b', b'c']);
+        assert_eq!(der_explicit(1, b""), vec![0xA1, 0x00]);
+        // `0xA0 | n` vs `0xA0 ^ n` are identical for n < 32 (no shared bits),
+        // so the `| -> ^` mutant in der_explicit is equivalent and unkillable.
+    }
+
+    #[test]
+    fn der_integer_vectors() {
+        assert_eq!(der_integer(&[0x00]), vec![0x02, 0x01, 0x00]);
+        assert_eq!(der_integer(&[0x01]), vec![0x02, 0x01, 0x01]);
+        assert_eq!(der_integer(&[0x7F]), vec![0x02, 0x01, 0x7F]);
+        assert_eq!(der_integer(&[0x80]), vec![0x02, 0x02, 0x00, 0x80]);
+        assert_eq!(der_integer(&[0xFF]), vec![0x02, 0x02, 0x00, 0xFF]);
+        assert_eq!(der_integer(&[0x01, 0x00]), vec![0x02, 0x02, 0x01, 0x00]);
+        assert_eq!(der_integer(&[0x02]), vec![0x02, 0x01, 0x02]);
+        assert_eq!(der_integer(&[0x00, 0x01]), vec![0x02, 0x01, 0x01]);
+        assert_eq!(der_integer(&[0x00, 0x00, 0x01]), vec![0x02, 0x01, 0x01]);
+        assert_eq!(der_integer(&[0x00, 0x80]), vec![0x02, 0x02, 0x00, 0x80]);
+        assert_eq!(
+            der_integer(&[0x00, 0x00, 0xFF]),
+            vec![0x02, 0x02, 0x00, 0xFF]
+        );
+        assert!(!der_integer(&[0x7F]).is_empty());
+        assert!(der_integer(&[0x80]).len() > 3);
+    }
+
+    #[test]
     fn seal_has_c2pa_layout() {
         let jpg = vec![
             0xFF, 0xD8, 0xFF, 0xE0, 0x00, 0x04, 0xFF, 0xDA, 0x00, 0x02, 0x11, 0x22,
@@ -1215,6 +1337,191 @@ mod tests {
         assert_eq!(parse_json_payload(&back).unwrap(), payload.to_vec());
     }
 
+    #[test]
+    fn unix_to_utctime_extended_vectors() {
+        assert_eq!(unix_to_utctime(1), "700101000001Z");
+        assert_eq!(unix_to_utctime(3600), "700101010000Z");
+        assert_eq!(unix_to_utctime(86399), "700101235959Z");
+        assert_eq!(unix_to_utctime(86400), "700102000000Z");
+        assert_eq!(unix_to_utctime(31536000), "710101000000Z");
+        assert_eq!(unix_to_utctime(68256000), "720301000000Z");
+        assert_eq!(unix_to_utctime(315532800), "800101000000Z");
+        assert_eq!(unix_to_utctime(946684800), "000101000000Z");
+        assert_eq!(unix_to_utctime(68169600), "720229000000Z");
+        assert_eq!(unix_to_utctime(1767926400), "260109024000Z");
+        for s in [0u64, 1, 86399, 86400, 1760150400, 1767926400] {
+            let t = unix_to_utctime(s);
+            assert_eq!(t.len(), 13);
+            assert!(t.ends_with('Z'));
+        }
+    }
+
+    #[test]
+    fn build_superbox_size_arithmetic() {
+        for payload in [&b""[..], &b"x"[..], &b"{}"[..], &[b'A'; 300][..]] {
+            let sb = build_superbox(payload);
+            let total = u32::from_be_bytes([sb[0], sb[1], sb[2], sb[3]]) as usize;
+            assert_eq!(total, sb.len());
+            assert_eq!(&sb[4..8], b"jumb");
+            let (dlen, dtype) = box_head(&sb[8..]).unwrap();
+            assert_eq!(&dtype, b"jumd");
+            let json_off = 8 + dlen;
+            let (jlen, jtype) = box_head(&sb[json_off..]).unwrap();
+            assert_eq!(&jtype, b"json");
+            assert_eq!(jlen, 8 + payload.len());
+            assert_eq!(&sb[json_off + 8..json_off + jlen], payload);
+            assert_eq!(total, 8 + dlen + jlen);
+            assert!(total > payload.len() + 30);
+        }
+    }
+
+    #[test]
+    fn cert_validity_spans_ninety_days() {
+        let mut key_bytes = [5u8; 32];
+        key_bytes[0] &= 0x7F;
+        let key = p256::ecdsa::SigningKey::from_bytes(&key_bytes.into()).unwrap();
+        let serial = [0x7Fu8, 2, 3, 4, 5, 6, 7, 8];
+        let not_before = 1760150400u64;
+        let der = self_signed_cert_der("RISE device t", &key, &serial, not_before).unwrap();
+        assert!(der.len() > 300);
+        let nb = unix_to_utctime(not_before);
+        let na = unix_to_utctime(not_before + 90 * 86400);
+        assert_eq!(nb, "251011024000Z");
+        assert_eq!(na, "260109024000Z");
+        let nb_pos = der
+            .windows(13)
+            .position(|w| w == nb.as_bytes())
+            .expect("notBefore UTCTime in cert");
+        let na_pos = der
+            .windows(13)
+            .position(|w| w == na.as_bytes())
+            .expect("notAfter UTCTime in cert");
+        assert!(nb_pos < na_pos);
+        assert_eq!(der.windows(13).filter(|w| *w == nb.as_bytes()).count(), 1);
+    }
+
+    #[test]
+    fn cose_protected_exact_bytes() {
+        assert_eq!(cose_protected(), vec![0xA1, 0x01, 0x26]);
+    }
+
+    #[test]
+    fn cose_sig_structure_exact_bytes() {
+        let protected = cose_protected();
+        let payload = b"AB";
+        let got = cose_sig_structure(&protected, payload);
+        let mut want = vec![0x84, 0x6A];
+        want.extend_from_slice(b"Signature1");
+        want.push(0x43);
+        want.extend_from_slice(&protected);
+        want.push(0x40);
+        want.push(0x42);
+        want.extend_from_slice(payload);
+        assert_eq!(got, want);
+        assert!(got.len() > 15);
+        assert!(!cose_sig_structure(&protected, b"").is_empty());
+        assert_ne!(cose_sig_structure(&protected, b"A"), got);
+    }
+
+    #[test]
+    fn claim_cbor_pins_content() {
+        let refs = vec![
+            AssertionRef {
+                label: "c2pa.hash.data".to_string(),
+                hash: vec![0xAB; 32],
+            },
+            AssertionRef {
+                label: "c2pa.actions".to_string(),
+                hash: vec![0xCD; 32],
+            },
+        ];
+        let f = ClaimFields {
+            generator: "RISE rise-core/0.0.0",
+            generator_name: "rise-core",
+            generator_version: "0.0.0",
+            sig_uri: "self#jumbf=/c2pa/urn:c2pa:xyz/c2pa.signature",
+            refs: &refs,
+            format: "image/jpeg",
+            title: "RISE sealed frame (cam)",
+            instance_id: "xmp:iid:1234",
+        };
+        let got = claim_cbor(&f);
+        assert_eq!(got[0], 0xA8);
+        assert!(got.len() > 200);
+        for needle in [
+            b"claim_generator".as_slice(),
+            b"claim_generator_info".as_slice(),
+            b"signature".as_slice(),
+            b"assertions".as_slice(),
+            b"dc:format".as_slice(),
+            b"dc:title".as_slice(),
+            b"instanceID".as_slice(),
+            b"self#jumbf=c2pa.assertions/c2pa.hash.data".as_slice(),
+            b"self#jumbf=c2pa.assertions/c2pa.actions".as_slice(),
+        ] {
+            assert!(got.windows(needle.len()).any(|w| w == needle));
+        }
+        assert!(got.windows(32).any(|w| w == [0xABu8; 32]));
+        assert_eq!(got, claim_cbor(&f));
+        let solo = claim_cbor(&ClaimFields {
+            generator: "g",
+            generator_name: "n",
+            generator_version: "v",
+            sig_uri: "s",
+            refs: &[],
+            format: "image/jpeg",
+            title: "t",
+            instance_id: "i",
+        });
+        assert!(!solo.is_empty());
+        assert_ne!(solo, got);
+    }
+
+    #[test]
+    fn data_hash_cbor_pins_content() {
+        let hash = [0x7Fu8; 32];
+        let got = data_hash_cbor(100, &hash);
+        assert_eq!(got[0], 0xA5);
+        assert!(got.len() > 60);
+        for needle in [
+            b"exclusions".as_slice(),
+            b"jumbf manifest".as_slice(),
+            b"sha256".as_slice(),
+        ] {
+            assert!(got.windows(needle.len()).any(|w| w == needle));
+        }
+        assert!(got.windows(32).any(|w| w == hash));
+        assert!(got.windows(2).any(|w| w == [0x18, 0x64]));
+        assert_eq!(got, data_hash_cbor(100, &hash));
+        assert_ne!(got, data_hash_cbor(101, &hash));
+    }
+
+    #[test]
+    fn actions_cbor_exact_bytes() {
+        let mut want = vec![0xA1, 0x67];
+        want.extend_from_slice(b"actions");
+        want.push(0x81);
+        want.push(0xA1);
+        want.push(0x66);
+        want.extend_from_slice(b"action");
+        want.push(0x6C);
+        want.extend_from_slice(b"c2pa.created");
+        assert_eq!(actions_cbor(), want);
+        assert!(actions_cbor().len() > 20);
+    }
+
+    #[test]
+    fn creative_work_json_pins_content() {
+        let got = creative_work_json("My Title", "cam-9");
+        assert!(got.len() > 30);
+        assert_eq!(got[0], b'{');
+        let v: serde_json::Value = serde_json::from_slice(&got).unwrap();
+        assert_eq!(v["@type"], "CreativeWork");
+        assert_eq!(v["dc:title"], "My Title");
+        assert_eq!(v["dc:creator"], "cam-9");
+        assert_ne!(got, creative_work_json("Other", "cam-9"));
+    }
+
     #[cfg(test)]
     fn ephemeral_key(rng: &mut impl rand::TryRngCore) -> p256::ecdsa::SigningKey {
         let mut b = [0u8; 32];
@@ -1225,5 +1532,560 @@ mod tests {
             b[31] = b[31].wrapping_add(1).max(1);
             p256::ecdsa::SigningKey::from_bytes(&b.into()).unwrap()
         })
+    }
+
+    // ---- walker/hash mutation tests ----
+    // WALKER/HASH cluster: jpeg_extract / cai_region_hash / parse_json_payload /
+    // find_rise_manifest / seal_jpeg header / box_head / desc_info /
+    // xt_embed_with_chunk Z / seal_meta. Kills bounds/arithmetic/logic mutants on
+    // attacker-controlled JPEG bytes and pins the C2PA dataHash region layout.
+
+    #[cfg(test)]
+    fn wh_unhex(s: &str) -> Vec<u8> {
+        (0..s.len())
+            .step_by(2)
+            .map(|i| u8::from_str_radix(&s[i..i + 2], 16).unwrap())
+            .collect()
+    }
+
+    /// One XT APP11 segment: [FF EB][len][JP EN Z data].
+    #[cfg(test)]
+    fn wh_xt_seg(z: u32, data: &[u8]) -> Vec<u8> {
+        let mut content = Vec::new();
+        content.extend_from_slice(b"JP");
+        content.extend_from_slice(&[0x02, 0x11]);
+        content.extend_from_slice(&z.to_be_bytes());
+        content.extend_from_slice(data);
+        let seg_len = content.len() + 2;
+        let mut seg = vec![0xFF, 0xEB];
+        seg.extend_from_slice(&(seg_len as u16).to_be_bytes());
+        seg.extend_from_slice(&content);
+        seg
+    }
+
+    /// First-segment data with the c2pa marker at content[24..28] (data[16..20]).
+    #[cfg(test)]
+    fn wh_c2pa_data(extra: &[u8]) -> Vec<u8> {
+        let mut d = vec![0xAAu8; 16];
+        d.extend_from_slice(b"c2pa");
+        d.extend_from_slice(extra);
+        d
+    }
+
+    #[test]
+    fn wh_cai_region_single_pinned() {
+        // File A: SOI + 1 XT seg (content 33, seg_len 35, region 37) + tail.
+        // Expected SHA-256 (offline, python hashlib) over SOI + tail.
+        let tail = vec![0xFF, 0xE0, 0x00, 0x04, 0x11, 0x22];
+        let mut file = vec![0xFF, 0xD8];
+        file.extend_from_slice(&wh_xt_seg(1, &wh_c2pa_data(b"HELLO")));
+        file.extend_from_slice(&tail);
+        let (len, hash) = cai_region_hash(&file);
+        assert_eq!(len, 37);
+        assert_eq!(
+            hash.to_vec(),
+            wh_unhex("ed5c588f55b92b939ec65a1116abfc543ca3c91f97ac9b7d36cb2c4e0dc610bd")
+        );
+    }
+
+    #[test]
+    fn wh_cai_region_two_segments_pinned() {
+        // File B: SOI + 2 XT segs + tail. Region = 47 + 49 = 96.
+        let tail = vec![0xFF, 0xE0, 0x00, 0x04, 0x99];
+        let mut d2 = vec![0xCCu8; 16];
+        d2.extend_from_slice(b"XXXX");
+        d2.extend_from_slice(b"SECONDCHUNKDATA!!");
+        let mut file = vec![0xFF, 0xD8];
+        file.extend_from_slice(&wh_xt_seg(1, &wh_c2pa_data(b"FIRSTCHUNKDATA!")));
+        file.extend_from_slice(&wh_xt_seg(2, &d2));
+        file.extend_from_slice(&tail);
+        let (len, hash) = cai_region_hash(&file);
+        assert_eq!(len, 96);
+        assert_eq!(
+            hash.to_vec(),
+            wh_unhex("61ef47d40fd3c140829496ed404abad88e4a9c36e9047dde93f90dc8051da633")
+        );
+        // `len += 2 + seg_len` -> `*=` gives 0 after the first segment; the
+        // exact 96 pins both accumulation steps (0+47=47, 47+49=96).
+    }
+
+    #[test]
+    fn wh_cai_region_exact_eof_pinned() {
+        // File C: SOI + minimal XT seg (content 28, seg_len 30), no tail.
+        // pos+2+seg_len == file.len() exactly must be ACCEPTED (kills `>`->`>=`).
+        let mut d = vec![0u8; 16];
+        d.extend_from_slice(b"c2pa");
+        let mut file = vec![0xFF, 0xD8];
+        file.extend_from_slice(&wh_xt_seg(1, &d));
+        assert_eq!(file.len(), 34);
+        let (len, hash) = cai_region_hash(&file);
+        assert_eq!(len, 32);
+        // hash is over SOI alone (empty tail), pinned offline.
+        assert_eq!(
+            hash.to_vec(),
+            wh_unhex("71563ad80061407ede9c6f316836284bd3710a520c5a792b5eda1cb703690815")
+        );
+    }
+
+    #[test]
+    fn wh_cai_region_content_len_boundary() {
+        // content len 27 (one short of 28) must BREAK: region 0, hash over all.
+        let mut d = vec![0u8; 15];
+        d.extend_from_slice(b"c2pa");
+        let tail = vec![0xFF, 0xE0, 0x00, 0x04, 0x11, 0x22];
+        let mut file = vec![0xFF, 0xD8];
+        file.extend_from_slice(&wh_xt_seg(1, &d));
+        file.extend_from_slice(&tail);
+        let (len, hash) = cai_region_hash(&file);
+        assert_eq!(len, 0);
+        assert_eq!(
+            hash.to_vec(),
+            wh_unhex("51430102e4d623067e5eb6b36183091b836c1ab398302c7b85f6be0623dff8d6")
+        );
+        // ...while content len 28 (file C shape) is accepted; together these
+        // kill every `<`->`==`/`>`/`<=` and `||`->`&&` mutant on the gate.
+    }
+
+    #[test]
+    fn wh_cai_region_truncated_seg_len() {
+        // seg_len 0 and 1 are invalid and must break (region 0).
+        for lo in [0x00u8, 0x01u8] {
+            let file = vec![0xFF, 0xD8, 0xFF, 0xEB, 0x00, lo, 0xAA, 0xBB];
+            assert_eq!(cai_region_hash(&file).0, 0, "seg_len lo={lo}");
+        }
+        // seg_len running 1 byte past EOF must break (kills `>`->`==`/`<`
+        // and every `+`->`-`/`*` bound-arithmetic mutant via divergence).
+        let mut file = vec![0xFF, 0xD8];
+        file.extend_from_slice(&wh_xt_seg(1, &wh_c2pa_data(b"HELLO")));
+        let overflow = file.len() + 1 - 4; // claim one byte more than present
+        file[4] = (overflow >> 8) as u8;
+        file[5] = (overflow & 0xFF) as u8;
+        assert_eq!(cai_region_hash(&file).0, 0);
+    }
+
+    #[test]
+    fn wh_cai_region_marker_and_first_c2pa_gates() {
+        let tail = vec![0xFF, 0xE0, 0x00, 0x04, 0x11, 0x22];
+        // non-APP11 marker right after SOI: no region (kills `==`->`!=` on
+        // the FF/EB checks and `&&`->`||`).
+        let mut file = vec![0xFF, 0xD8];
+        file.extend_from_slice(&[0xFF, 0xE0, 0x00, 0x04, 0x11, 0x22]);
+        file.extend_from_slice(&tail);
+        assert_eq!(cai_region_hash(&file).0, 0);
+        // first XT segment WITHOUT the c2pa marker: region 0
+        // (kills `!=`->`==` on content[24..28]).
+        let mut d = vec![0xAAu8; 16];
+        d.extend_from_slice(b"nope");
+        d.extend_from_slice(b"HELLO");
+        let mut file = vec![0xFF, 0xD8];
+        file.extend_from_slice(&wh_xt_seg(1, &d));
+        file.extend_from_slice(&tail);
+        assert_eq!(cai_region_hash(&file).0, 0);
+        // second segment with wrong CI stops the run: region covers seg 1 only.
+        let mut file = vec![0xFF, 0xD8];
+        file.extend_from_slice(&wh_xt_seg(1, &wh_c2pa_data(b"HELLO")));
+        let mut bad = b"NOTXT!".to_vec();
+        bad.extend_from_slice(&[0u8; 30]);
+        let bad_len = bad.len() + 2;
+        file.extend_from_slice(&[0xFF, 0xEB]);
+        file.extend_from_slice(&(bad_len as u16).to_be_bytes());
+        file.extend_from_slice(&bad);
+        file.extend_from_slice(&tail);
+        let (len, hash) = cai_region_hash(&file);
+        assert_eq!(len, 37);
+        assert_eq!(
+            hash.to_vec(),
+            wh_unhex("25ae75312ec41cbef36d53f20ad89d332a1c4173cd4081ef21d5bc2009c090ed")
+        );
+    }
+
+    #[test]
+    fn wh_cai_region_short_tail_no_reentry() {
+        // After the region, 3 trailing bytes (< 4) must NOT re-enter the loop
+        // (pins `pos + 4 <= len` against `+`->`*` and `<=`->`>`).
+        let mut file = vec![0xFF, 0xD8];
+        file.extend_from_slice(&wh_xt_seg(1, &wh_c2pa_data(b"HELLO")));
+        file.extend_from_slice(&[0xFF, 0xD9, 0x00]);
+        let (len, hash) = cai_region_hash(&file);
+        assert_eq!(len, 37);
+        use sha2::Digest as _;
+        let mut h = sha2::Sha256::new();
+        h.update([0xFFu8, 0xD8]);
+        h.update([0xFFu8, 0xD9, 0x00]);
+        assert_eq!(hash.to_vec(), h.finalize().to_vec());
+    }
+
+    #[test]
+    fn wh_jpeg_extract_soi_gate() {
+        assert!(jpeg_extract(&[]).is_none());
+        assert!(jpeg_extract(&[0xFF]).is_none());
+        assert!(jpeg_extract(b"notjpeg").is_none());
+        // SOI-only file: `len < 2` -> `<=` mutant is equivalent here (no
+        // segments can follow 2 bytes); both must yield None.
+        assert!(jpeg_extract(&[0xFF, 0xD8]).is_none());
+        // Bad SOI followed by a *valid* XT store must still be rejected
+        // (kills both `||`->`&&` mutants: the mutant would walk and return Some).
+        let payload = br#"{"rise_version":1,"device_id":"x"}"#;
+        let jpg = vec![0xFF, 0xD8, 0xFF, 0xE0, 0x00, 0x04];
+        let good = jpeg_embed(&jpg, payload).unwrap();
+        let mut bad = vec![0xFF, 0x00];
+        bad.extend_from_slice(&good[2..]);
+        assert!(jpeg_extract(&bad).is_none());
+        let mut bad2 = vec![0x00, 0xD8];
+        bad2.extend_from_slice(&good[2..]);
+        assert!(jpeg_extract(&bad2).is_none());
+    }
+
+    #[test]
+    fn wh_jpeg_extract_seg_len_bounds() {
+        // seg_len == 2 (length field only, empty payload) is walked over: a
+        // later valid XT segment must still be found (kills `<`->`==`/`<=`).
+        let payload = br#"{"rise_version":1,"device_id":"y"}"#;
+        let jpg = vec![0xFF, 0xD8, 0xFF, 0xE0, 0x00, 0x04];
+        let good = jpeg_embed(&jpg, payload).unwrap();
+        let mut file = vec![0xFF, 0xD8, 0xFF, 0xE0, 0x00, 0x02];
+        file.extend_from_slice(&good[2..]);
+        let back = jpeg_extract(&file).unwrap();
+        assert_eq!(parse_json_payload(&back).unwrap(), payload.to_vec());
+        // seg_len == 1 must break the walk (correct: None). The `==` mutant
+        // proceeds into an inverted slice and panics; `||`->`&&` likewise.
+        let file = vec![0xFF, 0xD8, 0xFF, 0xE0, 0x00, 0x01, 0xAA, 0xBB];
+        assert!(jpeg_extract(&file).is_none());
+        // seg_len 1 past EOF must break (kills `>`->`==`/`<` and bound `+` mutants).
+        let mut file = vec![0xFF, 0xD8];
+        file.extend_from_slice(&wh_xt_seg(1, &wh_c2pa_data(b"HELLO")));
+        let overflow = file.len() + 1 - 4;
+        file[4] = (overflow >> 8) as u8;
+        file[5] = (overflow & 0xFF) as u8;
+        assert!(jpeg_extract(&file).is_none());
+    }
+
+    #[test]
+    fn wh_jpeg_extract_exact_eof_and_dangling_marker() {
+        // XT segment ending exactly at EOF is accepted (kills `>`->`>=`).
+        let mut file = vec![0xFF, 0xD8];
+        let mut d = vec![0u8; 16];
+        d.extend_from_slice(b"c2pa");
+        d.extend_from_slice(b"PAYLOAD-HERE-1234");
+        file.extend_from_slice(&wh_xt_seg(1, &d));
+        assert!(jpeg_extract(&file).is_some());
+        // File ending with a dangling 0xFF (no room for marker+len): no panic, None.
+        assert!(jpeg_extract(&[0xFF, 0xD8, 0xFF]).is_none());
+        // Truncated length field (only 1 byte after marker): None.
+        assert!(jpeg_extract(&[0xFF, 0xD8, 0xFF, 0xEB, 0x00]).is_none());
+    }
+
+    #[test]
+    fn wh_jpeg_extract_sos_stops_scan() {
+        // JUMBF-looking bytes AFTER SOS (entropy data) must be ignored.
+        let mut file = vec![0xFF, 0xD8, 0xFF, 0xDA, 0x00, 0x02];
+        file.extend_from_slice(&wh_xt_seg(1, &wh_c2pa_data(b"HELLO")));
+        file.extend_from_slice(&[0x11, 0x22, 0xFF, 0xD9]);
+        assert!(jpeg_extract(&file).is_none());
+        // SOS with no entropy data at all: None, no panic.
+        assert!(jpeg_extract(&[0xFF, 0xD8, 0xFF, 0xDA]).is_none());
+        // EOI right after SOI: None.
+        assert!(jpeg_extract(&[0xFF, 0xD8, 0xFF, 0xD9]).is_none());
+    }
+
+    #[test]
+    fn wh_jpeg_extract_xt_payload_len_gate() {
+        // Payload len exactly 28 (d len 20 with c2pa at [16..20]) must NOT take
+        // the XT branch (`> 28` strict) and must NOT pass the c2pa gate
+        // (`> 20` strict): kills `>`->`>=` in both plus `&&`->`||` in both.
+        let d20 = {
+            let mut d = vec![0xDDu8; 16];
+            d.extend_from_slice(b"c2pa");
+            d
+        };
+        let mut pay = b"JP\x02\x11\x00\x00\x00\x01".to_vec();
+        pay.extend_from_slice(&d20);
+        assert_eq!(pay.len(), 28);
+        let seg_len = pay.len() + 2;
+        let mut file = vec![0xFF, 0xD8, 0xFF, 0xEB];
+        file.extend_from_slice(&(seg_len as u16).to_be_bytes());
+        file.extend_from_slice(&pay);
+        file.extend_from_slice(&[0xFF, 0xD9]);
+        assert!(jpeg_extract(&file).is_none());
+        // One byte more (payload 29, d len 21): XT branch taken, store returned.
+        pay.push(0x00);
+        let seg_len = pay.len() + 2;
+        let mut file = vec![0xFF, 0xD8, 0xFF, 0xEB];
+        file.extend_from_slice(&(seg_len as u16).to_be_bytes());
+        file.extend_from_slice(&pay);
+        file.extend_from_slice(&[0xFF, 0xD9]);
+        assert!(jpeg_extract(&file).is_some());
+        // Payload 29 but BAD CI with c2pa at d[16..20]: CI gate must reject
+        // (kills `&&`->`||` on the XT branch: the mutant forms the group and
+        // the c2pa gate then passes -> Some).
+        let mut pay = b"XX\x02\x11\x00\x00\x00\x01".to_vec();
+        pay.extend_from_slice(&d20);
+        pay.push(0x00);
+        assert_eq!(pay.len(), 29);
+        let seg_len = pay.len() + 2;
+        let mut file = vec![0xFF, 0xD8, 0xFF, 0xEB];
+        file.extend_from_slice(&(seg_len as u16).to_be_bytes());
+        file.extend_from_slice(&pay);
+        file.extend_from_slice(&[0xFF, 0xD9]);
+        assert!(jpeg_extract(&file).is_none());
+        // Payload 29, good CI, but NO c2pa at d[16..20]: c2pa gate rejects
+        // (kills `&&`->`||` on the gate: mutant passes on len alone -> Some).
+        // NOTE: `>`->`>=` on either gate is a principled survivor — a first
+        // segment with d.len() == 20 has payload len 28, already rejected
+        // upstream by strict `> 28`, so the boundary is unreachable.
+        let mut d = vec![0xDDu8; 16];
+        d.extend_from_slice(b"XXXX");
+        d.push(0x00);
+        let mut pay = b"JP\x02\x11\x00\x00\x00\x01".to_vec();
+        pay.extend_from_slice(&d);
+        assert_eq!(pay.len(), 29);
+        let seg_len = pay.len() + 2;
+        let mut file = vec![0xFF, 0xD8, 0xFF, 0xEB];
+        file.extend_from_slice(&(seg_len as u16).to_be_bytes());
+        file.extend_from_slice(&pay);
+        file.extend_from_slice(&[0xFF, 0xD9]);
+        assert!(jpeg_extract(&file).is_none());
+    }
+
+    #[test]
+    fn wh_parse_json_payload_header_and_box_bounds() {
+        // Short / bad headers error (kills `||`->`&&` and `<`->`==` via panic
+        // divergence on the 7-byte input's [4..8] slice).
+        assert!(parse_json_payload(&[]).is_err());
+        assert!(parse_json_payload(&[0u8; 7]).is_err());
+        assert!(parse_json_payload(&[0u8; 8]).is_err());
+        let mut bad = vec![0u8; 16];
+        bad[4..8].copy_from_slice(b"XXXX");
+        assert!(parse_json_payload(&bad).is_err());
+        // Minimal json box (blen == 8, empty payload) is accepted and returns
+        // empty bytes (kills `blen < 8` -> `==`/`<=`, which would break).
+        let mut sb = vec![0u8; 8];
+        sb[0..4].copy_from_slice(&16u32.to_be_bytes());
+        sb[4..8].copy_from_slice(b"jumb");
+        sb.extend_from_slice(&8u32.to_be_bytes());
+        sb.extend_from_slice(b"json");
+        assert_eq!(parse_json_payload(&sb).unwrap(), b"");
+        // Exact-EOF alignment (pos + blen == len) is accepted.
+        let mut sb = vec![0u8; 8];
+        sb[0..4].copy_from_slice(&21u32.to_be_bytes());
+        sb[4..8].copy_from_slice(b"jumb");
+        sb.extend_from_slice(&13u32.to_be_bytes());
+        sb.extend_from_slice(b"json");
+        sb.extend_from_slice(b"hello");
+        assert_eq!(sb.len(), 21);
+        assert_eq!(parse_json_payload(&sb).unwrap(), b"hello");
+        // Truncated json box (blen past EOF): Err under correct code; the
+        // `||`->`&&` mutant proceeds into an out-of-bounds slice and panics.
+        let mut sb = vec![0u8; 8];
+        sb[0..4].copy_from_slice(&20u32.to_be_bytes());
+        sb[4..8].copy_from_slice(b"jumb");
+        sb.extend_from_slice(&100u32.to_be_bytes());
+        sb.extend_from_slice(b"json");
+        sb.extend_from_slice(b"xy");
+        assert!(parse_json_payload(&sb).is_err());
+    }
+
+    #[test]
+    fn wh_parse_json_payload_big_box_index() {
+        // Box length 0x01000008 (16 MiB payload): the second length byte (0x00)
+        // differs from the first (0x01), so the `superbox[pos + 1]` -> `*`
+        // mutant (reads superbox[pos] twice, 0x01010008, past EOF -> Err)
+        // diverges from correct (Ok). Lengths < 16 MiB keep the mutant
+        // equivalent (leading length bytes both zero).
+        let payload = vec![0x41u8; 0x01000000];
+        let blen = (8 + payload.len()) as u32;
+        assert_eq!(blen, 0x01000008);
+        let slen = (8 + 8 + payload.len()) as u32;
+        let mut sb = Vec::with_capacity(slen as usize);
+        sb.extend_from_slice(&slen.to_be_bytes());
+        sb.extend_from_slice(b"jumb");
+        sb.extend_from_slice(&blen.to_be_bytes());
+        sb.extend_from_slice(b"json");
+        sb.extend_from_slice(&payload);
+        assert_eq!(parse_json_payload(&sb).unwrap(), payload);
+    }
+
+    #[test]
+    fn wh_find_rise_manifest_depth_gate() {
+        // Depth 9+ never recurses (kills `>`->`==`: depth 9 must yield None).
+        assert!(find_rise_manifest(&[], 9).is_none());
+        assert!(find_rise_manifest(&[0u8; 64], 9).is_none());
+        // Depth exactly 8 still processes (kills `>`->`>=`, which would bail).
+        let inner = jumb_box(&JSON_UUID, RISE_ASSERTION_LABEL, &boxed(b"json", b"deep"));
+        assert_eq!(find_rise_manifest(&inner, 8).unwrap(), b"deep");
+        // 9-deep nesting exceeds the budget under correct code (None), while
+        // the `depth + 1` -> `*` mutant recurses at depth 0 forever-ish and
+        // returns Some — this test kills it.
+        let mut nested = jumb_box(&JSON_UUID, RISE_ASSERTION_LABEL, &boxed(b"json", b"buried"));
+        for _ in 0..9 {
+            nested = jumb_box(&C2MA_UUID, "wrap", &nested);
+        }
+        assert!(find_rise_manifest(&nested, 0).is_none());
+        // Shallow nesting still resolves through recursion.
+        let mut nested = jumb_box(&JSON_UUID, RISE_ASSERTION_LABEL, &boxed(b"json", b"here"));
+        for _ in 0..3 {
+            nested = jumb_box(&C2MA_UUID, "wrap", &nested);
+        }
+        assert_eq!(find_rise_manifest(&nested, 0).unwrap(), b"here");
+    }
+
+    #[test]
+    fn wh_find_rise_manifest_two_children() {
+        // rise.manifest box whose children are [cbor box, json box]: the json
+        // is the SECOND child (cpos > 0), pinning `cpos + 8` against `*`
+        // (wrong offset -> miss) and `cpos += clen` against `-=` (underflow
+        // panic). KILL MECHANISM for the `+=`->`*=` timeout mutant: under
+        // correct code this terminates immediately (cpos advances 0 -> clen);
+        // under the mutant cpos stays 0 forever (0 * clen == 0) and the harness
+        // cargo-mutants timeout catches the hang. The test itself passes
+        // quickly on correct code.
+        let mut children = boxed(b"cbor", b"xx");
+        children.extend_from_slice(&boxed(b"json", b"second-child-manifest"));
+        let rise = jumb_box(&JSON_UUID, RISE_ASSERTION_LABEL, &children);
+        assert_eq!(
+            find_rise_manifest(&rise, 0).unwrap(),
+            b"second-child-manifest"
+        );
+    }
+
+    #[test]
+    fn wh_seal_jpeg_header_gate() {
+        let payload = br#"{"rise_version":1,"device_id":"hdr"}"#;
+        assert!(seal_jpeg(&[], payload).is_err());
+        assert!(seal_jpeg(&[0xFF], payload).is_err());
+        assert!(seal_jpeg(&[0xFF, 0x00], payload).is_err());
+        assert!(seal_jpeg(&[0x00, 0xD8], payload).is_err());
+        // SOI-only file seals fine (also kills `<`->`<=`, which would reject
+        // the exact-2-byte input).
+        let sealed = seal_jpeg(&[0xFF, 0xD8], payload).unwrap();
+        assert_eq!(&sealed[..2], &[0xFF, 0xD8]);
+        assert_eq!(&sealed[2..4], &[0xFF, 0xEB]);
+    }
+
+    #[test]
+    fn wh_seal_datahash_self_consistent() {
+        // The sealed store's embedded data-hash assertion must match the live
+        // region hash: catches an early-break (`==`->`!=`) fixpoint mutant,
+        // which would embed (0, zeros) instead of the true (len, hash).
+        let jpg = vec![0xFF, 0xD8, 0xFF, 0xE0, 0x00, 0x04, 0x11, 0x22];
+        let payload = br#"{"rise_version":1,"device_id":"dh-check"}"#;
+        let sealed = seal_jpeg(&jpg, payload).unwrap();
+        let (len, hash) = cai_region_hash(&sealed);
+        assert!(len > 100);
+        assert_ne!(hash, [0u8; 32]);
+        let store = jpeg_extract(&sealed).unwrap();
+        // data_hash_cbor encodes the hash as bstr(32): 0x58 0x20 + raw bytes.
+        let mut needle = vec![0x58u8, 0x20];
+        needle.extend_from_slice(&hash);
+        assert!(
+            store.windows(34).any(|w| w == needle.as_slice()),
+            "embedded dataHash matches region hash"
+        );
+        // ...and the exclusion length as a CBOR uint must appear too.
+        let excl_enc = {
+            let mut c = Cbor::new();
+            c.uint(len as u64);
+            c.buf
+        };
+        assert!(
+            store
+                .windows(excl_enc.len())
+                .any(|w| w == excl_enc.as_slice()),
+            "embedded exclusion matches region len {len}"
+        );
+    }
+
+    #[test]
+    fn wh_box_head_bounds() {
+        assert!(box_head(&[]).is_none());
+        assert!(box_head(&[0u8; 7]).is_none());
+        // exact-8 box accepted (kills `<`->`==`/`<=` on `data.len() < 8` and
+        // on `len < 8`, which would both reject it).
+        let mut b = vec![0u8; 8];
+        b[0..4].copy_from_slice(&8u32.to_be_bytes());
+        b[4..8].copy_from_slice(b"jumb");
+        assert_eq!(box_head(&b).unwrap(), (8, *b"jumb"));
+        // len field 7 rejected (kills `||`->`&&`: mutant would return Some).
+        let mut b = vec![0u8; 8];
+        b[0..4].copy_from_slice(&7u32.to_be_bytes());
+        b[4..8].copy_from_slice(b"jumb");
+        assert!(box_head(&b).is_none());
+        // len past end rejected.
+        let mut b = vec![0u8; 8];
+        b[0..4].copy_from_slice(&9u32.to_be_bytes());
+        b[4..8].copy_from_slice(b"jumb");
+        assert!(box_head(&b).is_none());
+        // len exactly data.len() accepted.
+        let mut b = vec![0u8; 12];
+        b[0..4].copy_from_slice(&12u32.to_be_bytes());
+        b[4..8].copy_from_slice(b"json");
+        assert_eq!(box_head(&b).unwrap(), (12, *b"json"));
+    }
+
+    #[test]
+    fn wh_desc_info_toggle_gate() {
+        assert!(desc_info(&[0u8; 16]).is_none());
+        let mut uuid = [0u8; 16];
+        uuid.copy_from_slice(&C2PA_UUID);
+        // toggles 0x00 with trailing label bytes: label must be EMPTY
+        // (kills `&`->`|`/`^`, which would parse "abc").
+        let mut p = C2PA_UUID.to_vec();
+        p.extend_from_slice(&[0x00]);
+        p.extend_from_slice(b"abc\x00");
+        let (u, label) = desc_info(&p).unwrap();
+        assert_eq!(u, uuid);
+        assert_eq!(label, "");
+        // toggles 0x02 (bit0 clear): also empty (same kill, other bit pattern).
+        let mut p = C2PA_UUID.to_vec();
+        p.extend_from_slice(&[0x02]);
+        p.extend_from_slice(b"abc\x00");
+        assert_eq!(desc_info(&p).unwrap().1, "");
+        // toggles 0x01: label parsed; minimal 17-byte payload accepted
+        // (kills `<`->`<=` on `len < 17`).
+        let mut p = C2PA_UUID.to_vec();
+        p.extend_from_slice(&[0x01]);
+        let (u, label) = desc_info(&p).unwrap();
+        assert_eq!(u, uuid);
+        assert_eq!(label, "");
+        let mut p = C2PA_UUID.to_vec();
+        p.extend_from_slice(&[0x01]);
+        p.extend_from_slice(b"rise.manifest\x00");
+        assert_eq!(desc_info(&p).unwrap().1, "rise.manifest");
+    }
+
+    #[test]
+    fn wh_xt_embed_chunk_z_sequence() {
+        // Z must be i+1 (1-based). The `+`->`*` mutant emits Z = i (0-based);
+        // extraction order is unaffected, so pin the raw bytes directly.
+        let jpg = vec![0xFF, 0xD8, 0xFF, 0xDA, 0x00, 0x02];
+        // store bytes 16..20 land at d[16..20], the c2pa gate jpeg_extract checks.
+        let mut store = vec![0x55u8; 250];
+        store[16..20].copy_from_slice(b"c2pa");
+        let out = xt_embed_with_chunk(&jpg, &store, 100);
+        let mut zs = Vec::new();
+        let mut pos = 2usize;
+        while pos + 4 <= out.len() && out[pos] == 0xFF && out[pos + 1] == 0xEB {
+            let seg_len = u16::from_be_bytes([out[pos + 2], out[pos + 3]]) as usize;
+            let payload = &out[pos + 4..pos + 2 + seg_len];
+            zs.push(u32::from_be_bytes([
+                payload[4], payload[5], payload[6], payload[7],
+            ]));
+            pos += 2 + seg_len;
+        }
+        assert_eq!(zs, vec![1, 2, 3]);
+        assert_eq!(jpeg_extract(&out).unwrap(), store);
+    }
+
+    #[test]
+    fn wh_seal_meta_pins_device_and_title() {
+        let (device, title) = seal_meta(br#"{"device_id":"cam-7"}"#);
+        assert_eq!(device, "cam-7");
+        assert_eq!(title, "RISE sealed frame (cam-7)");
+        let (device, title) = seal_meta(b"not json at all");
+        assert_eq!(device, "unknown-device");
+        assert_eq!(title, "RISE sealed frame (unknown-device)");
+        let (device, title) = seal_meta(br#"{"other":1}"#);
+        assert_eq!(device, "unknown-device");
+        assert_eq!(title, "RISE sealed frame (unknown-device)");
     }
 }
