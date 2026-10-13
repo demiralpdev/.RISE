@@ -40,3 +40,7 @@ core/dist/
 bindings/viewer/macos/RISE Viewer.app/
 bindings/installer/macos/RISE-*.pkg
 bindings/installer/macos/.stage/
+
+# coverage + mutation artifacts (generated, CI uploads them)
+core/lcov.info
+mutants.out/
