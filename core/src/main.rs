@@ -1246,3 +1246,72 @@ fn unpack_cmd(file: &str) -> i32 {
         }
     }
 }
+
+#[cfg(test)]
+mod unpack_mp4_tests {
+    use super::*;
+
+    /// Minimal synthetic MP4: one `ftyp` box (detect() keys on `ftyp` at offset 4).
+    fn synth_mp4() -> Vec<u8> {
+        let mut out = Vec::new();
+        out.extend_from_slice(&24u32.to_be_bytes());
+        out.extend_from_slice(b"ftypisom\x00\x00\x02\x00isomiso2");
+        out
+    }
+
+    fn write_tmp(name: &str, bytes: &[u8]) -> String {
+        let path = std::env::temp_dir().join(format!(
+            "rise-unpack-test-{}-{}-{name}",
+            std::process::id(),
+            name.len()
+        ));
+        fs::write(&path, bytes).expect("tmp write");
+        path.to_string_lossy().into_owned()
+    }
+
+    fn uuid_box(uuid: &[u8; 16], payload: &[u8]) -> Vec<u8> {
+        let mut v = Vec::new();
+        v.extend_from_slice(&((payload.len() + 16 + 8) as u32).to_be_bytes());
+        v.extend_from_slice(b"uuid");
+        v.extend_from_slice(uuid);
+        v.extend_from_slice(payload);
+        v
+    }
+
+    #[test]
+    fn unpack_mp4_uuid_happy_path_exit_0() {
+        let manifest = br#"{"rise_version":1,"frame_hashes":[]}"#;
+        let sealed =
+            rise_core::container::mp4_append_box(&synth_mp4(), manifest).expect("seal");
+        let p = write_tmp("happy", &sealed);
+        assert_eq!(unpack_cmd(&p), 0);
+        let _ = fs::remove_file(&p);
+    }
+
+    #[test]
+    fn unpack_mp4_missing_uuid_exit_3() {
+        let p = write_tmp("missing", &synth_mp4());
+        assert_eq!(unpack_cmd(&p), 3);
+        let _ = fs::remove_file(&p);
+    }
+
+    #[test]
+    fn unpack_mp4_truncated_box_exit_3_no_panic() {
+        let manifest = br#"{"rise_version":1}"#;
+        let mut sealed =
+            rise_core::container::mp4_append_box(&synth_mp4(), manifest).expect("seal");
+        sealed.truncate(sealed.len() - 2); // declared box runs past EOF
+        let p = write_tmp("trunc", &sealed);
+        assert_eq!(unpack_cmd(&p), 3);
+        let _ = fs::remove_file(&p);
+    }
+
+    #[test]
+    fn unpack_mp4_wrong_uuid_ignored_exit_3() {
+        let mut data = synth_mp4();
+        data.extend_from_slice(&uuid_box(&[0u8; 16], b"not-rise"));
+        let p = write_tmp("wrong", &data);
+        assert_eq!(unpack_cmd(&p), 3);
+        let _ = fs::remove_file(&p);
+    }
+}
