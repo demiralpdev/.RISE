@@ -121,6 +121,22 @@ Classical signatures are ES256 and Ed25519, selected via `sig_alg`. Post-quantum
 
 Red team results ([REDTEAM_FINDINGS.md](REDTEAM_FINDINGS.md), version 0.2.0): 15 attack scenarios were run against the badge and trust chain, covering forged gold claims, a compromised caller, trust anchor spoofing, stolen keys, JUMBF transplanting, field injection, verify link poisoning, type confusion, and oversized manifests. Gold stayed unreachable in every case. Two critical findings were fixed in the same pass (production trust list now ships empty, verify link IDs bind the full manifest hash), and the remaining open items (trust list integrity pinning, revocation checks, TPM quote binding) are documented in the file.
 
+## Quality assurance
+
+CI runs a full quality gate on every push (`.github/workflows/quality.yml`):
+dependency CVE audits (cargo-audit, pip-audit), lint (clippy `-D warnings`,
+ruff, bandit, ESLint, Prettier, shellcheck), secret scanning (TruffleHog,
+full history), a 3-target cross-compile matrix, Rust+Python coverage, and a
+deterministic replay of the committed fuzz corpus. SonarCloud analyzes every
+push (CI-based; enable via the SONAR_TOKEN secret).
+
+The format's untrusted-input parsers are continuously fuzzed
+(`cargo +nightly fuzz run parsers`, ASan; 1.25M executions clean) and
+mutation-tested — the signature-verification paths in `core/src/signer.rs`
+have zero surviving mutants. Findings live in
+[REDTEAM_FINDINGS.md](REDTEAM_FINDINGS.md), including the fuzzer-proven
+phantom-box mechanism (F1).
+
 ## Repository structure
 
 ```

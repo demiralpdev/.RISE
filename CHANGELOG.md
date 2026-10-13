@@ -1,4 +1,23 @@
 # Changelog
+## 0.2.5 (unreleased)
+
+### Added
+- `screen-record --tsa <url>`: RFC 3161 stamp in the record->seal chain
+  (stamp-then-sign; `video --tsa` likewise). Live FreeTSA E2E proven.
+- OBS auto-seal now writes self-contained playable `.rvid` files for
+  MP4-family recordings (`.rise` JSON sidecar only for other containers).
+- Quality gate: dependabot, cross-compile matrix, coverage (cargo-llvm-cov
+  + pytest-cov), TruffleHog, shellcheck, pip-audit, fuzz corpus replay,
+  SonarCloud CI-based analysis.
+
+### Fixed
+- MP4 walker: 64-bit `largesize` branch was dead code (`size < 8` guard ran
+  first) — valid largesize boxes now skip correctly (mutation-testing find).
+- `sync_trust.py`: trust-list URL scheme pinned to https (bandit find).
+
+### Changed
+- 19 new mutation-hardened parser tests (container.rs suite 15 -> 33).
+
 
 ## 0.2.0 (2026-10-10)
 
