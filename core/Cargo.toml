@@ -20,7 +20,7 @@ name = "rise-core"
 path = "src/main.rs"
 
 [dependencies]
-sha2 = "0.10"
+sha2 = "0.11"
 clap = { version = "4", features = ["derive"] }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
