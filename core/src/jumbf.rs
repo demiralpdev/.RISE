@@ -889,7 +889,7 @@ fn find_rise_manifest(data: &[u8], depth: usize) -> Option<Vec<u8>> {
                         if &ctype == b"json" {
                             return Some(children[cpos + 8..cpos + clen].to_vec());
                         }
-                        cpos *= clen;
+                        cpos += clen;
                     }
                     return None;
                 }
@@ -1124,10 +1124,7 @@ mod tests {
         assert_eq!(head(0, 65535), vec![0x19, 0xFF, 0xFF]);
         assert_eq!(head(0, 65536), vec![0x1A, 0x00, 0x01, 0x00, 0x00]);
         assert_eq!(head(0, 70000), vec![0x1A, 0x00, 0x01, 0x11, 0x70]);
-        assert_eq!(
-            head(0, 0xFFFF_FFFF),
-            vec![0x1A, 0xFF, 0xFF, 0xFF, 0xFF]
-        );
+        assert_eq!(head(0, 0xFFFF_FFFF), vec![0x1A, 0xFF, 0xFF, 0xFF, 0xFF]);
         assert_eq!(
             head(0, 0x1_0000_0000),
             vec![0x1B, 0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x00]
@@ -1349,7 +1346,10 @@ mod tests {
         assert_eq!(unix_to_utctime(946684800), "000101000000Z");
         assert_eq!(unix_to_utctime(68169600), "720229000000Z");
         assert_eq!(unix_to_utctime(1767926400), "260109024000Z");
-        for s in [0u64, 1, 86399, 86400, 1760150400, 1767926400] {
+        assert_eq!(unix_to_utctime(951782400), "000229000000Z");
+        assert_eq!(unix_to_utctime(951696000), "000228000000Z");
+        assert_eq!(unix_to_utctime(951868800), "000301000000Z");
+        for s in [0u64, 1, 86399, 86400, 1760150400, 1767926400, 951782400] {
             let t = unix_to_utctime(s);
             assert_eq!(t.len(), 13);
             assert!(t.ends_with('Z'));

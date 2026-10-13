@@ -773,7 +773,7 @@ dependencies = [
 
 [[package]]
 name = "rise-core"
-version = "0.2.4"
+version = "0.2.5"
 dependencies = [
  "base64",
  "clap",
