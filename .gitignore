@@ -45,3 +45,4 @@ bindings/installer/macos/.stage/
 core/lcov.info
 mutants.out/
 .coverage
+mutants.out.old/
