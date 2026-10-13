@@ -44,3 +44,4 @@ bindings/installer/macos/.stage/
 # coverage + mutation artifacts (generated, CI uploads them)
 core/lcov.info
 mutants.out/
+.coverage
