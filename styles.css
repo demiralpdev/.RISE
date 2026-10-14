@@ -1,0 +1,1100 @@
+/* ═══════════════════════════════════════════════════════════════════════════
+   RISE — Warm Archival Paper, Overhead Swaying Leaf Shadows & Watercolor Eye
+   - Leaf shadows sit ABOVE the eye (z-index: 25, mix-blend-mode: multiply)
+     so tree leaves naturally cast real shadows across both the paper and the eye!
+   - Smooth, speckle-free Watercolor Wash mask on the eye (no sandy pixel noise!)
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+@import url('https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500;600&family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,500;1,6..72,400&display=swap');
+
+:root {
+  --bg:        #f5f2eb;
+  --bg-soft:   #efeae0;
+  --ink:       #181614;
+  --ink-2:     #2e2a25;
+  --muted:     #5c554c;
+  --muted-2:   #8c8275;
+  --amber:     #9a5b32;
+  --green:     #047857;
+  --red:       #b91c1c;
+  --line:      rgba(24, 22, 20, 0.12);
+  --line-hi:   rgba(24, 22, 20, 0.26);
+  --sans:      'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+  --serif:     'Newsreader', 'Instrument Serif', Georgia, serif;
+  --mono:      'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+
+*, *::before, *::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html {
+  background: var(--bg);
+  color: var(--ink);
+  font-family: var(--sans);
+  font-size: 16px;
+  line-height: 1.55;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  scroll-behavior: smooth;
+}
+
+body {
+  position: relative;
+  background-color: var(--bg);
+  background-image:
+    radial-gradient(ellipse 90% 80% at 25% 35%, rgba(255, 253, 248, 0.65) 0%, rgba(245, 242, 235, 0) 70%),
+    radial-gradient(ellipse 70% 70% at 80% 20%, rgba(235, 229, 216, 0.45) 0%, rgba(245, 242, 235, 0) 65%);
+  color: var(--ink);
+  min-height: 100vh;
+  overflow-x: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+a {
+  color: var(--ink);
+  text-decoration: none;
+  transition: color 0.15s ease, opacity 0.15s ease;
+}
+
+.skip-link {
+  position: absolute;
+  left: -9999px;
+  top: 8px;
+  background: var(--ink);
+  color: #fff;
+  padding: 8px 14px;
+  font-family: var(--mono);
+  font-size: 12px;
+  z-index: 9999;
+}
+.skip-link:focus { left: 12px; }
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   OVERHEAD SWAYING TREE LEAF SHADOWS VIDEO LAYER (z-index: 25)
+   Sits ABOVE the eye video with mix-blend-mode: multiply and pointer-events: none.
+   White pixels in the leaf video become 100% transparent in multiply mode,
+   while the grey leaf shadows naturally darken BOTH the paper and the eye!
+   ═══════════════════════════════════════════════════════════════════════════ */
+.leaf-shadow-bg {
+  position: fixed;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  width: 76vw;
+  height: 100vh;
+  z-index: 25;
+  pointer-events: none;
+  overflow: hidden;
+  mix-blend-mode: multiply;
+  opacity: 0.86;
+  -webkit-mask-image: linear-gradient(
+    to right,
+    transparent 0%,
+    rgba(0, 0, 0, 0.12) 16%,
+    rgba(0, 0, 0, 0.55) 36%,
+    rgba(0, 0, 0, 0.92) 58%,
+    #000000 100%
+  );
+  mask-image: linear-gradient(
+    to right,
+    transparent 0%,
+    rgba(0, 0, 0, 0.12) 16%,
+    rgba(0, 0, 0, 0.55) 36%,
+    rgba(0, 0, 0, 0.92) 58%,
+    #000000 100%
+  );
+}
+
+.leaf-deck-video {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: right center;
+  opacity: 0;
+  /* Boost brightness slightly so the video's white background is pure #fff (100% invisible in multiply)
+     while keeping the leaf shadows crisp and natural over the eye */
+  filter: brightness(1.06) contrast(1.12);
+  pointer-events: none;
+}
+
+.leaf-deck-video.is-base {
+  opacity: 1;
+  z-index: 1;
+  transition: none;
+}
+
+.leaf-deck-video.is-fading-in {
+  opacity: 1;
+  z-index: 2;
+  transition: opacity 1.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* ── Top Header (No Border Line, Warm Terracotta Active Underline) ── */
+.topbar {
+  position: relative;
+  z-index: 250;
+  height: 52px;
+  background: transparent;
+}
+
+.topbar-inner {
+  max-width: 1180px;
+  height: 100%;
+  margin: 0 auto;
+  padding: 0 36px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+}
+
+.brand-link {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 8px;
+}
+
+.brand-dot {
+  display: none;
+}
+
+.brand-name {
+  font-family: var(--mono);
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  color: var(--ink);
+}
+
+.brand-ver {
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--muted-2);
+}
+
+.page-nav {
+  display: inline-flex;
+  align-items: center;
+  height: 100%;
+  gap: 26px;
+}
+
+.nav-tab {
+  position: relative;
+  height: 44px;
+  display: inline-flex;
+  align-items: center;
+  font-family: var(--mono);
+  font-size: 11px;
+  font-weight: 400;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--muted);
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  transition: color 0.15s ease;
+}
+
+.nav-tab:hover {
+  color: var(--ink);
+}
+
+.nav-tab.active {
+  color: var(--ink);
+  font-weight: 600;
+}
+
+.nav-tab.active::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 2px;
+  height: 2px;
+  background: var(--amber);
+}
+
+.topbar-right {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.visit-pill {
+  font-family: var(--mono);
+  font-size: 10px;
+  letter-spacing: 0.02em;
+  color: var(--ink-2);
+  background: rgba(245, 242, 235, 0.65);
+  border: 1px solid rgba(24, 22, 20, 0.18);
+  padding: 4px 10px;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: border-color 0.15s ease;
+}
+.visit-pill:hover {
+  border-color: var(--ink);
+}
+
+.clock-badge {
+  font-family: var(--mono);
+  font-size: 10.5px;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+
+/* ── 2nd+ Visit Auto-Route Notice ── */
+.route-toast {
+  display: none;
+  position: relative;
+  z-index: 200;
+  background: rgba(239, 234, 224, 0.9);
+  border-bottom: 1px solid var(--line);
+  padding: 7px 36px;
+}
+.route-toast.show { display: block; }
+.route-toast-inner {
+  max-width: 1180px;
+  margin: 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--ink-2);
+}
+.route-toast button {
+  font-family: var(--mono);
+  font-size: 10.5px;
+  color: var(--ink);
+  background: var(--bg);
+  border: 1px solid var(--line-hi);
+  padding: 3px 9px;
+  border-radius: 3px;
+  cursor: pointer;
+}
+
+/* ── Multi-Page View Containers ── */
+main#main-content {
+  position: relative;
+  z-index: 10;
+  flex: 1;
+}
+
+.view-page {
+  display: none;
+}
+.view-page.active {
+  display: block;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   PAGE 1: REFERENCE HERO
+   Left  = RISE Pixel/ASCII Art + Editorial Serif Headline + 2 Buttons
+   Right = Smooth Watercolor-Wash Masked Eye Video (Under the Leaf Shadows!)
+   ═══════════════════════════════════════════════════════════════════════════ */
+.split-stage {
+  position: relative;
+  max-width: 1180px;
+  margin: 0 auto;
+  padding: 20px 36px 26px;
+  display: grid;
+  grid-template-columns: 440px 1fr;
+  align-items: center;
+  gap: 12px;
+}
+
+.split-left-col {
+  position: relative;
+  z-index: 30;
+  padding: 12px 0;
+}
+
+/* Smooth Watercolor Wash Eye Frame
+   Uses a speckle-free layered radial brush wash mask generated in site.js */
+.eye-bleed-bg {
+  position: relative;
+  width: 100%;
+  max-width: 590px;
+  height: 395px;
+  margin-left: auto;
+  margin-right: 12px;
+  z-index: 5;
+  overflow: hidden;
+  -webkit-mask-size: 100% 100%;
+  mask-size: 100% 100%;
+  -webkit-mask-repeat: no-repeat;
+  mask-repeat: no-repeat;
+  -webkit-mask-position: center center;
+  mask-position: center center;
+  -webkit-mask-image: radial-gradient(
+    ellipse 78% 70% at 50% 50%,
+    #000000 52%,
+    rgba(0, 0, 0, 0.75) 68%,
+    rgba(0, 0, 0, 0.25) 84%,
+    transparent 96%
+  );
+  mask-image: radial-gradient(
+    ellipse 78% 70% at 50% 50%,
+    #000000 52%,
+    rgba(0, 0, 0, 0.75) 68%,
+    rgba(0, 0, 0, 0.25) 84%,
+    transparent 96%
+  );
+}
+
+/* Dual-Deck Eye Video Layers — 100% Sharp & Zero White Flash */
+.hero-eye-video {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: center center;
+  display: block;
+  opacity: 0;
+  z-index: 1;
+  filter: none !important;
+  transform: none !important;
+  pointer-events: none;
+}
+
+.hero-eye-video.is-base {
+  opacity: 1;
+  z-index: 1;
+  transition: none;
+}
+
+.hero-eye-video.is-fading-in {
+  opacity: 1;
+  z-index: 2;
+  transition: opacity 1.15s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* Original RISE ASCII on Transparent/Warm Paper Background */
+.ascii-white-wrap {
+  display: inline-block;
+  background: transparent;
+  padding: 2px 0;
+  margin-bottom: 18px;
+}
+
+pre.art {
+  font-family: var(--mono);
+  font-size: 12px;
+  line-height: 1.05;
+  letter-spacing: 0;
+  white-space: pre;
+  user-select: none;
+  background: transparent;
+}
+
+/* Classic Editorial Serif Headline */
+.hero-h1 {
+  font-family: var(--serif);
+  font-size: clamp(38px, 4vw, 54px);
+  font-weight: 400;
+  line-height: 1.04;
+  letter-spacing: -0.02em;
+  color: var(--ink);
+  max-width: 430px;
+  margin-bottom: 14px;
+}
+
+.hero-h1 em {
+  font-family: var(--serif);
+  font-style: italic;
+  font-weight: 400;
+}
+
+.hero-lead {
+  font-size: 14px;
+  line-height: 1.6;
+  color: var(--ink-2);
+  max-width: 380px;
+  margin-bottom: 24px;
+}
+
+.hero-lead code {
+  font-family: var(--mono);
+  font-size: 12px;
+  color: var(--ink);
+  background: rgba(24, 22, 20, 0.05);
+  border: 1px solid rgba(24, 22, 20, 0.12);
+  padding: 1px 5px;
+  border-radius: 3px;
+}
+
+/* Reference CTA Buttons */
+.hero-cta-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.btn-ink {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-family: var(--mono);
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: #f5f2eb;
+  background: #1c1a17;
+  padding: 12px 18px;
+  border-radius: 4px;
+  border: 1px solid #1c1a17;
+  cursor: pointer;
+  transition: background 0.15s ease;
+}
+.btn-ink:hover {
+  background: #33302b;
+  color: #f5f2eb;
+}
+
+.btn-outline {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-family: var(--mono);
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--ink);
+  background: rgba(245, 242, 235, 0.55);
+  padding: 12px 18px;
+  border-radius: 4px;
+  border: 1px solid rgba(24, 22, 20, 0.28);
+  cursor: pointer;
+  transition: border-color 0.15s ease, background 0.15s ease;
+}
+.btn-outline:hover {
+  border-color: var(--ink);
+  background: rgba(245, 242, 235, 0.9);
+}
+
+/* 3-Column Strip Below the Hero (No Horizontal Borders, Only Vertical Dividers!) */
+.overview-below {
+  position: relative;
+  z-index: 30;
+  background: transparent;
+  padding: 18px 0 22px;
+}
+
+.flow-strip {
+  max-width: 1180px;
+  margin: 0 auto;
+  padding: 0 36px;
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+}
+
+.flow-strip > div {
+  padding: 8px 32px;
+  border-right: 1px solid rgba(24, 22, 20, 0.13);
+}
+.flow-strip > div:first-child {
+  padding-left: 0;
+}
+.flow-strip > div:last-child {
+  border-right: none;
+  padding-right: 0;
+}
+
+.flow-idx {
+  font-family: var(--mono);
+  font-size: 10.5px;
+  font-weight: 500;
+  color: var(--muted-2);
+  letter-spacing: 0.06em;
+  margin-bottom: 6px;
+  display: block;
+}
+
+.flow-title {
+  font-family: var(--sans);
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--ink);
+  letter-spacing: -0.02em;
+  margin-bottom: 6px;
+}
+
+.flow-desc {
+  font-size: 12.8px;
+  color: var(--ink-2);
+  line-height: 1.58;
+}
+
+.flow-desc code {
+  font-family: var(--mono);
+  font-size: 11.5px;
+  background: rgba(24, 22, 20, 0.05);
+  border: 1px solid rgba(24, 22, 20, 0.12);
+  padding: 1px 4px;
+  border-radius: 3px;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   INNER PAGES: VERIFY, DOWNLOAD, INSTALL
+   ═══════════════════════════════════════════════════════════════════════════ */
+.inner-wrap {
+  position: relative;
+  z-index: 30;
+  max-width: 1180px;
+  margin: 0 auto;
+  padding: 36px 36px 64px;
+}
+
+.page-head {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 24px;
+  flex-wrap: wrap;
+  padding-bottom: 20px;
+  margin-bottom: 28px;
+  border-bottom: 1px solid var(--line);
+}
+
+.page-h1 {
+  font-family: var(--serif);
+  font-size: clamp(28px, 3vw, 38px);
+  font-weight: 400;
+  letter-spacing: -0.02em;
+  color: var(--ink);
+  line-height: 1.1;
+}
+
+.page-sub {
+  font-size: 14px;
+  color: var(--muted);
+  margin-top: 6px;
+}
+
+/* ── Verify Workspace Layout ── */
+.verify-layout {
+  display: grid;
+  grid-template-columns: 1.25fr 0.75fr;
+  gap: 28px;
+  align-items: start;
+}
+
+.glass-panel {
+  background: rgba(255, 253, 249, 0.86);
+  backdrop-filter: blur(10px);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 24px;
+}
+
+.panel-kicker {
+  font-family: var(--mono);
+  font-size: 10.5px;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--muted-2);
+  margin-bottom: 14px;
+  display: block;
+}
+
+.sample-bar {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.sample-btn {
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--ink-2);
+  background: rgba(245, 242, 235, 0.8);
+  border: 1px solid var(--line);
+  padding: 5px 10px;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+.sample-btn:hover {
+  background: var(--ink);
+  color: var(--bg);
+  border-color: var(--ink);
+}
+
+/* Dropzone & Untouched verify.js DOM Hooks */
+.dropzone {
+  border: 1px dashed var(--line-hi);
+  border-radius: 6px;
+  padding: 34px 20px;
+  text-align: center;
+  cursor: pointer;
+  background: rgba(245, 242, 235, 0.5);
+  transition: border-color 0.15s ease, background 0.15s ease;
+}
+.dropzone:hover,
+.dropzone.over,
+.dropzone:focus-visible {
+  border-color: var(--ink);
+  background: rgba(239, 234, 224, 0.85);
+  outline: none;
+}
+.dropzone .icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 4px;
+  background: var(--bg);
+  border: 1px solid var(--line);
+  font-family: var(--mono);
+  font-size: 15px;
+  color: var(--ink);
+  margin-bottom: 8px;
+}
+.dropzone .main {
+  font-family: var(--sans);
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--ink);
+}
+.dropzone .sub {
+  font-size: 12.5px;
+  color: var(--muted);
+  margin-top: 2px;
+}
+.dropzone .fmt {
+  font-family: var(--mono);
+  font-size: 10.5px;
+  color: var(--muted-2);
+  margin-top: 8px;
+}
+.dropzone input[type="file"] { display: none; }
+
+.fileinfo {
+  display: none;
+  margin-top: 12px;
+  padding: 10px 14px;
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  background: var(--bg-soft);
+  font-family: var(--mono);
+  font-size: 12px;
+  align-items: center;
+  gap: 8px;
+}
+.fileinfo.show { display: flex; }
+.fileinfo .fname {
+  color: var(--ink);
+  font-weight: 600;
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.fileinfo .fsize { color: var(--muted); }
+.fileinfo .fx {
+  background: none;
+  border: none;
+  color: var(--muted);
+  cursor: pointer;
+  font-size: 14px;
+}
+
+.adv {
+  margin-top: 12px;
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  background: var(--bg);
+}
+.adv-h {
+  width: 100%;
+  padding: 10px 14px;
+  background: none;
+  border: none;
+  color: var(--muted);
+  font-family: var(--mono);
+  font-size: 11.5px;
+  text-align: left;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.adv-h .arr { transition: transform 0.15s; display: inline-block; }
+.adv.open .adv-h .arr { transform: rotate(90deg); }
+.adv-b {
+  display: none;
+  padding: 12px 14px;
+  border-top: 1px solid var(--line);
+}
+.adv.open .adv-b { display: block; }
+.adv-b label {
+  display: block;
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--muted);
+  margin: 8px 0 4px;
+}
+.adv-b input[type="file"],
+.adv-b textarea {
+  width: 100%;
+  background: var(--bg-soft);
+  border: 1px solid var(--line);
+  border-radius: 3px;
+  color: var(--ink);
+  font-family: var(--mono);
+  font-size: 11.5px;
+  padding: 8px;
+}
+
+.progress {
+  display: none;
+  margin-top: 12px;
+  font-family: var(--mono);
+  font-size: 12px;
+  color: var(--ink);
+}
+.progress.show { display: block; }
+
+button.go {
+  margin-top: 14px;
+  width: 100%;
+  padding: 11px 18px;
+  background: var(--ink);
+  color: var(--bg);
+  border: none;
+  border-radius: 4px;
+  font-family: var(--mono);
+  font-size: 12px;
+  font-weight: 500;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  cursor: pointer;
+  transition: background 0.15s ease;
+}
+button.go:hover:not(:disabled) {
+  background: #33302b;
+}
+button.go:disabled {
+  background: #ded8cc;
+  color: #8c8275;
+  cursor: not-allowed;
+}
+
+.result {
+  display: none;
+  margin-top: 16px;
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  background: var(--bg-soft);
+  padding: 16px;
+}
+.result.show { display: block; }
+.result.ok  { border-left: 3px solid var(--green); }
+.result.bad { border-left: 3px solid var(--red); }
+
+.verdict {
+  font-family: var(--mono);
+  font-size: 14px;
+  font-weight: 600;
+  margin-bottom: 6px;
+}
+.result.ok .verdict  { color: var(--green); }
+.result.bad .verdict { color: var(--red); }
+
+.why {
+  font-size: 13px;
+  color: var(--ink-2);
+  margin-bottom: 10px;
+}
+.meter {
+  font-family: var(--mono);
+  font-size: 11.5px;
+  color: var(--muted);
+  padding: 8px 10px;
+  background: var(--bg);
+  border: 1px solid var(--line);
+  border-radius: 3px;
+  margin-bottom: 10px;
+  overflow-x: auto;
+}
+.meter b { color: var(--ink); }
+
+.det { border-top: 1px solid var(--line); padding-top: 8px; }
+.det-h {
+  background: none;
+  border: none;
+  color: var(--muted);
+  font-family: var(--mono);
+  font-size: 11.5px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.det-h .arr { transition: transform 0.15s; display: inline-block; }
+.det.open .det-h .arr { transform: rotate(90deg); }
+.det-b { display: none; padding-top: 8px; }
+.det.open .det-b { display: block; }
+
+.kv {
+  width: 100%;
+  border-collapse: collapse;
+  font-family: var(--mono);
+  font-size: 11.5px;
+}
+.kv td {
+  padding: 5px 6px;
+  border-bottom: 1px solid var(--line);
+  vertical-align: top;
+}
+.kv td.k { color: var(--muted); width: 125px; }
+.kv td.v { color: var(--ink); word-break: break-all; }
+.kv td.v.ok  { color: var(--green); }
+.kv td.v.bad { color: var(--red); }
+
+.again {
+  display: inline-block;
+  margin-top: 10px;
+  font-family: var(--mono);
+  font-size: 11.5px;
+  color: var(--ink);
+}
+
+/* ── Download Rows ── */
+.dl-rows {
+  display: flex;
+  flex-direction: column;
+  border-top: 1px solid var(--line);
+}
+
+.dl-item {
+  display: grid;
+  grid-template-columns: 180px 220px 1fr;
+  align-items: center;
+  gap: 20px;
+  padding: 18px 0;
+  border-bottom: 1px solid var(--line);
+}
+
+.dl-os-title {
+  font-family: var(--sans);
+  font-size: 15.5px;
+  font-weight: 600;
+  color: var(--ink);
+}
+
+.dl-os-meta {
+  font-family: var(--mono);
+  font-size: 11.5px;
+  color: var(--muted);
+}
+
+.dl-btn-group {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.dl-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-family: var(--mono);
+  font-size: 11px;
+  font-weight: 500;
+  padding: 7px 13px;
+  border-radius: 4px;
+  background: var(--ink);
+  color: var(--bg);
+  transition: background 0.15s ease;
+}
+.dl-chip:hover {
+  background: #33302b;
+  color: var(--bg);
+}
+.dl-chip.sec {
+  background: rgba(245, 242, 235, 0.75);
+  color: var(--ink);
+  border: 1px solid var(--line-hi);
+}
+.dl-chip.sec:hover {
+  border-color: var(--ink);
+}
+
+.dl-soon {
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--muted-2);
+  padding: 6px 11px;
+  border-radius: 4px;
+  border: 1px dashed var(--line-hi);
+}
+
+/* ── Install Terminal Tabs ── */
+.tabs {
+  display: inline-flex;
+  gap: 0;
+  border: 1px solid var(--line-hi);
+  border-radius: 4px;
+  overflow: hidden;
+  margin-bottom: 18px;
+}
+
+.tab-btn {
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--muted);
+  background: rgba(245, 242, 235, 0.8);
+  border: none;
+  border-right: 1px solid var(--line);
+  padding: 7px 16px;
+  cursor: pointer;
+}
+.tab-btn:last-child { border-right: none; }
+.tab-btn[aria-selected="true"] {
+  background: var(--ink);
+  color: var(--bg);
+  font-weight: 500;
+}
+
+.term-panel { display: none; }
+.term-panel.active { display: block; }
+
+.term-wrap {
+  background: #141311;
+  color: #f5f2eb;
+  border-radius: 6px;
+  overflow: hidden;
+}
+
+.term-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 16px;
+  background: rgba(255, 255, 255, 0.03);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  font-family: var(--mono);
+  font-size: 11px;
+  color: #a89f91;
+}
+
+.copy-btn {
+  font-family: var(--mono);
+  font-size: 10.5px;
+  color: #f5f2eb;
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  padding: 3px 10px;
+  border-radius: 3px;
+  cursor: pointer;
+}
+.copy-btn:hover { background: rgba(255, 255, 255, 0.16); }
+
+pre.term-code {
+  padding: 18px;
+  font-family: var(--mono);
+  font-size: 12px;
+  line-height: 1.75;
+  overflow-x: auto;
+  color: #e6e1d6;
+}
+pre.term-code .v { color: #34d399; }
+
+/* ── Footer ── */
+.site-footer {
+  position: relative;
+  z-index: 30;
+  padding: 18px 36px 26px;
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--muted-2);
+}
+.site-footer-inner {
+  max-width: 1180px;
+  margin: 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+.footer-links {
+  display: flex;
+  gap: 20px;
+  flex-wrap: wrap;
+}
+.footer-links a { color: var(--ink-2); }
+.footer-links a:hover { color: var(--ink); }
+
+/* ── Responsive Video (fluid downscale; deck loops keep cover layout) ── */
+video {
+  max-width: 100%;
+}
+video:not(.hero-eye-video):not(.leaf-deck-video) {
+  height: auto;
+}
+
+/* ── Blur-up style loading placeholder behind hero/deck posters ──
+   Subtle shimmer shows only while poster/video bytes are in flight; fully
+   covered the moment the poster paints, so steady-state design is unchanged. */
+@keyframes rise-shimmer {
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+.eye-bleed-bg {
+  background: linear-gradient(
+    100deg,
+    rgba(24, 22, 20, 0.04) 40%,
+    rgba(24, 22, 20, 0.1) 50%,
+    rgba(24, 22, 20, 0.04) 60%
+  );
+  background-size: 200% 100%;
+  animation: rise-shimmer 1.6s linear infinite;
+}
+@media (prefers-reduced-motion: reduce) {
+  .eye-bleed-bg {
+    animation: none;
+  }
+}
+
+/* ── Responsive ── */
+@media (max-width: 960px) {
+  .split-stage {
+    grid-template-columns: 1fr;
+    padding: 24px 20px;
+  }
+  .eye-bleed-bg {
+    max-width: 100%;
+    height: 320px;
+  }
+  .flow-strip,
+  .verify-layout,
+  .dl-item {
+    grid-template-columns: 1fr;
+  }
+  .flow-strip > div {
+    border-right: none;
+    border-bottom: 1px solid var(--line);
+    padding: 18px 0;
+  }
+  .topbar-inner { padding: 0 20px; }
+  .clock-badge { display: none; }
+}
