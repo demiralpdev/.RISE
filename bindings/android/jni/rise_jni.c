@@ -48,7 +48,10 @@ Java_com_rise_core_RiseCore_hashFrame(JNIEnv *env, jclass clazz, jbyteArray data
         return NULL;
     }
 
-    /* Empty input is valid: core hashes b"" to the known empty SHA256. */
+    /* Empty input is valid: core hashes b"" to the known empty SHA256.
+     * Never pass NULL with len 0: core's null-pointer guard would yield ""
+     * instead of e3b0c442..., so hand it a real (unread) byte. */
+    static const unsigned char empty = 0;
     jbyte *bytes = NULL;
     if (len > 0) {
         bytes = (*env)->GetByteArrayElements(env, data, NULL);
@@ -62,7 +65,7 @@ Java_com_rise_core_RiseCore_hashFrame(JNIEnv *env, jclass clazz, jbyteArray data
     memset(out_hex65, 0, sizeof(out_hex65));
 
     rise_hash_frame(
-        (const unsigned char *)bytes,
+        len > 0 ? (const unsigned char *)bytes : &empty,
         (size_t)len,
         out_hex65);
 
@@ -72,8 +75,66 @@ Java_com_rise_core_RiseCore_hashFrame(JNIEnv *env, jclass clazz, jbyteArray data
         bytes = NULL;
     }
 
+    /* Fail-closed: an empty digest means core rejected the input; surface it
+     * as NULL so the Kotlin require() guards catch it at runtime. */
+    if (out_hex65[0] == '\0') {
+        return NULL;
+    }
+
     /* Guarantee NUL termination even if core misbehaved. */
     out_hex65[64] = '\0';
 
     return (*env)->NewStringUTF(env, out_hex65);
+}
+
+/*
+ * Class:     com_rise_core_RiseCore
+ * Method:    hashFrames
+ * Signature: ([[B)[Ljava/lang/String;
+ *
+ * Batch-friendly JNI entry for video frame / tile hashing: hashes an array of
+ * byte arrays in a single JNI call via rise_hash_frame. Fail-closed: returns
+ * NULL if any element is NULL or JNI allocation fails.
+ */
+JNIEXPORT jobjectArray JNICALL
+Java_com_rise_core_RiseCore_hashFrames(JNIEnv *env, jclass clazz, jobjectArray frames) {
+    (void)clazz;
+
+    if (env == NULL || frames == NULL) {
+        return NULL;
+    }
+
+    jsize count = (*env)->GetArrayLength(env, frames);
+    if (count < 0) {
+        return NULL;
+    }
+
+    jclass stringClass = (*env)->FindClass(env, "java/lang/String");
+    if (stringClass == NULL) {
+        return NULL;
+    }
+
+    jobjectArray out = (*env)->NewObjectArray(env, count, stringClass, NULL);
+    if (out == NULL) {
+        return NULL;
+    }
+    (*env)->DeleteLocalRef(env, stringClass);
+
+    for (jsize i = 0; i < count; i++) {
+        jbyteArray item = (jbyteArray)(*env)->GetObjectArrayElement(env, frames, i);
+        if (item == NULL) {
+            (*env)->DeleteLocalRef(env, out);
+            return NULL;
+        }
+        jstring hex = Java_com_rise_core_RiseCore_hashFrame(env, clazz, item);
+        (*env)->DeleteLocalRef(env, item);
+        if (hex == NULL) {
+            (*env)->DeleteLocalRef(env, out);
+            return NULL;
+        }
+        (*env)->SetObjectArrayElement(env, out, i, hex);
+        (*env)->DeleteLocalRef(env, hex);
+    }
+
+    return out;
 }
