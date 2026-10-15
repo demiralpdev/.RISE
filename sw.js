@@ -9,8 +9,8 @@
      would complicate versioning; network behavior identical to today).
    Fail-safe: any error falls through to network; if registration fails the
    site works exactly as today. Cache name is versioned: bump to retire old. */
-var RISE_SW_VERSION = "rise-static-v1";
-var RISE_PAGE_CACHE = "rise-pages-v1";
+var RISE_SW_VERSION = "rise-static-v2";
+var RISE_PAGE_CACHE = "rise-pages-v2";
 
 function riseIsSameOrigin(url) {
   return url.origin === self.location.origin;
