@@ -36,7 +36,7 @@
       name="twitter:image"
       content="https://riseproof.me/assets/og-card.png"
     />
-    <link rel="stylesheet" href="./styles.css?v=202610141146" />
+    <link rel="stylesheet" href="./styles.css?v=202610152300" />
     <script type="application/ld+json">
       {
         "@context": "https://schema.org",
@@ -54,33 +54,33 @@
   <body>
     <a href="#main-content" class="skip-link">Skip to content</a>
 
-    <!-- ── Overhead Swaying Tree Leaf Shadows Video Layer (z-index: 25, mix-blend-mode: multiply)
-         Sits ABOVE both the warm paper canvas and the eye video so leaf shadows fall naturally onto the eye! ── -->
+    <!-- ── Top-Anchored Swaying Tree Leaf Shadows Video Layer (position: absolute!)
+         Stays strictly in the top hero area and never follows scroll ── -->
     <div class="leaf-shadow-bg" aria-hidden="true">
       <video
         id="leaf-video-a"
         class="leaf-deck-video is-base"
+        src="./leaf-shadows.mp4"
+        poster="./leaf-shadows-poster.jpg"
         autoplay
         muted
-        loop
         playsinline
-        preload="none"
-        poster="./leaf-shadows-poster.jpg"
+        preload="auto"
       >
-        <source src="./leaf-shadows.mp4" type="video/mp4" />
         <source src="./leaf-shadows.webm" type="video/webm" />
+        <source src="./leaf-shadows.mp4" type="video/mp4" />
       </video>
       <video
         id="leaf-video-b"
         class="leaf-deck-video"
-        muted
-        loop
-        playsinline
-        preload="none"
+        src="./leaf-shadows.mp4"
         poster="./leaf-shadows-poster.jpg"
+        muted
+        playsinline
+        preload="auto"
       >
-        <source src="./leaf-shadows.mp4" type="video/mp4" />
         <source src="./leaf-shadows.webm" type="video/webm" />
+        <source src="./leaf-shadows.mp4" type="video/mp4" />
       </video>
     </div>
 
@@ -115,6 +115,17 @@
         </nav>
 
         <div class="topbar-right">
+          <a
+            class="gh-badge"
+            id="gh-badge"
+            href="https://github.com/demiralpdev/.RISE"
+            target="_blank"
+            rel="noopener"
+            aria-label="Star .RISE on GitHub"
+          >
+            <svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true" focusable="false"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27s1.36.09 2 .27c1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.01 8.01 0 0 0 16 8c0-4.42-3.58-8-8-8Z"/></svg>
+            <span class="gh-stars" id="gh-stars">★</span>
+          </a>
           <button
             type="button"
             class="visit-pill"
@@ -146,17 +157,20 @@
 
     <main id="main-content">
       <!-- ════════════════════════════════════════════════════════════════
-           PAGE 1: REFERENCE HERO
-           Left  = Original RISE ASCII + Editorial Serif Headline + 2 Buttons
-           Right = Smooth Watercolor-Wash Masked ./hero-eye.mp4 Under Overhead Leaf Shadows
+           PAGE 1: 01 OVERVIEW
+           - Hero with Hand-Painted Watercolor Eye Frame & Top-Anchored Leaf Shadows
+           - Multi-Directional Fine-Art Atelier Showcase (5 bespoke painted canvases
+             arriving from Left, Top-Right, Bottom-Left, Bottom-Right & Top-Center)
+           - Multi-Directional Staggered Setup Gallery & Sunlit Horizon Painting
            ════════════════════════════════════════════════════════════════ -->
       <section
         id="view-showcase"
         class="view-page active"
         aria-labelledby="intro-h1"
       >
+        <div class="hero-first-screen">
+        <!-- 1A. Hero Stage -->
         <div class="split-stage" id="split-stage">
-          <!-- Left Column: RISE ASCII + Classic Serif Headline + Buttons -->
           <div class="split-left-col">
             <div class="ascii-white-wrap">
               <pre
@@ -195,63 +209,621 @@
             </div>
           </div>
 
-          <!-- Right Column: Smooth Watercolor-Wash Masked Eye Video -->
-          <div class="eye-bleed-bg" id="eye-bleed-bg">
-            <video
-              id="hero-eye-video-a"
-              class="hero-eye-video is-base"
-              autoplay
-              muted
-              loop
-              playsinline
-              preload="metadata"
-              poster="./hero-eye-poster.jpg"
-            >
-              <source src="./hero-eye.mp4" type="video/mp4" />
-              <source src="./hero-eye.webm" type="video/webm" />
-            </video>
-            <video
-              id="hero-eye-video-b"
-              class="hero-eye-video"
-              muted
-              loop
-              playsinline
-              preload="metadata"
-              poster="./hero-eye-poster.jpg"
-            >
-              <source src="./hero-eye.mp4" type="video/mp4" />
-              <source src="./hero-eye.webm" type="video/webm" />
-            </video>
+          <div class="eye-bleed-wrap" id="eye-bleed-wrap">
+            <!-- Watercolor Frame, layer 1: pigment washes, blooms & splatter
+                 painted onto the paper beneath the eye (generated in site.js) -->
+            <canvas
+              class="eye-wc-layer eye-wc-under"
+              id="eye-wc-under"
+              aria-hidden="true"
+            ></canvas>
+
+            <!-- Watercolor Frame, layer 2: eye video, alpha-masked by a layered
+                 wet-on-wet brush mask so it bleeds softly into the paper -->
+            <div class="eye-wc-layer eye-bleed-bg" id="eye-bleed-bg">
+              <video
+                id="hero-eye-video-a"
+                class="hero-eye-video is-base"
+                src="./hero-eye.mp4"
+                poster="./hero-eye-poster.jpg"
+                autoplay
+                muted
+                playsinline
+                preload="auto"
+              >
+                <source src="./hero-eye.webm" type="video/webm" />
+                <source src="./hero-eye.mp4" type="video/mp4" />
+              </video>
+              <video
+                id="hero-eye-video-b"
+                class="hero-eye-video"
+                src="./hero-eye.mp4"
+                poster="./hero-eye-poster.jpg"
+                muted
+                playsinline
+                preload="auto"
+              >
+                <source src="./hero-eye.webm" type="video/webm" />
+                <source src="./hero-eye.mp4" type="video/mp4" />
+              </video>
+            </div>
+
+            <!-- Watercolor Frame, layer 3: pooled pigment at the drying edge,
+                 granulation & paper tooth, multiplied over the video rim -->
+            <canvas
+              class="eye-wc-layer eye-wc-over"
+              id="eye-wc-over"
+              aria-hidden="true"
+            ></canvas>
           </div>
         </div>
 
-        <!-- 3-Column Strip Below the Hero (Only Vertical Hairline Dividers) -->
+        <!-- 1B. 3-Column Strip Below the Hero -->
         <div class="overview-below">
           <div class="flow-strip" aria-label="How RISE works">
             <div>
-              <span class="flow-idx">01 // SHUTTER CAPTURE</span>
-              <h2 class="flow-title">Hardware-Backed Frame</h2>
-              <p class="flow-desc">
+              <span class="flow-idx" data-scroll-type
+                >01 // SHUTTER CAPTURE</span
+              >
+              <h2 class="flow-title" data-scroll-type>
+                Hardware-Backed Frame
+              </h2>
+              <p class="flow-desc" data-scroll-type>
                 Thin OS shells capture the raw sensor frame alongside hardware
                 key attestation (StrongBox, TPM 2.0, Secure Enclave).
               </p>
             </div>
             <div>
-              <span class="flow-idx">02 // HYBRID SIGNATURE</span>
-              <h2 class="flow-title">Merkle + Post-Quantum</h2>
-              <p class="flow-desc">
-                <code>rise-core</code> computes a 4-tile SHA-256 Merkle root,
-                stamps via RFC 3161 TSA, and dual-signs with ES256 + ML-DSA-65.
+              <span class="flow-idx" data-scroll-type
+                >02 // HYBRID SIGNATURE</span
+              >
+              <h2 class="flow-title" data-scroll-type>
+                Merkle + Post-Quantum
+              </h2>
+              <p class="flow-desc" data-scroll-type>
+                rise-core computes a 4-tile SHA-256 Merkle root, stamps via RFC
+                3161 TSA, and dual-signs with ES256 + ML-DSA-65.
               </p>
             </div>
             <div>
-              <span class="flow-idx">03 // ZERO-UPLOAD VERIFY</span>
-              <h2 class="flow-title">Native JPEG &amp; MP4</h2>
-              <p class="flow-desc">
-                Sealed inside <code>.rise</code> (JPEG APP11 JUMBF) or
-                <code>.rvid</code> (MP4 uuid-box). Verifiable offline in any
-                browser.
+              <span class="flow-idx" data-scroll-type
+                >03 // ZERO-UPLOAD VERIFY</span
+              >
+              <h2 class="flow-title" data-scroll-type>
+                Native JPEG &amp; MP4
+              </h2>
+              <p class="flow-desc" data-scroll-type>
+                Sealed inside .rise (JPEG APP11 JUMBF) or .rvid (MP4 uuid-box).
+                Verifiable offline in any browser.
               </p>
+            </div>
+          </div>
+        </div>
+        </div>
+
+        <!-- ════════════════════════════════════════════════════════════════
+             1C. PURE-WHITE SINGLE-DROP GPU "INK BLEED" (MÜREKKEP YAYILMASI) SHOWCASE
+             Pure white (#ffffff) stage. For each photograph, a single ink drop
+             lands at a random point on the paper and percolates outward via a
+             per-pixel WebGL GLSL Iterated Domain-Warped fBm Ink Bleed shader
+             (+ SVG feTurbulence/feDisplacementMap capillary filter).
+             ════════════════════════════════════════════════════════════════ -->
+        <svg width="0" height="0" style="position:absolute;width:0;height:0;overflow:hidden;pointer-events:none" aria-hidden="true">
+          <defs>
+            <filter id="ink-bleed-svg-filter" x="-20%" y="-20%" width="140%" height="140%" color-interpolation-filters="sRGB">
+              <feTurbulence type="fractalNoise" baseFrequency="0.032 0.036" numOctaves="3" seed="19" result="macroNoise" />
+              <feTurbulence type="fractalNoise" baseFrequency="0.12 0.14" numOctaves="3" seed="73" result="fiberNoise" />
+              <feDisplacementMap in="SourceGraphic" in2="macroNoise" scale="14" xChannelSelector="R" yChannelSelector="G" result="macroBleed" />
+              <feDisplacementMap in="macroBleed" in2="fiberNoise" scale="6" xChannelSelector="B" yChannelSelector="R" result="fibrousBleed" />
+            </filter>
+          </defs>
+        </svg>
+        <div class="ov-scroll-runway" id="ov-capabilities">
+          <div class="ov-sticky-pin">
+            <div class="ov-container">
+              <div class="ov-head-row">
+                <div>
+                  <span class="ov-eyebrow" data-scroll-type
+                    >CRYPTOGRAPHIC PROVENANCE ARCHITECTURE</span
+                  >
+                  <h2 class="ov-h2" data-scroll-type>
+                    See what RISE seals and proves.
+                  </h2>
+                </div>
+                <div class="ov-head-actions">
+                  <span class="scroll-stack-progress" id="stack-progress-label"
+                    >01 / 05</span
+                  >
+                </div>
+              </div>
+
+              <div class="cap-showcase-grid">
+                <div class="cap-stage-frame" id="cap-stage-frame">
+                  <div class="collage-atelier-stage" id="cap-stack-deck">
+                    <!-- PHOTO 01 -->
+                    <article
+                      class="atelier-card"
+                      data-stack-card="0"
+                    >
+                      <div class="atelier-art-wrap">
+                        <img
+                          class="cap-piece-img"
+                          src="./assets-real/still-photo.jpg"
+                          width="860"
+                          height="484"
+                          alt="Sealed still photograph bound to device hardware at shutter release"
+                          loading="eager"
+                          decoding="async"
+                        />
+                      </div>
+                      <div class="atelier-card-body">
+                        <span class="atelier-tag">01 · JPEG APP11 / JUMBF</span>
+                        <span class="atelier-seal-badge">HARDWARE ATTESTED</span>
+                        <h3 class="atelier-title" data-scroll-type>
+                          Sealed Still Photographs (.rise)
+                        </h3>
+                        <p class="atelier-desc" data-scroll-type>
+                          Embeds a signed C2PA-compatible JUMBF manifest directly inside JPEG APP11 segments at shutter release, binding raw sensor light to device silicon.
+                        </p>
+                        <div class="atelier-cmd-bar">
+                          <code>$ rise-core sign capture.jpg --key enclave.key --out IST_4082.rise</code>
+                        </div>
+                      </div>
+                    </article>
+
+                    <!-- PHOTO 02 -->
+                    <article
+                      class="atelier-card"
+                      data-stack-card="1"
+                    >
+                      <div class="atelier-art-wrap">
+                        <img
+                          class="cap-piece-img"
+                          src="./assets-real/motion-video.jpg"
+                          width="860"
+                          height="484"
+                          alt="Continuous motion video stream with chained Merkle keyframes"
+                          loading="eager"
+                          decoding="async"
+                        />
+                      </div>
+                      <div class="atelier-card-body">
+                        <span class="atelier-tag">02 · MP4 UUID 72697365</span>
+                        <span class="atelier-seal-badge">60 FPS MERKLE CHAIN</span>
+                        <h3 class="atelier-title" data-scroll-type>
+                          Continuous Motion Streams (.rvid)
+                        </h3>
+                        <p class="atelier-desc" data-scroll-type>
+                          Chains every GOP keyframe into a rolling cryptographic accumulator inside a native MP4 uuid box so spliced or dropped frames are caught immediately.
+                        </p>
+                        <div class="atelier-cmd-bar">
+                          <code>$ rise-core sign sequence.mp4 --key strongbox.key --out ALP_4104.rvid</code>
+                        </div>
+                      </div>
+                    </article>
+
+                    <!-- PHOTO 03 -->
+                    <article
+                      class="atelier-card"
+                      data-stack-card="2"
+                    >
+                      <div class="atelier-art-wrap">
+                        <img
+                          class="cap-piece-img"
+                          src="./assets-real/merkle-map.jpg"
+                          width="860"
+                          height="484"
+                          alt="Four-quadrant spatial Merkle map pinpointing tampered regions"
+                          loading="eager"
+                          decoding="async"
+                        />
+                      </div>
+                      <div class="atelier-card-body">
+                        <span class="atelier-tag">03 · 2×2 SPATIAL MERKLE TREE</span>
+                        <span class="atelier-seal-badge is-emerald">4 / 4 TILES VERIFIED ✓</span>
+                        <h3 class="atelier-title" data-scroll-type>
+                          4-Tile Spatial Tamper Localization
+                        </h3>
+                        <p class="atelier-desc" data-scroll-type>
+                          Partitions every frame into four SHA-256 spatial quadrants (T0–T3) under a single Merkle root, pinpointing the exact region if a pixel is altered.
+                        </p>
+                        <div class="atelier-cmd-bar">
+                          <code>$ rise-core verify ARC_4089.rise --inspect-tiles // T0..T3 intact</code>
+                        </div>
+                      </div>
+                    </article>
+
+                    <!-- PHOTO 04 -->
+                    <article
+                      class="atelier-card"
+                      data-stack-card="3"
+                    >
+                      <div class="atelier-art-wrap">
+                        <img
+                          class="cap-piece-img"
+                          src="./assets-real/seal.jpg"
+                          width="860"
+                          height="484"
+                          alt="Post-quantum dual cryptographic seal combining classical and lattice signatures"
+                          loading="eager"
+                          decoding="async"
+                        />
+                      </div>
+                      <div class="atelier-card-body">
+                        <span class="atelier-tag">04 · NIST FIPS 204</span>
+                        <span class="atelier-seal-badge is-gold">ES256 + ML-DSA-65</span>
+                        <h3 class="atelier-title" data-scroll-type>
+                          Post-Quantum Dual Cryptographic Seal
+                        </h3>
+                        <p class="atelier-desc" data-scroll-type>
+                          Combines classical hardware ECDSA (P-256) with NIST FIPS 204 lattice signatures (ML-DSA-65), keeping archival media verifiable for decades.
+                        </p>
+                        <div class="atelier-cmd-bar">
+                          <code>$ rise-core keygen --pq ml-dsa-65 --tsa https://freetsa.org/tsr</code>
+                        </div>
+                      </div>
+                    </article>
+
+                    <!-- PHOTO 05 -->
+                    <article
+                      class="atelier-card"
+                      data-stack-card="4"
+                    >
+                      <div class="atelier-art-wrap">
+                        <img
+                          class="cap-piece-img"
+                          src="./assets-real/offline.jpg"
+                          width="860"
+                          height="484"
+                          alt="Offline browser verification running entirely on device with zero uploads"
+                          loading="eager"
+                          decoding="async"
+                        />
+                      </div>
+                      <div class="atelier-card-body">
+                        <span class="atelier-tag">05 · PURE WEBCRYPTO ES MODULE</span>
+                        <span class="atelier-seal-badge is-emerald">0 BYTES UPLOADED</span>
+                        <h3 class="atelier-title" data-scroll-type>
+                          100% Offline Browser Verification
+                        </h3>
+                        <p class="atelier-desc" data-scroll-type>
+                          Inspects JPEG APP11 and MP4 UUID boxes entirely in local browser memory via verify.js with zero cloud uploads, telemetry, or external servers.
+                        </p>
+                        <div class="atelier-cmd-bar atelier-cmd-with-btn">
+                          <code>$ import { verifyBadge } from './verify.js'</code>
+                          <button
+                            type="button"
+                            class="postcard-btn"
+                            data-sample-idx="0"
+                          >
+                            Test Sample in Verifier &rarr;
+                          </button>
+                        </div>
+                      </div>
+                    </article>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- ════════════════════════════════════════════════════════════════
+             1D. SCROLL SECTION 2: ASYMMETRIC ATELIER WORKFLOW GALLERY
+             3 distinct visual formats arriving from Left, Bottom-Center, and Right
+             ════════════════════════════════════════════════════════════════ -->
+        <div class="ov-section" id="ov-workflows">
+          <div class="ov-container">
+            <div class="ov-center-head">
+              <p class="ov-kicker-top" data-scroll-type>
+                Works natively with your camera hardware, OS shell, or browser
+              </p>
+              <h2 class="ov-h2-center" data-scroll-type>
+                Your setup, your choice.
+              </h2>
+            </div>
+
+            <!-- Ecosystem & Hardware Pill Strip -->
+            <div
+              class="eco-pill-row"
+              aria-label="Supported platforms and standards"
+            >
+              <span class="eco-pill"
+                ><i class="eco-dot" style="background: #1c1a17"></i>macOS
+                arm64</span
+              >
+              <span class="eco-pill"
+                ><i class="eco-dot" style="background: #047857"></i>Android
+                StrongBox</span
+              >
+              <span class="eco-pill"
+                ><i class="eco-dot" style="background: #2563eb"></i>Windows TPM
+                2.0</span
+              >
+              <span class="eco-pill"
+                ><i class="eco-dot" style="background: #d97706"></i>Linux Static
+                musl</span
+              >
+              <span class="eco-pill"
+                ><i class="eco-dot" style="background: #9a5b32"></i>JPEG
+                JUMBF</span
+              >
+              <span class="eco-pill"
+                ><i class="eco-dot" style="background: #7c3aed"></i>MP4 UUID
+                Box</span
+              >
+              <span class="eco-pill"
+                ><i class="eco-dot" style="background: #be123c"></i>ML-DSA-65
+                PQ</span
+              >
+              <span class="eco-pill"
+                ><i class="eco-dot" style="background: #0d9488"></i>WebCrypto
+                API</span
+              >
+            </div>
+
+            <!-- 3 Distinct Painterly Workflow Cards (Arriving from Left, Bottom, and Right!) -->
+            <div class="workflow-cards-grid" id="workflow-cards-grid">
+              <!-- Card 1 (Enters from Left with Twilight Impasto Canvas) -->
+              <article class="wf-card wf-style-left" data-wf-card="0">
+                <div class="wf-card-art wf-theme-twilight">
+                  <img
+                    class="wf-art-photo"
+                    src="./assets-real/winter-snow.jpg"
+                    width="560"
+                    height="280"
+                    alt="Blue winter sunset over snow for local CLI"
+                    loading="lazy"
+                    decoding="async"
+                  />
+                  <span class="wf-art-badge">01 // ZERO-DEP BINARY</span>
+                  <h3 class="wf-art-title">Local CLI</h3>
+                </div>
+                <div class="wf-card-body">
+                  <p class="wf-lead" data-scroll-type>
+                    Run rise-core or the macOS .pkg installer directly on your
+                    workstation with zero external runtime dependencies.
+                  </p>
+                  <ol class="wf-list">
+                    <li data-scroll-type>
+                      No cloud account or API token required
+                    </li>
+                    <li data-scroll-type>
+                      Generates hybrid ES256 + post-quantum keypairs offline on
+                      your machine
+                    </li>
+                    <li data-scroll-type>
+                      Seals and verifies .rise JPEG and .rvid MP4 files in a
+                      single command
+                    </li>
+                  </ol>
+                  <a
+                    href="./download.html"
+                    class="wf-card-btn"
+                    data-nav-view="download"
+                    >Download CLI v0.2.5</a
+                  >
+                </div>
+              </article>
+
+              <!-- Card 2 (Enters from Bottom-Center, Warm Archival Terracotta Edition) -->
+              <article class="wf-card wf-style-center" data-wf-card="1">
+                <div class="wf-card-art wf-theme-horizon">
+                  <img
+                    class="wf-art-photo"
+                    src="./assets-real/autumn-orange.jpg"
+                    width="560"
+                    height="280"
+                    alt="Orange autumn foliage for hardware-sealed capture"
+                    loading="lazy"
+                    decoding="async"
+                  />
+                  <span class="wf-art-badge">02 // SILICON ATTESTED</span>
+                  <h3 class="wf-art-title">Hardware Seal</h3>
+                </div>
+                <div class="wf-card-body">
+                  <p class="wf-lead" data-scroll-type>
+                    Bind every captured frame to device silicon via Android
+                    Camera2 + StrongBox, Windows TPM 2.0, or Apple Secure
+                    Enclave.
+                  </p>
+                  <ol class="wf-list">
+                    <li data-scroll-type>
+                      Hardware-backed keys never leave secure silicon
+                    </li>
+                    <li data-scroll-type>
+                      Computes a 4-tile SHA-256 Merkle root and stamps via RFC
+                      3161 TSA
+                    </li>
+                    <li data-scroll-type>
+                      Detects and localizes any post-capture pixel edit or crop
+                    </li>
+                  </ol>
+                  <a
+                    href="./install.html"
+                    class="wf-card-btn"
+                    data-nav-view="install"
+                    >Configure OS Shell</a
+                  >
+                </div>
+              </article>
+
+              <!-- Card 3 (Enters from Right, Viridian Meadow Edition) -->
+              <article class="wf-card wf-style-right" data-wf-card="2">
+                <div class="wf-card-art wf-theme-meadow">
+                  <img
+                    class="wf-art-photo"
+                    src="./assets-real/summer-green.jpg"
+                    width="560"
+                    height="280"
+                    alt="Green summer meadow for browser verification"
+                    loading="lazy"
+                    decoding="async"
+                  />
+                  <span class="wf-art-badge">03 // CLIENT WEBCRYPTO</span>
+                  <h3 class="wf-art-title">Browser Verify</h3>
+                </div>
+                <div class="wf-card-body">
+                  <p class="wf-lead" data-scroll-type>
+                    Inspect and verify sealed media 100% client-side in any
+                    modern browser via WebCrypto with zero server uploads.
+                  </p>
+                  <ol class="wf-list">
+                    <li data-scroll-type>
+                      No server round-trip, no cookies, complete privacy
+                    </li>
+                    <li data-scroll-type>
+                      Extracts APP11 JUMBF and MP4 UUID manifests in memory
+                    </li>
+                    <li data-scroll-type>
+                      Drop-in open-source ES module (verify.js) for any
+                      newsroom or archive
+                    </li>
+                  </ol>
+                  <a
+                    href="./verify.html"
+                    class="wf-card-btn"
+                    data-nav-view="workspace"
+                    >Open Browser Verifier</a
+                  >
+                </div>
+              </article>
+            </div>
+          </div>
+        </div>
+
+        <!-- ════════════════════════════════════════════════════════════════
+             1E. SCROLL SECTION 3: FULL-WIDTH IMPRESSIONIST BRUSHSTROKE BANNER
+             ════════════════════════════════════════════════════════════════ -->
+        <div class="ov-section ov-bottom-cta" id="ov-painted-cta">
+          <div class="ov-container">
+            <div class="painted-banner-wrap" id="painted-banner-wrap">
+              <video
+                id="painted-banner-video"
+                class="painted-banner-video"
+                src="./breeze-loop.mp4"
+                autoplay
+                muted
+                loop
+                playsinline
+                preload="auto"
+                aria-hidden="true"
+              ></video>
+
+              <div class="painted-banner-content">
+                <div class="rise-app-emblem" aria-hidden="true">
+                  <img
+                    src="./rise-eye-logo-transparent.png"
+                    alt="RISE Logo"
+                    class="rise-emblem-img"
+                    width="52"
+                    height="35"
+                  />
+                </div>
+
+                <h2 class="painted-banner-h2" data-scroll-type>
+                  Download RISE v0.2.5.
+                </h2>
+                <p class="painted-banner-sub" data-scroll-type>
+                  Openly developed. Sealed at the shutter. Verified locally in
+                  your browser.
+                </p>
+
+                <div class="painted-banner-btns">
+                  <a
+                    href="https://github.com/demiralpdev/.RISE/releases/download/v0.2.5/RISE-0.2.5.pkg"
+                    class="pill-cta-primary"
+                  >
+                    <span>&darr; Download</span>
+                    <span class="pill-cta-muted">&middot; Apple Silicon</span>
+                  </a>
+                  <a
+                    href="https://github.com/demiralpdev/.RISE"
+                    class="pill-cta-secondary"
+                    rel="noopener"
+                  >
+                    <span>&#9733; Star on GitHub</span>
+                  </a>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- ── FAQ accordion (exclusive to 01 Overview / #view-showcase) ── -->
+        <div id="faq" class="faq-section" role="region" aria-labelledby="faq-h2">
+          <div class="faq-container">
+            <div class="faq-head">
+              <span class="faq-kicker" data-scroll-type>FAQS // QUESTIONS</span>
+              <h2 id="faq-h2" class="faq-h2" data-scroll-type>Frequently asked questions.</h2>
+              <p class="faq-sub" data-scroll-type>
+                Short answers about sealed files, privacy, and verification.
+              </p>
+            </div>
+            <div class="faq-list">
+              <div class="faq-item">
+                <button type="button" class="faq-q" aria-expanded="false" aria-controls="faq-a1" id="faq-q1">
+                  <span>What are .rise and .rvid files?</span>
+                  <span class="faq-plus" aria-hidden="true">+</span>
+                </button>
+                <div class="faq-a" id="faq-a1" role="region" aria-labelledby="faq-q1" hidden>
+                  <p>.rise is a standard JPEG carrying a signed provenance manifest sealed inside an APP11 JUMBF segment; .rvid is a standard MP4 with the manifest in a uuid box. Both open in any viewer — the seal travels inside the file itself.</p>
+                </div>
+              </div>
+              <div class="faq-item">
+                <button type="button" class="faq-q" aria-expanded="false" aria-controls="faq-a2" id="faq-q2">
+                  <span>Is RISE free and open source?</span>
+                  <span class="faq-plus" aria-hidden="true">+</span>
+                </button>
+                <div class="faq-a" id="faq-a2" role="region" aria-labelledby="faq-q2" hidden>
+                  <p>Yes. The protocol, the rise-core CLI, the OS shells, and this browser verifier are all open source under Apache-2.0. Binaries on GitHub Releases are free, with reproducible build instructions in the repo.</p>
+                </div>
+              </div>
+              <div class="faq-item">
+                <button type="button" class="faq-q" aria-expanded="false" aria-controls="faq-a3" id="faq-q3">
+                  <span>Does verification need internet or uploads?</span>
+                  <span class="faq-plus" aria-hidden="true">+</span>
+                </button>
+                <div class="faq-a" id="faq-a3" role="region" aria-labelledby="faq-q3" hidden>
+                  <p>No. Verification runs 100% client-side in your browser via WebCrypto — your files never leave your device. Timestamps are checked against the RFC 3161 tokens already embedded at sealing time.</p>
+                </div>
+              </div>
+              <div class="faq-item">
+                <button type="button" class="faq-q" aria-expanded="false" aria-controls="faq-a4" id="faq-q4">
+                  <span>Which platforms are supported?</span>
+                  <span class="faq-plus" aria-hidden="true">+</span>
+                </button>
+                <div class="faq-a" id="faq-a4" role="region" aria-labelledby="faq-q4" hidden>
+                  <p>macOS (Apple Silicon), Windows x64 with TPM 2.0, Linux (static musl binaries for x64 and arm64), and Android via Camera2 plus StrongBox. An npm wrapper covers Node.js users.</p>
+                </div>
+              </div>
+              <div class="faq-item">
+                <button type="button" class="faq-q" aria-expanded="false" aria-controls="faq-a5" id="faq-q5">
+                  <span>Where do sealed files go, and what about privacy?</span>
+                  <span class="faq-plus" aria-hidden="true">+</span>
+                </button>
+                <div class="faq-a" id="faq-a5" role="region" aria-labelledby="faq-q5" hidden>
+                  <p>Nowhere: sealing happens locally on your machine, and there is no cloud account, telemetry, or upload step. Your photos stay on your device unless you choose to share them.</p>
+                </div>
+              </div>
+              <div class="faq-item">
+                <button type="button" class="faq-q" aria-expanded="false" aria-controls="faq-a6" id="faq-q6">
+                  <span>How do I verify someone else's file?</span>
+                  <span class="faq-plus" aria-hidden="true">+</span>
+                </button>
+                <div class="faq-a" id="faq-a6" role="region" aria-labelledby="faq-q6" hidden>
+                  <p>Open the Browser Verifier and drop in the .rise or .rvid file you received — no key exchange needed. The embedded signatures, Merkle tiles, and timestamps are checked automatically and reported as a badge.</p>
+                </div>
+              </div>
+              <div class="faq-item">
+                <button type="button" class="faq-q" aria-expanded="false" aria-controls="faq-a7" id="faq-q7">
+                  <span>What happens if a file was edited after sealing?</span>
+                  <span class="faq-plus" aria-hidden="true">+</span>
+                </button>
+                <div class="faq-a" id="faq-a7" role="region" aria-labelledby="faq-q7" hidden>
+                  <p>Any pixel or frame change breaks the SHA-256 tile hashes, so verification fails closed with a red badge naming the mismatched tiles. On suspicion the badge is downgraded, never upgraded — and if trust data is unreachable the answer is unknown, never green.</p>
+                </div>
+              </div>
             </div>
           </div>
         </div>
@@ -291,31 +863,59 @@
           </div>
 
           <div class="verify-layout">
-            <!-- Untouched Browser Verifier -->
             <div class="glass-panel" id="verify">
               <span class="panel-kicker"
                 >Client-Side Verifier (.rise / .rvid)</span
               >
 
               <div
-                class="dropzone"
+                class="dropzone tulip-dropzone"
                 id="drop"
                 role="button"
                 tabindex="0"
                 aria-label="Drop a .rise, .rvid, or .json file here, or press Enter to browse"
               >
-                <span class="icon" aria-hidden="true">+</span>
-                <div class="main">Drop .rise or .rvid file here</div>
-                <div class="sub">or click to choose from your device</div>
-                <div class="fmt">
-                  Supports .rise (JPEG APP11), .rvid (MP4 uuid), and .json
-                  manifests
+                <div class="tulip-drop-media" aria-hidden="true">
+                  <video
+                    id="tulip-video-a"
+                    class="tulip-deck-video is-base"
+                    src="./Tulips_swaying_in_breeze_1080p_20261014020657.mp4"
+                    autoplay
+                    muted
+                    playsinline
+                    preload="auto"
+                  ></video>
+                  <video
+                    id="tulip-video-b"
+                    class="tulip-deck-video"
+                    src="./Tulips_swaying_in_breeze_1080p_20261014020657.mp4"
+                    muted
+                    playsinline
+                    preload="auto"
+                  ></video>
+
+                  <div class="tulip-drop-veil" id="tulip-drop-veil"></div>
+
+                  <canvas
+                    id="tulip-ripple-canvas"
+                    class="tulip-ripple-canvas"
+                  ></canvas>
                 </div>
+
+                <div class="dropzone-content">
+                  <span class="icon" aria-hidden="true">+</span>
+                  <div class="main">Drop .rise or .rvid file here</div>
+                  <div class="sub">or click to choose from your device</div>
+                  <div class="fmt">
+                    Supports .rise (JPEG APP11), .rvid (MP4 uuid), and .json
+                    manifests
+                  </div>
+                </div>
+
                 <input
                   type="file"
                   id="fileIn"
                   aria-label="Select file to verify"
-                  accept=".rise,.rvid,.json,.jpg,.jpeg,.png,.mp4,.mov"
                 />
               </div>
 
@@ -385,7 +985,7 @@
               </div>
             </div>
 
-            <!-- Quick Download Sidebar -->
+            <!-- Right: Quick Download Sidebar -->
             <div class="glass-panel">
               <span class="panel-kicker">Quick Download (v0.2.5)</span>
               <p
@@ -754,9 +1354,8 @@ chmod +x rise-core &amp;&amp; (./rise-core --version 2&gt;/dev/null || ./rise-co
                 <pre
                   class="term-code"
                   id="code-npm"
-                >npm i -g @univerisr-ai/rise-cli
-rise --version 2&gt;/dev/null || rise --help
-rise keygen --out dev &amp;&amp; rise sign frame.jpg --key dev.key --out frame.manifest.json
+                >npm i -g https://registry.npmjs.org/@univerisr-ai/rise-cli/-/rise-cli-0.2.0.tgz
+rise --version || rise --help
 <span class="v">rise verify frame.manifest.json frame.jpg --pubkey dev.pub</span></pre>
               </div>
             </div>
@@ -769,7 +1368,7 @@ rise keygen --out dev &amp;&amp; rise sign frame.jpg --key dev.key --out frame.m
             >
               <div class="term-wrap">
                 <div class="term-head">
-                  <span>Android ARM64 JNI + Camera2</span>
+                  <span>Android ARM64 (Camera2 + StrongBox)</span>
                   <button class="copy-btn" data-copy="code-android">
                     Copy
                   </button>
@@ -777,99 +1376,59 @@ rise keygen --out dev &amp;&amp; rise sign frame.jpg --key dev.key --out frame.m
                 <pre
                   class="term-code"
                   id="code-android"
-                >git clone https://github.com/demiralpdev/.RISE.git &amp;&amp; cd .RISE
-cargo ndk -t arm64-v8a -o bindings/android/app/src/main/jniLibs build --release -p rise-jni
-cd bindings/android/app &amp;&amp; ./build_app.sh
-<span class="v">adb install -r build/rise.apk &amp;&amp; adb logcat -d | grep -i rise</span></pre>
+                >git clone https://github.com/demiralpdev/.RISE.git &amp;&amp; cd .RISE/bindings/android/app
+./build_app.sh &amp;&amp; adb install -r build/rise.apk
+<span class="v">adb logcat -d | grep -i "RISE"</span></pre>
               </div>
-            </div>
-          </div>
-
-          <!-- Turkish 5-Line Quickstart -->
-          <div style="margin-top: 32px">
-            <div class="term-wrap">
-              <div class="term-head">
-                <span>Türkçe Hızlı Başlangıç (macOS / Linux — 5 Satır)</span>
-                <button class="copy-btn" data-copy="code-tr">Kopyala</button>
-              </div>
-              <pre
-                class="term-code"
-                id="code-tr"
-              >curl -fLo rise-core https://github.com/demiralpdev/.RISE/releases/download/v0.2.5/rel-rise-core-aarch64-apple-darwin
-chmod +x rise-core &amp;&amp; ./rise-core keygen --out C_kilit
-./rise-core sign fotograf.jpg --key C_kilit.key --out fotograf.manifest.json
-<span class="v">./rise-core verify fotograf.manifest.json fotograf.jpg --pubkey C_kilit.pub</span>
-# Veya mühürlü .rise / .rvid dosyanızı doğrudan Verify sekmesine sürükleyin.</pre>
             </div>
           </div>
         </div>
       </section>
     </main>
 
-    <!-- ── Minimal Footer ── -->
-    <footer class="site-footer">
-      <div class="site-footer-inner">
-        <span>RISE Protocol v0.2.5 &bull; Apache-2.0</span>
-        <div class="footer-links">
-          <a href="https://github.com/demiralpdev/.RISE" rel="noopener"
-            >GitHub</a
-          >
-          <a href="https://github.com/demiralpdev/.RISE/releases" rel="noopener"
-            >Releases</a
-          >
-          <a
-            href="https://github.com/demiralpdev/.RISE/blob/main/SECURITY.md"
-            rel="noopener"
-            >Security</a
-          >
-          <a
-            href="https://github.com/demiralpdev/.RISE/blob/main/LICENSE"
-            rel="noopener"
-            >License</a
-          >
+    <footer class="site-footer-dark">
+      <div class="site-footer-dark-inner">
+        <div class="footer-brand">
+          <span class="footer-brand-name">RISE</span>
+          <span class="footer-brand-ver">// 0.2.5</span>
+          <p class="footer-brand-desc">Open-source photo and video authenticity protocol. Sealed at the shutter, verified locally in your browser.</p>
+          <a class="footer-github" href="https://github.com/demiralpdev/.RISE" rel="noopener">GitHub &#8599;</a>
         </div>
+        <nav class="footer-cols" aria-label="Footer">
+          <div class="footer-col">
+            <span class="footer-col-h">VERIFY</span>
+            <a href="#verify">Browser Verifier</a>
+            <a href="#ov-workflows">How verification works</a>
+            <a href="https://riseproof.me/" rel="noopener">riseproof.me</a>
+          </div>
+          <div class="footer-col">
+            <span class="footer-col-h">DOWNLOAD</span>
+            <a href="https://github.com/demiralpdev/.RISE/releases" rel="noopener">CLI v0.2.5</a>
+            <a href="#install">OS shells</a>
+            <a href="https://github.com/demiralpdev/.RISE/tree/main/bindings/android/app" rel="noopener">Android app</a>
+          </div>
+          <div class="footer-col">
+            <span class="footer-col-h">PROJECT</span>
+            <a href="https://github.com/demiralpdev/.RISE" rel="noopener">GitHub</a>
+            <a href="https://github.com/demiralpdev/.RISE/releases" rel="noopener">Releases</a>
+            <a href="https://github.com/demiralpdev/.RISE/blob/main/SECURITY.md" rel="noopener">Security policy</a>
+            <a href="https://www.apache.org/licenses/LICENSE-2.0" rel="noopener">License Apache-2.0</a>
+          </div>
+          <div class="footer-col">
+            <span class="footer-col-h">LEARN</span>
+            <a href="#install">Quickstart</a>
+            <a href="#faq">FAQ</a>
+            <a href="https://github.com/demiralpdev/.RISE/blob/main/ROADMAP.md" rel="noopener">Roadmap</a>
+          </div>
+        </nav>
+      </div>
+      <div class="footer-bottom">
+        <span>&copy; 2026 RISE &middot; Apache-2.0 &middot; Cryptographic Media Provenance</span>
       </div>
     </footer>
 
-    <!-- Untouched Browser Verifier Logic + Watercolor Wash Mask & Dual-Deck Loop Controller -->
-    <script src="./verify.js"></script>
-    <script src="./site.js?v=202610141146"></script>
-    <!-- Slow-connection guard: on 2g/slow-2g or Save-Data, force poster + click-to-play
-         on all deck videos (incl. hero loop) instead of autoplay. Full quality intact. -->
-    <script>
-      (function () {
-        var c =
-          navigator.connection ||
-          navigator.mozConnection ||
-          navigator.webkitConnection;
-        var slow =
-          !!c &&
-          (c.saveData === true ||
-            c.effectiveType === "slow-2g" ||
-            c.effectiveType === "2g");
-        if (!slow) return;
-        var decks = document.querySelectorAll(
-          "#hero-eye-video-a,#hero-eye-video-b,#leaf-video-a,#leaf-video-b"
-        );
-        decks.forEach(function (v) {
-          try {
-            v.removeAttribute("autoplay");
-            v.preload = "none";
-            v.pause();
-          } catch (_) {}
-          v.addEventListener("click", function () {
-            if (v.paused) {
-              var p = v.play();
-              if (p && p.catch) p.catch(function () {});
-            } else {
-              try {
-                v.pause();
-              } catch (_) {}
-            }
-          });
-          v.style.cursor = "pointer";
-        });
-      })();
-    </script>
+    <!-- Untouched WebCrypto Verifier + Multi-Directional Collage & Scroll Engine -->
+    <script type="module" src="./verify.js"></script>
+    <script src="./site.js?v=202610152300" defer></script>
   </body>
 </html>
