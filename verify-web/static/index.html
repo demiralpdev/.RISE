@@ -2,7 +2,10 @@
 <html lang="en">
   <head>
     <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width,initial-scale=1.0" />
+    <meta
+      name="viewport"
+      content="width=device-width,initial-scale=1.0,viewport-fit=cover"
+    />
     <title>RISE — Prove This Photo/Video Is Real (.rise / .rvid)</title>
     <meta
       name="description"
@@ -37,14 +40,39 @@
       content="https://riseproof.me/assets/og-card.png"
     />
     <link rel="stylesheet" href="./styles.css?v=202610152300" />
-    <style>#rise-preloader{position:fixed;inset:0;z-index:2000;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;background:#f5f2eb;overflow:hidden}#rise-preloader.is-done{opacity:0;visibility:hidden;transition:opacity .4s ease,visibility .4s ease}</style>
+    <style>
+      #rise-preloader {
+        position: fixed;
+        inset: 0;
+        z-index: 2000;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: 14px;
+        background: #f5f2eb;
+        overflow: hidden;
+      }
+      #rise-preloader.is-done {
+        opacity: 0;
+        visibility: hidden;
+        transition:
+          opacity 0.4s ease,
+          visibility 0.4s ease;
+      }
+    </style>
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
       rel="stylesheet"
       href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,500;1,6..72,400&display=swap"
     />
-    <link rel="preload" as="image" href="./hero-eye-poster.jpg" fetchpriority="high" />
+    <link
+      rel="preload"
+      as="image"
+      href="./hero-eye-poster.jpg"
+      fetchpriority="high"
+    />
     <link rel="preload" as="image" href="./rise-eye-logo-transparent.png" />
     <!-- Speculation rules (perf infra only): warm the sibling redirect stubs on
          hover/tap-intent. Chromium-only progressive enhancement; ignored
@@ -68,7 +96,14 @@
         ]
       }
     </script>
-    <noscript><style>.wf-art-photo,.rise-emblem-img{opacity:1 !important}</style></noscript>
+    <noscript
+      ><style>
+        .wf-art-photo,
+        .rise-emblem-img {
+          opacity: 1 !important;
+        }
+      </style></noscript
+    >
     <script type="application/ld+json">
       {
         "@context": "https://schema.org",
@@ -86,14 +121,25 @@
   <body>
     <!-- ── Branded splash preloader: visible at first paint, removed by site.js on window load ── -->
     <div id="rise-preloader" role="status" aria-label="Loading RISE">
-      <img class="preloader-logo" src="./rise-eye-logo-transparent.png" alt="RISE logo" width="52" height="35" />
       <div class="preloader-eye" aria-hidden="true">
-        <span class="preloader-word">RISE</span>
+        <img
+          class="preloader-logo"
+          src="./rise-eye-logo-transparent.png"
+          alt="RISE logo"
+          width="52"
+          height="35"
+        />
         <span class="preloader-ring"></span>
       </div>
       <span class="preloader-sub">sealing provenance…</span>
     </div>
-    <noscript><style>#rise-preloader{display:none !important}</style></noscript>
+    <noscript
+      ><style>
+        #rise-preloader {
+          display: none !important;
+        }
+      </style></noscript
+    >
     <a href="#main-content" class="skip-link">Skip to content</a>
 
     <!-- ── Top-Anchored Swaying Tree Leaf Shadows Video Layer (position: absolute!)
@@ -165,7 +211,17 @@
             rel="noopener"
             aria-label="Star .RISE on GitHub"
           >
-            <svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true" focusable="false"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27s1.36.09 2 .27c1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.01 8.01 0 0 0 16 8c0-4.42-3.58-8-8-8Z"/></svg>
+            <svg
+              viewBox="0 0 16 16"
+              width="14"
+              height="14"
+              aria-hidden="true"
+              focusable="false"
+            >
+              <path
+                d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27s1.36.09 2 .27c1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.01 8.01 0 0 0 16 8c0-4.42-3.58-8-8-8Z"
+              />
+            </svg>
             <span class="gh-stars" id="gh-stars">★</span>
           </a>
           <button
@@ -211,136 +267,136 @@
         aria-labelledby="intro-h1"
       >
         <div class="hero-first-screen">
-        <!-- 1A. Hero Stage -->
-        <div class="split-stage" id="split-stage">
-          <div class="split-left-col">
-            <div class="ascii-white-wrap">
-              <pre
-                class="art"
-                aria-label="RISE"
-              ><span style="color:#8B6914"> </span><span style="color:#FFB000">▄</span><span style="color:#FFB000;background-color:#8B6914">▀</span><span style="color:#8B6914">  </span><span style="color:#FFB000">▄</span><span style="color:#553300">▄</span><span style="color:#8B6914"> </span><span style="color:#FFB000">▀▀▀</span><span style="color:#8B6914"> </span><span style="color:#FFB000">▄▄▓▀</span><span style="color:#FFB000;background-color:#8B6914">█▀▀</span><span style="color:#8B6914"> </span><span style="color:#FFB000">▄▄▓▀</span><span style="color:#FFB000;background-color:#8B6914">█▀▀</span>
+          <!-- 1A. Hero Stage -->
+          <div class="split-stage" id="split-stage">
+            <div class="split-left-col">
+              <div class="ascii-white-wrap">
+                <pre
+                  class="art"
+                  aria-label="RISE"
+                ><span style="color:#8B6914"> </span><span style="color:#FFB000">▄</span><span style="color:#FFB000;background-color:#8B6914">▀</span><span style="color:#8B6914">  </span><span style="color:#FFB000">▄</span><span style="color:#553300">▄</span><span style="color:#8B6914"> </span><span style="color:#FFB000">▀▀▀</span><span style="color:#8B6914"> </span><span style="color:#FFB000">▄▄▓▀</span><span style="color:#FFB000;background-color:#8B6914">█▀▀</span><span style="color:#8B6914"> </span><span style="color:#FFB000">▄▄▓▀</span><span style="color:#FFB000;background-color:#8B6914">█▀▀</span>
 <span style="color:#FFB000">█</span><span style="color:#FFB000;background-color:#8B6914"> </span><span style="color:#553300;background-color:#8B6914">░</span><span style="color:#8B6914">▄</span><span style="color:#FFB000;background-color:#8B6914">▓</span><span style="color:#8B6914">█</span><span style="color:#553300;background-color:#8B6914">░</span><span style="color:#8B6914"> </span><span style="color:#FFB000;background-color:#8B6914">▓ </span><span style="color:#553300;background-color:#8B6914">░</span><span style="color:#8B6914"> </span><span style="color:#FFB000;background-color:#8B6914">▓ </span><span style="color:#553300;background-color:#8B6914">░</span><span style="color:#8B6914"> </span><span style="color:#FFB000;background-color:#8B6914">▓ </span><span style="color:#553300;background-color:#8B6914">░</span><span style="color:#8B6914"> </span><span style="color:#FFB000;background-color:#8B6914">▓ </span><span style="color:#553300;background-color:#8B6914">░</span><span style="color:#8B6914"> </span><span style="color:#FFB000;background-color:#8B6914">▓ </span><span style="color:#553300;background-color:#8B6914">░</span>
 <span style="color:#FFB000;background-color:#8B6914">▒ </span><span style="color:#553300;background-color:#8B6914">▒</span><span style="color:#8B6914"> </span><span style="color:#FFB000;background-color:#8B6914">▒ </span><span style="color:#553300;background-color:#8B6914">▓</span><span style="color:#8B6914"> </span><span style="color:#FFB000;background-color:#8B6914">▒ </span><span style="color:#553300;background-color:#8B6914">▒</span><span style="color:#8B6914"> </span><span style="color:#FFB000;background-color:#8B6914">▒ </span><span style="color:#553300;background-color:#8B6914">▒</span><span style="color:#8B6914">▄▄▄▄ </span><span style="color:#FFB000;background-color:#8B6914">▒ </span><span style="color:#553300;background-color:#8B6914">▒</span><span style="color:#8B6914">▀▀</span><span style="color:#553300">▀</span><span style="color:#8B6914"> </span>
 <span style="color:#FFB000;background-color:#8B6914">░ </span><span style="color:#553300;background-color:#8B6914">▓</span><span style="color:#8B6914"> </span><span style="color:#553300">▀▀</span><span style="color:#8B6914">  </span><span style="color:#FFB000;background-color:#8B6914">░ </span><span style="color:#553300;background-color:#8B6914">▓</span><span style="color:#8B6914"> ▄▄▄ </span><span style="color:#FFB000;background-color:#8B6914">░ </span><span style="color:#553300;background-color:#8B6914">▓</span><span style="color:#8B6914"> </span><span style="color:#FFB000;background-color:#8B6914">░ </span><span style="color:#553300;background-color:#8B6914">▓</span><span style="color:#8B6914"> </span><span style="color:#FFB000;background-color:#8B6914">░ </span><span style="color:#553300;background-color:#8B6914">▓</span>
 <span style="color:#553300;background-color:#8B6914">▄▄█</span><span style="color:#8B6914">     </span><span style="color:#553300;background-color:#8B6914">▄▄█</span><span style="color:#8B6914"> </span><span style="color:#553300;background-color:#8B6914">▄▄█</span><span style="color:#8B6914"> </span><span style="color:#553300;background-color:#8B6914">▄▄█</span><span style="color:#8B6914"> </span><span style="color:#553300;background-color:#8B6914">▄▄█</span><span style="color:#8B6914"> </span><span style="color:#553300;background-color:#8B6914">  █</span>
 <span style="color:#8B6914">              </span><span style="color:#553300">▀▀▀</span><span style="color:#8B6914">     </span><span style="color:#553300">▀▀▀</span><span style="color:#8B6914">  </span></pre>
+              </div>
+
+              <h1 id="intro-h1" class="hero-h1">
+                Prove this photo or video is <em>real.</em>
+              </h1>
+
+              <p class="hero-lead">
+                Cryptographic provenance sealed at shutter time into
+                <code>.rise</code> (JPEG) and <code>.rvid</code> (MP4).
+              </p>
+
+              <div class="hero-cta-row">
+                <a
+                  href="./verify.html"
+                  class="btn-ink"
+                  data-nav-view="workspace"
+                  >Verify a file &rarr;</a
+                >
+                <a
+                  href="./download.html"
+                  class="btn-outline"
+                  data-nav-view="download"
+                  >Download v0.2.5</a
+                >
+              </div>
             </div>
 
-            <h1 id="intro-h1" class="hero-h1">
-              Prove this photo or video is <em>real.</em>
-            </h1>
-
-            <p class="hero-lead">
-              Cryptographic provenance sealed at shutter time into
-              <code>.rise</code> (JPEG) and <code>.rvid</code> (MP4).
-            </p>
-
-            <div class="hero-cta-row">
-              <a
-                href="./verify.html"
-                class="btn-ink"
-                data-nav-view="workspace"
-                >Verify a file &rarr;</a
-              >
-              <a
-                href="./download.html"
-                class="btn-outline"
-                data-nav-view="download"
-                >Download v0.2.5</a
-              >
-            </div>
-          </div>
-
-          <div class="eye-bleed-wrap" id="eye-bleed-wrap">
-            <!-- Watercolor Frame, layer 1: pigment washes, blooms & splatter
+            <div class="eye-bleed-wrap" id="eye-bleed-wrap">
+              <!-- Watercolor Frame, layer 1: pigment washes, blooms & splatter
                  painted onto the paper beneath the eye (generated in site.js) -->
-            <canvas
-              class="eye-wc-layer eye-wc-under"
-              id="eye-wc-under"
-              aria-hidden="true"
-            ></canvas>
+              <canvas
+                class="eye-wc-layer eye-wc-under"
+                id="eye-wc-under"
+                aria-hidden="true"
+              ></canvas>
 
-            <!-- Watercolor Frame, layer 2: eye video, alpha-masked by a layered
+              <!-- Watercolor Frame, layer 2: eye video, alpha-masked by a layered
                  wet-on-wet brush mask so it bleeds softly into the paper -->
-            <div class="eye-wc-layer eye-bleed-bg" id="eye-bleed-bg">
-              <video
-                id="hero-eye-video-a"
-                class="hero-eye-video is-base"
-                src="./hero-eye.mp4"
-                poster="./hero-eye-poster.jpg"
-                autoplay
-                muted
-                playsinline
-                preload="auto"
-              >
-                <source src="./hero-eye.webm" type="video/webm" />
-                <source src="./hero-eye.mp4" type="video/mp4" />
-              </video>
-              <video
-                id="hero-eye-video-b"
-                class="hero-eye-video"
-                src="./hero-eye.mp4"
-                poster="./hero-eye-poster.jpg"
-                muted
-                playsinline
-                preload="auto"
-              >
-                <source src="./hero-eye.webm" type="video/webm" />
-                <source src="./hero-eye.mp4" type="video/mp4" />
-              </video>
-            </div>
+              <div class="eye-wc-layer eye-bleed-bg" id="eye-bleed-bg">
+                <video
+                  id="hero-eye-video-a"
+                  class="hero-eye-video is-base"
+                  src="./hero-eye.mp4"
+                  poster="./hero-eye-poster.jpg"
+                  autoplay
+                  muted
+                  playsinline
+                  preload="auto"
+                >
+                  <source src="./hero-eye.webm" type="video/webm" />
+                  <source src="./hero-eye.mp4" type="video/mp4" />
+                </video>
+                <video
+                  id="hero-eye-video-b"
+                  class="hero-eye-video"
+                  src="./hero-eye.mp4"
+                  poster="./hero-eye-poster.jpg"
+                  muted
+                  playsinline
+                  preload="auto"
+                >
+                  <source src="./hero-eye.webm" type="video/webm" />
+                  <source src="./hero-eye.mp4" type="video/mp4" />
+                </video>
+              </div>
 
-            <!-- Watercolor Frame, layer 3: pooled pigment at the drying edge,
+              <!-- Watercolor Frame, layer 3: pooled pigment at the drying edge,
                  granulation & paper tooth, multiplied over the video rim -->
-            <canvas
-              class="eye-wc-layer eye-wc-over"
-              id="eye-wc-over"
-              aria-hidden="true"
-            ></canvas>
+              <canvas
+                class="eye-wc-layer eye-wc-over"
+                id="eye-wc-over"
+                aria-hidden="true"
+              ></canvas>
+            </div>
           </div>
-        </div>
 
-        <!-- 1B. 3-Column Strip Below the Hero -->
-        <div class="overview-below">
-          <div class="flow-strip" aria-label="How RISE works">
-            <div>
-              <span class="flow-idx" data-scroll-type
-                >01 // SHUTTER CAPTURE</span
-              >
-              <h2 class="flow-title" data-scroll-type>
-                Hardware-Backed Frame
-              </h2>
-              <p class="flow-desc" data-scroll-type>
-                Thin OS shells capture the raw sensor frame alongside hardware
-                key attestation (StrongBox, TPM 2.0, Secure Enclave).
-              </p>
-            </div>
-            <div>
-              <span class="flow-idx" data-scroll-type
-                >02 // HYBRID SIGNATURE</span
-              >
-              <h2 class="flow-title" data-scroll-type>
-                Merkle + Post-Quantum
-              </h2>
-              <p class="flow-desc" data-scroll-type>
-                rise-core computes a 4-tile SHA-256 Merkle root, stamps via RFC
-                3161 TSA, and dual-signs with ES256 + ML-DSA-65.
-              </p>
-            </div>
-            <div>
-              <span class="flow-idx" data-scroll-type
-                >03 // ZERO-UPLOAD VERIFY</span
-              >
-              <h2 class="flow-title" data-scroll-type>
-                Native JPEG &amp; MP4
-              </h2>
-              <p class="flow-desc" data-scroll-type>
-                Sealed inside .rise (JPEG APP11 JUMBF) or .rvid (MP4 uuid-box).
-                Verifiable offline in any browser.
-              </p>
+          <!-- 1B. 3-Column Strip Below the Hero -->
+          <div class="overview-below">
+            <div class="flow-strip" aria-label="How RISE works">
+              <div>
+                <span class="flow-idx" data-scroll-type
+                  >01 // SHUTTER CAPTURE</span
+                >
+                <h2 class="flow-title" data-scroll-type>
+                  Hardware-Backed Frame
+                </h2>
+                <p class="flow-desc" data-scroll-type>
+                  Thin OS shells capture the raw sensor frame alongside hardware
+                  key attestation (StrongBox, TPM 2.0, Secure Enclave).
+                </p>
+              </div>
+              <div>
+                <span class="flow-idx" data-scroll-type
+                  >02 // HYBRID SIGNATURE</span
+                >
+                <h2 class="flow-title" data-scroll-type>
+                  Merkle + Post-Quantum
+                </h2>
+                <p class="flow-desc" data-scroll-type>
+                  rise-core computes a 4-tile SHA-256 Merkle root, stamps via
+                  RFC 3161 TSA, and dual-signs with ES256 + ML-DSA-65.
+                </p>
+              </div>
+              <div>
+                <span class="flow-idx" data-scroll-type
+                  >03 // ZERO-UPLOAD VERIFY</span
+                >
+                <h2 class="flow-title" data-scroll-type>
+                  Native JPEG &amp; MP4
+                </h2>
+                <p class="flow-desc" data-scroll-type>
+                  Sealed inside .rise (JPEG APP11 JUMBF) or .rvid (MP4
+                  uuid-box). Verifiable offline in any browser.
+                </p>
+              </div>
             </div>
           </div>
-        </div>
         </div>
 
         <!-- ════════════════════════════════════════════════════════════════
@@ -350,13 +406,57 @@
              per-pixel WebGL GLSL Iterated Domain-Warped fBm Ink Bleed shader
              (+ SVG feTurbulence/feDisplacementMap capillary filter).
              ════════════════════════════════════════════════════════════════ -->
-        <svg width="0" height="0" style="position:absolute;width:0;height:0;overflow:hidden;pointer-events:none" aria-hidden="true">
+        <svg
+          width="0"
+          height="0"
+          style="
+            position: absolute;
+            width: 0;
+            height: 0;
+            overflow: hidden;
+            pointer-events: none;
+          "
+          aria-hidden="true"
+        >
           <defs>
-            <filter id="ink-bleed-svg-filter" x="-20%" y="-20%" width="140%" height="140%" color-interpolation-filters="sRGB">
-              <feTurbulence type="fractalNoise" baseFrequency="0.032 0.036" numOctaves="3" seed="19" result="macroNoise" />
-              <feTurbulence type="fractalNoise" baseFrequency="0.12 0.14" numOctaves="3" seed="73" result="fiberNoise" />
-              <feDisplacementMap in="SourceGraphic" in2="macroNoise" scale="14" xChannelSelector="R" yChannelSelector="G" result="macroBleed" />
-              <feDisplacementMap in="macroBleed" in2="fiberNoise" scale="6" xChannelSelector="B" yChannelSelector="R" result="fibrousBleed" />
+            <filter
+              id="ink-bleed-svg-filter"
+              x="-20%"
+              y="-20%"
+              width="140%"
+              height="140%"
+              color-interpolation-filters="sRGB"
+            >
+              <feTurbulence
+                type="fractalNoise"
+                baseFrequency="0.032 0.036"
+                numOctaves="3"
+                seed="19"
+                result="macroNoise"
+              />
+              <feTurbulence
+                type="fractalNoise"
+                baseFrequency="0.12 0.14"
+                numOctaves="3"
+                seed="73"
+                result="fiberNoise"
+              />
+              <feDisplacementMap
+                in="SourceGraphic"
+                in2="macroNoise"
+                scale="14"
+                xChannelSelector="R"
+                yChannelSelector="G"
+                result="macroBleed"
+              />
+              <feDisplacementMap
+                in="macroBleed"
+                in2="fiberNoise"
+                scale="6"
+                xChannelSelector="B"
+                yChannelSelector="R"
+                result="fibrousBleed"
+              />
             </filter>
           </defs>
         </svg>
@@ -383,157 +483,190 @@
                 <div class="cap-stage-frame" id="cap-stage-frame">
                   <div class="collage-atelier-stage" id="cap-stack-deck">
                     <!-- PHOTO 01 -->
-                    <article
-                      class="atelier-card"
-                      data-stack-card="0"
-                    >
+                    <article class="atelier-card" data-stack-card="0">
                       <div class="atelier-art-wrap">
                         <img
                           class="cap-piece-img"
-                           src="./assets-real/still-photo.jpg" onload="this.classList.add('is-loaded')" onerror="this.classList.add('img-failed')"
-                           width="860"
-                           height="484"
-                           alt="Sealed still photograph bound to device hardware at shutter release"
-                           loading="eager"
-                           fetchpriority="high"
-                           decoding="async"
+                          src="./assets-real/still-photo.jpg"
+                          onload="this.classList.add('is-loaded')"
+                          onerror="this.classList.add('img-failed')"
+                          width="860"
+                          height="484"
+                          alt="Sealed still photograph bound to device hardware at shutter release"
+                          loading="eager"
+                          fetchpriority="high"
+                          decoding="async"
                         />
                       </div>
                       <div class="atelier-card-body">
                         <span class="atelier-tag">01 · JPEG APP11 / JUMBF</span>
-                        <span class="atelier-seal-badge">HARDWARE ATTESTED</span>
+                        <span class="atelier-seal-badge"
+                          >HARDWARE ATTESTED</span
+                        >
                         <h3 class="atelier-title" data-scroll-type>
                           Sealed Still Photographs (.rise)
                         </h3>
                         <p class="atelier-desc" data-scroll-type>
-                          Embeds a signed C2PA-compatible JUMBF manifest directly inside JPEG APP11 segments at shutter release, binding raw sensor light to device silicon.
+                          Embeds a signed C2PA-compatible JUMBF manifest
+                          directly inside JPEG APP11 segments at shutter
+                          release, binding raw sensor light to device silicon.
                         </p>
                         <div class="atelier-cmd-bar">
-                          <code>$ rise-core sign capture.jpg --key enclave.key --out IST_4082.rise</code>
+                          <code
+                            >$ rise-core sign capture.jpg --key enclave.key
+                            --out IST_4082.rise</code
+                          >
                         </div>
                       </div>
                     </article>
 
                     <!-- PHOTO 02 -->
-                    <article
-                      class="atelier-card"
-                      data-stack-card="1"
-                    >
+                    <article class="atelier-card" data-stack-card="1">
                       <div class="atelier-art-wrap">
                         <img
                           class="cap-piece-img"
-                           src="./assets-real/motion-video.jpg" onload="this.classList.add('is-loaded')" onerror="this.classList.add('img-failed')"
-                           width="860"
-                           height="484"
-                           alt="Continuous motion video stream with chained Merkle keyframes"
-                           loading="lazy"
-                           decoding="async"
+                          src="./assets-real/motion-video.jpg"
+                          onload="this.classList.add('is-loaded')"
+                          onerror="this.classList.add('img-failed')"
+                          width="860"
+                          height="484"
+                          alt="Continuous motion video stream with chained Merkle keyframes"
+                          loading="lazy"
+                          decoding="async"
                         />
                       </div>
                       <div class="atelier-card-body">
                         <span class="atelier-tag">02 · MP4 UUID 72697365</span>
-                        <span class="atelier-seal-badge">60 FPS MERKLE CHAIN</span>
+                        <span class="atelier-seal-badge"
+                          >60 FPS MERKLE CHAIN</span
+                        >
                         <h3 class="atelier-title" data-scroll-type>
                           Continuous Motion Streams (.rvid)
                         </h3>
                         <p class="atelier-desc" data-scroll-type>
-                          Chains every GOP keyframe into a rolling cryptographic accumulator inside a native MP4 uuid box so spliced or dropped frames are caught immediately.
+                          Chains every GOP keyframe into a rolling cryptographic
+                          accumulator inside a native MP4 uuid box so spliced or
+                          dropped frames are caught immediately.
                         </p>
                         <div class="atelier-cmd-bar">
-                          <code>$ rise-core sign sequence.mp4 --key strongbox.key --out ALP_4104.rvid</code>
+                          <code
+                            >$ rise-core sign sequence.mp4 --key strongbox.key
+                            --out ALP_4104.rvid</code
+                          >
                         </div>
                       </div>
                     </article>
 
                     <!-- PHOTO 03 -->
-                    <article
-                      class="atelier-card"
-                      data-stack-card="2"
-                    >
+                    <article class="atelier-card" data-stack-card="2">
                       <div class="atelier-art-wrap">
                         <img
                           class="cap-piece-img"
-                           src="./assets-real/merkle-map.jpg" onload="this.classList.add('is-loaded')" onerror="this.classList.add('img-failed')"
-                           width="860"
-                           height="484"
-                           alt="Four-quadrant spatial Merkle map pinpointing tampered regions"
-                           loading="lazy"
-                           decoding="async"
+                          src="./assets-real/merkle-map.jpg"
+                          onload="this.classList.add('is-loaded')"
+                          onerror="this.classList.add('img-failed')"
+                          width="860"
+                          height="484"
+                          alt="Four-quadrant spatial Merkle map pinpointing tampered regions"
+                          loading="lazy"
+                          decoding="async"
                         />
                       </div>
                       <div class="atelier-card-body">
-                        <span class="atelier-tag">03 · 2×2 SPATIAL MERKLE TREE</span>
-                        <span class="atelier-seal-badge is-emerald">4 / 4 TILES VERIFIED ✓</span>
+                        <span class="atelier-tag"
+                          >03 · 2×2 SPATIAL MERKLE TREE</span
+                        >
+                        <span class="atelier-seal-badge is-emerald"
+                          >4 / 4 TILES VERIFIED ✓</span
+                        >
                         <h3 class="atelier-title" data-scroll-type>
                           4-Tile Spatial Tamper Localization
                         </h3>
                         <p class="atelier-desc" data-scroll-type>
-                          Partitions every frame into four SHA-256 spatial quadrants (T0–T3) under a single Merkle root, pinpointing the exact region if a pixel is altered.
+                          Partitions every frame into four SHA-256 spatial
+                          quadrants (T0–T3) under a single Merkle root,
+                          pinpointing the exact region if a pixel is altered.
                         </p>
                         <div class="atelier-cmd-bar">
-                          <code>$ rise-core verify ARC_4089.rise --inspect-tiles // T0..T3 intact</code>
+                          <code
+                            >$ rise-core verify ARC_4089.rise --inspect-tiles //
+                            T0..T3 intact</code
+                          >
                         </div>
                       </div>
                     </article>
 
                     <!-- PHOTO 04 -->
-                    <article
-                      class="atelier-card"
-                      data-stack-card="3"
-                    >
+                    <article class="atelier-card" data-stack-card="3">
                       <div class="atelier-art-wrap">
                         <img
                           class="cap-piece-img"
-                           src="./assets-real/seal-wax-real.jpg" onload="this.classList.add('is-loaded')" onerror="this.classList.add('img-failed')"
-                           width="860"
-                           height="484"
-                           alt="Post-quantum dual cryptographic seal combining classical and lattice signatures"
-                           loading="lazy"
-                           decoding="async"
+                          src="./assets-real/seal-wax-real.jpg"
+                          onload="this.classList.add('is-loaded')"
+                          onerror="this.classList.add('img-failed')"
+                          width="860"
+                          height="484"
+                          alt="Post-quantum dual cryptographic seal combining classical and lattice signatures"
+                          loading="lazy"
+                          decoding="async"
                         />
                       </div>
                       <div class="atelier-card-body">
                         <span class="atelier-tag">04 · NIST FIPS 204</span>
-                        <span class="atelier-seal-badge is-gold">ES256 + ML-DSA-65</span>
+                        <span class="atelier-seal-badge is-gold"
+                          >ES256 + ML-DSA-65</span
+                        >
                         <h3 class="atelier-title" data-scroll-type>
                           Post-Quantum Dual Cryptographic Seal
                         </h3>
                         <p class="atelier-desc" data-scroll-type>
-                          Combines classical hardware ECDSA (P-256) with NIST FIPS 204 lattice signatures (ML-DSA-65), keeping archival media verifiable for decades.
+                          Combines classical hardware ECDSA (P-256) with NIST
+                          FIPS 204 lattice signatures (ML-DSA-65), keeping
+                          archival media verifiable for decades.
                         </p>
                         <div class="atelier-cmd-bar">
-                          <code>$ rise-core keygen --pq ml-dsa-65 --tsa https://freetsa.org/tsr</code>
+                          <code
+                            >$ rise-core keygen --pq ml-dsa-65 --tsa
+                            https://freetsa.org/tsr</code
+                          >
                         </div>
                       </div>
                     </article>
 
                     <!-- PHOTO 05 -->
-                    <article
-                      class="atelier-card"
-                      data-stack-card="4"
-                    >
+                    <article class="atelier-card" data-stack-card="4">
                       <div class="atelier-art-wrap">
                         <img
                           class="cap-piece-img"
-                           src="./assets-real/offline.jpg" onload="this.classList.add('is-loaded')" onerror="this.classList.add('img-failed')"
-                           width="860"
-                           height="484"
-                           alt="Offline browser verification running entirely on device with zero uploads"
-                           loading="lazy"
-                           decoding="async"
+                          src="./assets-real/offline.jpg"
+                          onload="this.classList.add('is-loaded')"
+                          onerror="this.classList.add('img-failed')"
+                          width="860"
+                          height="484"
+                          alt="Offline browser verification running entirely on device with zero uploads"
+                          loading="lazy"
+                          decoding="async"
                         />
                       </div>
                       <div class="atelier-card-body">
-                        <span class="atelier-tag">05 · PURE WEBCRYPTO ES MODULE</span>
-                        <span class="atelier-seal-badge is-emerald">0 BYTES UPLOADED</span>
+                        <span class="atelier-tag"
+                          >05 · PURE WEBCRYPTO ES MODULE</span
+                        >
+                        <span class="atelier-seal-badge is-emerald"
+                          >0 BYTES UPLOADED</span
+                        >
                         <h3 class="atelier-title" data-scroll-type>
                           100% Offline Browser Verification
                         </h3>
                         <p class="atelier-desc" data-scroll-type>
-                          Inspects JPEG APP11 and MP4 UUID boxes entirely in local browser memory via verify.js with zero cloud uploads, telemetry, or external servers.
+                          Inspects JPEG APP11 and MP4 UUID boxes entirely in
+                          local browser memory via verify.js with zero cloud
+                          uploads, telemetry, or external servers.
                         </p>
                         <div class="atelier-cmd-bar atelier-cmd-with-btn">
-                          <code>$ import { verifyBadge } from './verify.js'</code>
+                          <code
+                            >$ import { verifyBadge } from './verify.js'</code
+                          >
                           <button
                             type="button"
                             class="postcard-btn"
@@ -612,7 +745,9 @@
                 <div class="wf-card-art wf-theme-twilight">
                   <img
                     class="wf-art-photo"
-                    src="./assets-real/winter-snow.jpg" onload="this.classList.add('is-loaded')" onerror="this.classList.add('img-failed')"
+                    src="./assets-real/winter-snow.jpg"
+                    onload="this.classList.add('is-loaded')"
+                    onerror="this.classList.add('img-failed')"
                     width="560"
                     height="280"
                     alt="Blue winter sunset over snow for local CLI"
@@ -654,7 +789,9 @@
                 <div class="wf-card-art wf-theme-horizon">
                   <img
                     class="wf-art-photo"
-                    src="./assets-real/autumn-orange.jpg" onload="this.classList.add('is-loaded')" onerror="this.classList.add('img-failed')"
+                    src="./assets-real/autumn-orange.jpg"
+                    onload="this.classList.add('is-loaded')"
+                    onerror="this.classList.add('img-failed')"
                     width="560"
                     height="280"
                     alt="Orange autumn foliage for hardware-sealed capture"
@@ -696,7 +833,9 @@
                 <div class="wf-card-art wf-theme-meadow">
                   <img
                     class="wf-art-photo"
-                    src="./assets-real/summer-green.jpg" onload="this.classList.add('is-loaded')" onerror="this.classList.add('img-failed')"
+                    src="./assets-real/summer-green.jpg"
+                    onload="this.classList.add('is-loaded')"
+                    onerror="this.classList.add('img-failed')"
                     width="560"
                     height="280"
                     alt="Green summer meadow for browser verification"
@@ -719,8 +858,8 @@
                       Extracts APP11 JUMBF and MP4 UUID manifests in memory
                     </li>
                     <li data-scroll-type>
-                      Drop-in open-source ES module (verify.js) for any
-                      newsroom or archive
+                      Drop-in open-source ES module (verify.js) for any newsroom
+                      or archive
                     </li>
                   </ol>
                   <a
@@ -756,7 +895,9 @@
               <div class="painted-banner-content">
                 <div class="rise-app-emblem" aria-hidden="true">
                   <img
-                    src="./rise-eye-logo-transparent.png" onload="this.classList.add('is-loaded')" onerror="this.classList.add('img-failed')"
+                    src="./rise-eye-logo-transparent.png"
+                    onload="this.classList.add('is-loaded')"
+                    onerror="this.classList.add('img-failed')"
                     alt="RISE Logo"
                     class="rise-emblem-img"
                     width="52"
@@ -796,77 +937,202 @@
         </div>
 
         <!-- ── FAQ accordion (exclusive to 01 Overview / #view-showcase) ── -->
-        <div id="faq" class="faq-section" role="region" aria-labelledby="faq-h2">
+        <div
+          id="faq"
+          class="faq-section"
+          role="region"
+          aria-labelledby="faq-h2"
+        >
           <div class="faq-container">
             <div class="faq-head">
               <span class="faq-kicker" data-scroll-type>FAQS // QUESTIONS</span>
-              <h2 id="faq-h2" class="faq-h2" data-scroll-type>Frequently asked questions.</h2>
+              <h2 id="faq-h2" class="faq-h2" data-scroll-type>
+                Frequently asked questions.
+              </h2>
               <p class="faq-sub" data-scroll-type>
                 Short answers about sealed files, privacy, and verification.
               </p>
             </div>
             <div class="faq-list">
               <div class="faq-item">
-                <button type="button" class="faq-q" aria-expanded="false" aria-controls="faq-a1" id="faq-q1">
+                <button
+                  type="button"
+                  class="faq-q"
+                  aria-expanded="false"
+                  aria-controls="faq-a1"
+                  id="faq-q1"
+                >
                   <span>What are .rise and .rvid files?</span>
                   <span class="faq-plus" aria-hidden="true">+</span>
                 </button>
-                <div class="faq-a" id="faq-a1" role="region" aria-labelledby="faq-q1" hidden>
-                  <p>.rise is a standard JPEG carrying a signed provenance manifest sealed inside an APP11 JUMBF segment; .rvid is a standard MP4 with the manifest in a uuid box. Both open in any viewer — the seal travels inside the file itself.</p>
+                <div
+                  class="faq-a"
+                  id="faq-a1"
+                  role="region"
+                  aria-labelledby="faq-q1"
+                  hidden
+                >
+                  <p>
+                    .rise is a standard JPEG carrying a signed provenance
+                    manifest sealed inside an APP11 JUMBF segment; .rvid is a
+                    standard MP4 with the manifest in a uuid box. Both open in
+                    any viewer — the seal travels inside the file itself.
+                  </p>
                 </div>
               </div>
               <div class="faq-item">
-                <button type="button" class="faq-q" aria-expanded="false" aria-controls="faq-a2" id="faq-q2">
+                <button
+                  type="button"
+                  class="faq-q"
+                  aria-expanded="false"
+                  aria-controls="faq-a2"
+                  id="faq-q2"
+                >
                   <span>Is RISE free and open source?</span>
                   <span class="faq-plus" aria-hidden="true">+</span>
                 </button>
-                <div class="faq-a" id="faq-a2" role="region" aria-labelledby="faq-q2" hidden>
-                  <p>Yes. The protocol, the rise-core CLI, the OS shells, and this browser verifier are all open source under Apache-2.0. Binaries on GitHub Releases are free, with reproducible build instructions in the repo.</p>
+                <div
+                  class="faq-a"
+                  id="faq-a2"
+                  role="region"
+                  aria-labelledby="faq-q2"
+                  hidden
+                >
+                  <p>
+                    Yes. The protocol, the rise-core CLI, the OS shells, and
+                    this browser verifier are all open source under Apache-2.0.
+                    Binaries on GitHub Releases are free, with reproducible
+                    build instructions in the repo.
+                  </p>
                 </div>
               </div>
               <div class="faq-item">
-                <button type="button" class="faq-q" aria-expanded="false" aria-controls="faq-a3" id="faq-q3">
+                <button
+                  type="button"
+                  class="faq-q"
+                  aria-expanded="false"
+                  aria-controls="faq-a3"
+                  id="faq-q3"
+                >
                   <span>Does verification need internet or uploads?</span>
                   <span class="faq-plus" aria-hidden="true">+</span>
                 </button>
-                <div class="faq-a" id="faq-a3" role="region" aria-labelledby="faq-q3" hidden>
-                  <p>No. Verification runs 100% client-side in your browser via WebCrypto — your files never leave your device. Timestamps are checked against the RFC 3161 tokens already embedded at sealing time.</p>
+                <div
+                  class="faq-a"
+                  id="faq-a3"
+                  role="region"
+                  aria-labelledby="faq-q3"
+                  hidden
+                >
+                  <p>
+                    No. Verification runs 100% client-side in your browser via
+                    WebCrypto — your files never leave your device. Timestamps
+                    are checked against the RFC 3161 tokens already embedded at
+                    sealing time.
+                  </p>
                 </div>
               </div>
               <div class="faq-item">
-                <button type="button" class="faq-q" aria-expanded="false" aria-controls="faq-a4" id="faq-q4">
+                <button
+                  type="button"
+                  class="faq-q"
+                  aria-expanded="false"
+                  aria-controls="faq-a4"
+                  id="faq-q4"
+                >
                   <span>Which platforms are supported?</span>
                   <span class="faq-plus" aria-hidden="true">+</span>
                 </button>
-                <div class="faq-a" id="faq-a4" role="region" aria-labelledby="faq-q4" hidden>
-                  <p>macOS (Apple Silicon), Windows x64 with TPM 2.0, Linux (static musl binaries for x64 and arm64), and Android via Camera2 plus StrongBox. An npm wrapper covers Node.js users.</p>
+                <div
+                  class="faq-a"
+                  id="faq-a4"
+                  role="region"
+                  aria-labelledby="faq-q4"
+                  hidden
+                >
+                  <p>
+                    macOS (Apple Silicon), Windows x64 with TPM 2.0, Linux
+                    (static musl binaries for x64 and arm64), and Android via
+                    Camera2 plus StrongBox. An npm wrapper covers Node.js users.
+                  </p>
                 </div>
               </div>
               <div class="faq-item">
-                <button type="button" class="faq-q" aria-expanded="false" aria-controls="faq-a5" id="faq-q5">
+                <button
+                  type="button"
+                  class="faq-q"
+                  aria-expanded="false"
+                  aria-controls="faq-a5"
+                  id="faq-q5"
+                >
                   <span>Where do sealed files go, and what about privacy?</span>
                   <span class="faq-plus" aria-hidden="true">+</span>
                 </button>
-                <div class="faq-a" id="faq-a5" role="region" aria-labelledby="faq-q5" hidden>
-                  <p>Nowhere: sealing happens locally on your machine, and there is no cloud account, telemetry, or upload step. Your photos stay on your device unless you choose to share them.</p>
+                <div
+                  class="faq-a"
+                  id="faq-a5"
+                  role="region"
+                  aria-labelledby="faq-q5"
+                  hidden
+                >
+                  <p>
+                    Nowhere: sealing happens locally on your machine, and there
+                    is no cloud account, telemetry, or upload step. Your photos
+                    stay on your device unless you choose to share them.
+                  </p>
                 </div>
               </div>
               <div class="faq-item">
-                <button type="button" class="faq-q" aria-expanded="false" aria-controls="faq-a6" id="faq-q6">
+                <button
+                  type="button"
+                  class="faq-q"
+                  aria-expanded="false"
+                  aria-controls="faq-a6"
+                  id="faq-q6"
+                >
                   <span>How do I verify someone else's file?</span>
                   <span class="faq-plus" aria-hidden="true">+</span>
                 </button>
-                <div class="faq-a" id="faq-a6" role="region" aria-labelledby="faq-q6" hidden>
-                  <p>Open the Browser Verifier and drop in the .rise or .rvid file you received — no key exchange needed. The embedded signatures, Merkle tiles, and timestamps are checked automatically and reported as a badge.</p>
+                <div
+                  class="faq-a"
+                  id="faq-a6"
+                  role="region"
+                  aria-labelledby="faq-q6"
+                  hidden
+                >
+                  <p>
+                    Open the Browser Verifier and drop in the .rise or .rvid
+                    file you received — no key exchange needed. The embedded
+                    signatures, Merkle tiles, and timestamps are checked
+                    automatically and reported as a badge.
+                  </p>
                 </div>
               </div>
               <div class="faq-item">
-                <button type="button" class="faq-q" aria-expanded="false" aria-controls="faq-a7" id="faq-q7">
+                <button
+                  type="button"
+                  class="faq-q"
+                  aria-expanded="false"
+                  aria-controls="faq-a7"
+                  id="faq-q7"
+                >
                   <span>What happens if a file was edited after sealing?</span>
                   <span class="faq-plus" aria-hidden="true">+</span>
                 </button>
-                <div class="faq-a" id="faq-a7" role="region" aria-labelledby="faq-q7" hidden>
-                  <p>Any pixel or frame change breaks the SHA-256 tile hashes, so verification fails closed with a red badge naming the mismatched tiles. On suspicion the badge is downgraded, never upgraded — and if trust data is unreachable the answer is unknown, never green.</p>
+                <div
+                  class="faq-a"
+                  id="faq-a7"
+                  role="region"
+                  aria-labelledby="faq-q7"
+                  hidden
+                >
+                  <p>
+                    Any pixel or frame change breaks the SHA-256 tile hashes, so
+                    verification fails closed with a red badge naming the
+                    mismatched tiles. On suspicion the badge is downgraded,
+                    never upgraded — and if trust data is unreachable the answer
+                    is unknown, never green.
+                  </p>
                 </div>
               </div>
             </div>
@@ -1007,7 +1273,9 @@
               </div>
 
               <div class="progress" id="prog" aria-live="polite">
-                <span class="pbar" id="pbar">[........................] 0%</span>
+                <span class="pbar" id="pbar"
+                  >[........................] 0%</span
+                >
               </div>
 
               <button class="go" id="goBtn" type="button" disabled>
@@ -1436,8 +1704,16 @@ rise --version || rise --help
         <div class="footer-brand">
           <span class="footer-brand-name">RISE</span>
           <span class="footer-brand-ver">// 0.2.5</span>
-          <p class="footer-brand-desc">Open-source photo and video authenticity protocol. Sealed at the shutter, verified locally in your browser.</p>
-          <a class="footer-github" href="https://github.com/demiralpdev/.RISE" rel="noopener">GitHub &#8599;</a>
+          <p class="footer-brand-desc">
+            Open-source photo and video authenticity protocol. Sealed at the
+            shutter, verified locally in your browser.
+          </p>
+          <a
+            class="footer-github"
+            href="https://github.com/demiralpdev/.RISE"
+            rel="noopener"
+            >GitHub &#8599;</a
+          >
         </div>
         <nav class="footer-cols" aria-label="Footer">
           <div class="footer-col">
@@ -1448,27 +1724,54 @@ rise --version || rise --help
           </div>
           <div class="footer-col">
             <span class="footer-col-h">DOWNLOAD</span>
-            <a href="https://github.com/demiralpdev/.RISE/releases" rel="noopener">CLI v0.2.5</a>
+            <a
+              href="https://github.com/demiralpdev/.RISE/releases"
+              rel="noopener"
+              >CLI v0.2.5</a
+            >
             <a href="#install">OS shells</a>
-            <a href="https://github.com/demiralpdev/.RISE/tree/main/bindings/android/app" rel="noopener">Android app</a>
+            <a
+              href="https://github.com/demiralpdev/.RISE/tree/main/bindings/android/app"
+              rel="noopener"
+              >Android app</a
+            >
           </div>
           <div class="footer-col">
             <span class="footer-col-h">PROJECT</span>
-            <a href="https://github.com/demiralpdev/.RISE" rel="noopener">GitHub</a>
-            <a href="https://github.com/demiralpdev/.RISE/releases" rel="noopener">Releases</a>
-            <a href="https://github.com/demiralpdev/.RISE/blob/main/SECURITY.md" rel="noopener">Security policy</a>
-            <a href="https://www.apache.org/licenses/LICENSE-2.0" rel="noopener">License Apache-2.0</a>
+            <a href="https://github.com/demiralpdev/.RISE" rel="noopener"
+              >GitHub</a
+            >
+            <a
+              href="https://github.com/demiralpdev/.RISE/releases"
+              rel="noopener"
+              >Releases</a
+            >
+            <a
+              href="https://github.com/demiralpdev/.RISE/blob/main/SECURITY.md"
+              rel="noopener"
+              >Security policy</a
+            >
+            <a href="https://www.apache.org/licenses/LICENSE-2.0" rel="noopener"
+              >License Apache-2.0</a
+            >
           </div>
           <div class="footer-col">
             <span class="footer-col-h">LEARN</span>
             <a href="#install">Quickstart</a>
             <a href="#faq">FAQ</a>
-            <a href="https://github.com/demiralpdev/.RISE/blob/main/ROADMAP.md" rel="noopener">Roadmap</a>
+            <a
+              href="https://github.com/demiralpdev/.RISE/blob/main/ROADMAP.md"
+              rel="noopener"
+              >Roadmap</a
+            >
           </div>
         </nav>
       </div>
       <div class="footer-bottom">
-        <span>&copy; 2026 RISE &middot; Apache-2.0 &middot; Cryptographic Media Provenance</span>
+        <span
+          >&copy; 2026 RISE &middot; Apache-2.0 &middot; Cryptographic Media
+          Provenance</span
+        >
       </div>
     </footer>
 
