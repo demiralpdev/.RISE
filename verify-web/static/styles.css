@@ -5,7 +5,8 @@
    + Progressive Brushstroke Canvas Paintings & Refractive Water-Drop Dropzone
    ═══════════════════════════════════════════════════════════════════════════ */
 
-@import url('https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,500;1,6..72,400&display=swap');
+/* Fonts load via <link> in index.html <head> (preconnect + non-blocking);
+   same families, weights, and display=swap — no visual change. */
 
 :root {
   --bg:        #f5f2eb;
@@ -2815,4 +2816,135 @@ pre.term-code .v {
 }
 @media (prefers-reduced-motion: reduce) {
   .faq-plus { transition: none; }
+}
+
+/* ── Flawless 1 Mbps image loading: no half-loaded or broken images ──
+   Photos fade in only when fully decoded (is-loaded, set by each img's
+   load event); wrappers keep a stable tonal placeholder behind them. */
+.cap-piece-img,
+.wf-art-photo {
+  background: linear-gradient(135deg, #2a241f 0%, #4a3d2f 55%, #6b543a 100%);
+}
+.wf-art-photo,
+.rise-emblem-img {
+  opacity: 0;
+  transition: opacity 0.5s ease;
+}
+.wf-art-photo.is-loaded,
+.rise-emblem-img.is-loaded {
+  opacity: 1;
+}
+.collage-atelier-stage .atelier-card.is-photo-done .cap-piece-img:not(.is-loaded) {
+  opacity: 0;
+}
+.collage-atelier-stage .atelier-card.is-photo-done .cap-piece-img.is-loaded {
+  opacity: 1;
+}
+img.img-failed {
+  opacity: 0 !important;
+  visibility: hidden;
+}
+@media (prefers-reduced-motion: reduce) {
+  .collage-atelier-stage .cap-piece-img:not(.is-loaded),
+  .wf-art-photo:not(.is-loaded),
+  .rise-emblem-img:not(.is-loaded) {
+    opacity: 0;
+  }
+  .wf-art-photo.is-loaded,
+  .rise-emblem-img.is-loaded {
+    opacity: 1;
+    transition: none;
+  }
+}
+
+/* Below-fold render skipping (perf infra only, zero visual change).
+   content-visibility:auto lets the browser skip off-screen rendering while
+   keeping intrinsic estimates so scrollbars, anchor jumps and the
+   IntersectionObserver reveals in site.js keep working (auto forces render
+   on fragment navigation / find-in-place proximity). Deliberately NOT applied
+   to .ov-scroll-runway: it hosts a position:sticky pin whose stickiness must
+   not be contained. Estimates from typical rendered heights: workflows grid
+   (pills + 3 cards) ~1100px, painted banner (480px min-height + padding)
+   ~700px, FAQ (7 accordions) ~900px, footer ~400px. */
+#ov-workflows,
+#ov-painted-cta,
+#faq,
+.site-footer-dark {
+  content-visibility: auto;
+}
+#ov-workflows { contain-intrinsic-size: 1100px; }
+#ov-painted-cta { contain-intrinsic-size: 700px; }
+#faq { contain-intrinsic-size: 900px; }
+.site-footer-dark { contain-intrinsic-size: 400px; }
+
+/* ── Branded splash preloader (#rise-preloader): eye-motif ring spinner ── */
+#rise-preloader {
+  position: fixed;
+  inset: 0;
+  z-index: 2000;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 14px;
+  background: #f5f2eb;
+  overflow: hidden;
+}
+#rise-preloader.is-done {
+  opacity: 0;
+  visibility: hidden;
+  transition: opacity 0.4s ease, visibility 0.4s ease;
+  pointer-events: none;
+}
+.preloader-eye {
+  position: relative;
+  width: 92px;
+  height: 92px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.preloader-logo {
+  width: 52px;
+  height: auto;
+  display: block;
+  object-fit: contain;
+  visibility: hidden; /* logo-gated: never a half-decoded render — site.js reveals on decode */
+}
+#rise-preloader.logo-ready .preloader-logo {
+  visibility: visible;
+}
+#rise-preloader.logo-failed .preloader-logo {
+  display: none; /* text-only fallback — never a broken-image glyph */
+}
+#rise-preloader.preloader-wait {
+  visibility: hidden; /* splash held until the logo is fully decoded */
+}
+.preloader-word {
+  font-family: var(--mono);
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  color: var(--ink);
+}
+.preloader-ring {
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  border: 1px solid rgba(24, 22, 20, 0.16);
+  border-top-color: var(--amber);
+  animation: preloader-spin 0.9s linear infinite;
+}
+.preloader-sub {
+  font-family: var(--mono);
+  font-size: 10.5px;
+  letter-spacing: 0.06em;
+  color: var(--muted-2);
+}
+@keyframes preloader-spin {
+  to { transform: rotate(360deg); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .preloader-ring { animation: none; border-top-color: rgba(24, 22, 20, 0.16); }
+  #rise-preloader.is-done { transition: none; }
 }

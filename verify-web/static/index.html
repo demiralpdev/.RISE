@@ -37,6 +37,38 @@
       content="https://riseproof.me/assets/og-card.png"
     />
     <link rel="stylesheet" href="./styles.css?v=202610152300" />
+    <style>#rise-preloader{position:fixed;inset:0;z-index:2000;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;background:#f5f2eb;overflow:hidden}#rise-preloader.is-done{opacity:0;visibility:hidden;transition:opacity .4s ease,visibility .4s ease}</style>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      rel="stylesheet"
+      href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,500;1,6..72,400&display=swap"
+    />
+    <link rel="preload" as="image" href="./hero-eye-poster.jpg" fetchpriority="high" />
+    <link rel="preload" as="image" href="./rise-eye-logo-transparent.png" />
+    <!-- Speculation rules (perf infra only): warm the sibling redirect stubs on
+         hover/tap-intent. Chromium-only progressive enhancement; ignored
+         elsewhere. Prerender capped at 2, eagerness moderate (no viewport-wide
+         speculation, no visual/behavior change). -->
+    <script type="speculationrules">
+      {
+        "prerender": [
+          {
+            "source": "list",
+            "urls": ["./verify.html", "./download.html"],
+            "eagerness": "moderate"
+          }
+        ],
+        "prefetch": [
+          {
+            "source": "list",
+            "urls": ["./install.html"],
+            "eagerness": "moderate"
+          }
+        ]
+      }
+    </script>
+    <noscript><style>.wf-art-photo,.rise-emblem-img{opacity:1 !important}</style></noscript>
     <script type="application/ld+json">
       {
         "@context": "https://schema.org",
@@ -52,6 +84,16 @@
     </script>
   </head>
   <body>
+    <!-- ── Branded splash preloader: visible at first paint, removed by site.js on window load ── -->
+    <div id="rise-preloader" role="status" aria-label="Loading RISE">
+      <img class="preloader-logo" src="./rise-eye-logo-transparent.png" alt="RISE logo" width="52" height="35" />
+      <div class="preloader-eye" aria-hidden="true">
+        <span class="preloader-word">RISE</span>
+        <span class="preloader-ring"></span>
+      </div>
+      <span class="preloader-sub">sealing provenance…</span>
+    </div>
+    <noscript><style>#rise-preloader{display:none !important}</style></noscript>
     <a href="#main-content" class="skip-link">Skip to content</a>
 
     <!-- ── Top-Anchored Swaying Tree Leaf Shadows Video Layer (position: absolute!)
@@ -348,12 +390,13 @@
                       <div class="atelier-art-wrap">
                         <img
                           class="cap-piece-img"
-                          src="./assets-real/still-photo.jpg"
-                          width="860"
-                          height="484"
-                          alt="Sealed still photograph bound to device hardware at shutter release"
-                          loading="eager"
-                          decoding="async"
+                           src="./assets-real/still-photo.jpg" onload="this.classList.add('is-loaded')" onerror="this.classList.add('img-failed')"
+                           width="860"
+                           height="484"
+                           alt="Sealed still photograph bound to device hardware at shutter release"
+                           loading="eager"
+                           fetchpriority="high"
+                           decoding="async"
                         />
                       </div>
                       <div class="atelier-card-body">
@@ -379,12 +422,12 @@
                       <div class="atelier-art-wrap">
                         <img
                           class="cap-piece-img"
-                          src="./assets-real/motion-video.jpg"
-                          width="860"
-                          height="484"
-                          alt="Continuous motion video stream with chained Merkle keyframes"
-                          loading="eager"
-                          decoding="async"
+                           src="./assets-real/motion-video.jpg" onload="this.classList.add('is-loaded')" onerror="this.classList.add('img-failed')"
+                           width="860"
+                           height="484"
+                           alt="Continuous motion video stream with chained Merkle keyframes"
+                           loading="lazy"
+                           decoding="async"
                         />
                       </div>
                       <div class="atelier-card-body">
@@ -410,12 +453,12 @@
                       <div class="atelier-art-wrap">
                         <img
                           class="cap-piece-img"
-                          src="./assets-real/merkle-map.jpg"
-                          width="860"
-                          height="484"
-                          alt="Four-quadrant spatial Merkle map pinpointing tampered regions"
-                          loading="eager"
-                          decoding="async"
+                           src="./assets-real/merkle-map.jpg" onload="this.classList.add('is-loaded')" onerror="this.classList.add('img-failed')"
+                           width="860"
+                           height="484"
+                           alt="Four-quadrant spatial Merkle map pinpointing tampered regions"
+                           loading="lazy"
+                           decoding="async"
                         />
                       </div>
                       <div class="atelier-card-body">
@@ -441,12 +484,12 @@
                       <div class="atelier-art-wrap">
                         <img
                           class="cap-piece-img"
-                          src="./assets-real/seal.jpg"
-                          width="860"
-                          height="484"
-                          alt="Post-quantum dual cryptographic seal combining classical and lattice signatures"
-                          loading="eager"
-                          decoding="async"
+                           src="./assets-real/seal-wax-real.jpg" onload="this.classList.add('is-loaded')" onerror="this.classList.add('img-failed')"
+                           width="860"
+                           height="484"
+                           alt="Post-quantum dual cryptographic seal combining classical and lattice signatures"
+                           loading="lazy"
+                           decoding="async"
                         />
                       </div>
                       <div class="atelier-card-body">
@@ -472,12 +515,12 @@
                       <div class="atelier-art-wrap">
                         <img
                           class="cap-piece-img"
-                          src="./assets-real/offline.jpg"
-                          width="860"
-                          height="484"
-                          alt="Offline browser verification running entirely on device with zero uploads"
-                          loading="eager"
-                          decoding="async"
+                           src="./assets-real/offline.jpg" onload="this.classList.add('is-loaded')" onerror="this.classList.add('img-failed')"
+                           width="860"
+                           height="484"
+                           alt="Offline browser verification running entirely on device with zero uploads"
+                           loading="lazy"
+                           decoding="async"
                         />
                       </div>
                       <div class="atelier-card-body">
@@ -569,7 +612,7 @@
                 <div class="wf-card-art wf-theme-twilight">
                   <img
                     class="wf-art-photo"
-                    src="./assets-real/winter-snow.jpg"
+                    src="./assets-real/winter-snow.jpg" onload="this.classList.add('is-loaded')" onerror="this.classList.add('img-failed')"
                     width="560"
                     height="280"
                     alt="Blue winter sunset over snow for local CLI"
@@ -611,7 +654,7 @@
                 <div class="wf-card-art wf-theme-horizon">
                   <img
                     class="wf-art-photo"
-                    src="./assets-real/autumn-orange.jpg"
+                    src="./assets-real/autumn-orange.jpg" onload="this.classList.add('is-loaded')" onerror="this.classList.add('img-failed')"
                     width="560"
                     height="280"
                     alt="Orange autumn foliage for hardware-sealed capture"
@@ -653,7 +696,7 @@
                 <div class="wf-card-art wf-theme-meadow">
                   <img
                     class="wf-art-photo"
-                    src="./assets-real/summer-green.jpg"
+                    src="./assets-real/summer-green.jpg" onload="this.classList.add('is-loaded')" onerror="this.classList.add('img-failed')"
                     width="560"
                     height="280"
                     alt="Green summer meadow for browser verification"
@@ -713,11 +756,13 @@
               <div class="painted-banner-content">
                 <div class="rise-app-emblem" aria-hidden="true">
                   <img
-                    src="./rise-eye-logo-transparent.png"
+                    src="./rise-eye-logo-transparent.png" onload="this.classList.add('is-loaded')" onerror="this.classList.add('img-failed')"
                     alt="RISE Logo"
                     class="rise-emblem-img"
                     width="52"
                     height="35"
+                    loading="lazy"
+                    decoding="async"
                   />
                 </div>
 
