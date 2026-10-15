@@ -5,7 +5,8 @@
    + Progressive Brushstroke Canvas Paintings & Refractive Water-Drop Dropzone
    ═══════════════════════════════════════════════════════════════════════════ */
 
-@import url('https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,500;1,6..72,400&display=swap');
+/* Fonts load via <link> in index.html <head> (preconnect + non-blocking);
+   same families, weights, and display=swap — no visual change. */
 
 :root {
   --bg:        #f5f2eb;
@@ -2815,4 +2816,348 @@ pre.term-code .v {
 }
 @media (prefers-reduced-motion: reduce) {
   .faq-plus { transition: none; }
+}
+
+/* ── Flawless 1 Mbps image loading: no half-loaded or broken images ──
+   Photos fade in only when fully decoded (is-loaded, set by each img's
+   load event); wrappers keep a stable tonal placeholder behind them. */
+.cap-piece-img,
+.wf-art-photo {
+  background: linear-gradient(135deg, #2a241f 0%, #4a3d2f 55%, #6b543a 100%);
+}
+.wf-art-photo,
+.rise-emblem-img {
+  opacity: 0;
+  transition: opacity 0.5s ease;
+}
+.wf-art-photo.is-loaded,
+.rise-emblem-img.is-loaded {
+  opacity: 1;
+}
+.collage-atelier-stage .atelier-card.is-photo-done .cap-piece-img:not(.is-loaded) {
+  opacity: 0;
+}
+.collage-atelier-stage .atelier-card.is-photo-done .cap-piece-img.is-loaded {
+  opacity: 1;
+}
+img.img-failed {
+  opacity: 0 !important;
+  visibility: hidden;
+}
+@media (prefers-reduced-motion: reduce) {
+  .collage-atelier-stage .cap-piece-img:not(.is-loaded),
+  .wf-art-photo:not(.is-loaded),
+  .rise-emblem-img:not(.is-loaded) {
+    opacity: 0;
+  }
+  .wf-art-photo.is-loaded,
+  .rise-emblem-img.is-loaded {
+    opacity: 1;
+    transition: none;
+  }
+}
+
+/* Below-fold render skipping (perf infra only, zero visual change).
+   content-visibility:auto lets the browser skip off-screen rendering while
+   keeping intrinsic estimates so scrollbars, anchor jumps and the
+   IntersectionObserver reveals in site.js keep working (auto forces render
+   on fragment navigation / find-in-place proximity). Deliberately NOT applied
+   to .ov-scroll-runway: it hosts a position:sticky pin whose stickiness must
+   not be contained. Estimates from typical rendered heights: workflows grid
+   (pills + 3 cards) ~1100px, painted banner (480px min-height + padding)
+   ~700px, FAQ (7 accordions) ~900px, footer ~400px. */
+#ov-workflows,
+#ov-painted-cta,
+#faq,
+.site-footer-dark {
+  content-visibility: auto;
+}
+#ov-workflows { contain-intrinsic-size: 1100px; }
+#ov-painted-cta { contain-intrinsic-size: 700px; }
+#faq { contain-intrinsic-size: 900px; }
+.site-footer-dark { contain-intrinsic-size: 400px; }
+
+/* ── Branded splash preloader (#rise-preloader): eye-motif ring spinner ── */
+#rise-preloader {
+  position: fixed;
+  inset: 0;
+  z-index: 2000;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 14px;
+  background: #f5f2eb;
+  overflow: hidden;
+}
+#rise-preloader.is-done {
+  opacity: 0;
+  visibility: hidden;
+  transition: opacity 0.4s ease, visibility 0.4s ease;
+  pointer-events: none;
+}
+.preloader-eye {
+  position: relative;
+  width: 92px;
+  height: 92px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.preloader-logo {
+  width: 52px;
+  height: auto;
+  display: block;
+  object-fit: contain;
+  visibility: hidden; /* logo-gated: never a half-decoded render — site.js reveals on decode */
+}
+#rise-preloader.logo-ready .preloader-logo {
+  visibility: visible;
+}
+#rise-preloader.logo-failed .preloader-logo {
+  display: none; /* text-only fallback — never a broken-image glyph */
+}
+#rise-preloader.preloader-wait {
+  visibility: hidden; /* splash held until the logo is fully decoded */
+}
+.preloader-ring {
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  border: 1px solid rgba(24, 22, 20, 0.16);
+  border-top-color: var(--amber);
+  animation: preloader-spin 0.9s linear infinite;
+}
+.preloader-sub {
+  font-family: var(--mono);
+  font-size: 10.5px;
+  letter-spacing: 0.06em;
+  color: var(--muted-2);
+}
+@keyframes preloader-spin {
+  to { transform: rotate(360deg); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .preloader-ring { animation: none; border-top-color: rgba(24, 22, 20, 0.16); }
+  #rise-preloader.is-done { transition: none; }
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   MOBILE/PHONE PASS (≤480px — covers the 390px iPhone/Android target)
+   CSS-only. All rules scoped inside this max-width query, so ≥981px desktop
+   is pixel-identical. No preload/poster/tap logic here: slow-link poster +
+   preload="none" + click-to-play already ship in site.js (width-independent)
+   and base video sizing below is not width-gated, so it applies on phones.
+   Checklist: (a) overflow (b) 44px targets (c) type scale (d) hero/preloader
+   (e) video sizing (f) sticky coverage. Reduced-motion / lazy-load /
+   fail-closed rules above are untouched.
+   ═══════════════════════════════════════════════════════════════════════════ */
+@media (max-width: 480px) {
+  /* (a) No horizontal overflow at 390px */
+  html, body {
+    overflow-x: clip;
+    max-width: 100%;
+  }
+  img, video, canvas, svg, table {
+    max-width: 100%;
+  }
+  .ov-container, .inner-wrap, .faq-container, .flow-strip {
+    padding-left: 20px;
+    padding-right: 20px;
+  }
+  .inner-wrap {
+    padding-top: 24px;
+    padding-bottom: 48px;
+  }
+  /* Long ASCII logo + CLI/URL strings scroll/wrap inside their own box */
+  .ascii-white-wrap {
+    max-width: 100%;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+  pre.art {
+    font-size: 9px;
+    max-width: 100%;
+  }
+  .meter {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+  .kv {
+    table-layout: fixed;
+    width: 100%;
+  }
+  .kv td.k { width: 96px; }
+  .tabs {
+    max-width: 100%;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+  .tab-btn { flex: none; }
+  pre.term-code {
+    font-size: 11px;
+    padding: 14px;
+  }
+
+  /* (f) Two-row sticky header: nav wraps to its own scrollable row so no
+     tab is clipped and nothing pushes the page sideways */
+  .topbar {
+    height: auto;
+    min-height: 52px;
+  }
+  .topbar-inner {
+    flex-wrap: wrap;
+    height: auto;
+    min-height: 52px;
+    padding: 6px 16px;
+    gap: 4px 10px;
+  }
+  .brand-link {
+    min-height: 44px;
+    display: inline-flex;
+    align-items: center;
+  }
+  .page-nav {
+    order: 3;
+    flex: 1 1 100%;
+    width: 100%;
+    height: auto;
+    overflow-x: auto;
+    gap: 18px;
+    scrollbar-width: none;
+    -webkit-overflow-scrolling: touch;
+  }
+  .nav-tab {
+    height: 44px;
+    flex: none;
+  }
+  .topbar-right { margin-left: auto; gap: 8px; }
+  .clock-badge { display: none; }
+  .route-toast { padding: 8px 16px; }
+  .route-toast-inner { flex-wrap: wrap; }
+  /* Anchored sections clear the taller two-row sticky header */
+  #main-content section[id] { scroll-margin-top: 112px; }
+
+  /* (b) Tap targets ≥44px (mobile query only — desktop sizing untouched) */
+  .visit-pill, .gh-badge {
+    min-height: 44px;
+    display: inline-flex;
+    align-items: center;
+  }
+  .route-toast button {
+    min-height: 44px;
+    padding: 6px 12px;
+  }
+  .btn-ink, .btn-outline {
+    min-height: 44px;
+    justify-content: center;
+  }
+  .hero-cta-row .btn-ink, .hero-cta-row .btn-outline { flex: 1 1 100%; }
+  .sample-btn {
+    min-height: 44px;
+    padding: 8px 14px;
+    font-size: 12px;
+  }
+  .adv-h { min-height: 44px; padding: 12px 14px; }
+  .det-h { min-height: 44px; padding: 8px 0; }
+  button.go { min-height: 44px; padding: 13px 18px; }
+  .fileinfo .fx { min-width: 44px; min-height: 44px; }
+  .tab-btn { min-height: 44px; padding: 10px 16px; font-size: 12px; }
+  .copy-btn { min-height: 44px; padding: 8px 12px; }
+  .dl-chip, .dl-soon {
+    min-height: 44px;
+    display: inline-flex;
+    align-items: center;
+  }
+  .postcard-btn { min-height: 44px; padding: 10px 16px; }
+  .pill-cta-primary, .pill-cta-secondary, .pill-dark-btn, .wf-card-btn {
+    min-height: 44px;
+  }
+  .faq-q { min-height: 44px; padding: 14px 4px; }
+  .footer-github {
+    min-height: 44px;
+    display: inline-flex;
+    align-items: center;
+  }
+  .footer-col a {
+    min-height: 44px;
+    display: inline-flex;
+    align-items: center;
+  }
+
+  /* (c) Type scale: stepped-down headings, readable body floor */
+  .hero-h1 { font-size: 32px; line-height: 1.1; max-width: 100%; }
+  .hero-lead { max-width: 100%; }
+  .ov-h2, .ov-h2-center { font-size: 28px; }
+  .page-h1 { font-size: 26px; }
+  .faq-h2 { font-size: 26px; }
+  .atelier-title { font-size: 22px; }
+  .painted-banner-h2 { font-size: 28px; }
+  .wf-art-title { font-size: 22px; }
+
+  /* (d) Hero eye scales down proportionally, stays centered */
+  .hero-first-screen { min-height: 0; }
+  .split-stage { padding: 20px 20px 12px; gap: 8px; }
+  .eye-bleed-wrap {
+    width: 100%;
+    max-width: 330px;
+    height: 250px;
+    margin: 8px auto 0;
+  }
+  .leaf-shadow-bg {
+    width: 100vw;
+    height: clamp(320px, 52vh, 520px);
+    opacity: 0.6;
+  }
+
+  /* (d) Preloader covers small screens incl. notch safe-area */
+  #rise-preloader {
+    padding: 24px;
+    padding-bottom: env(safe-area-inset-bottom);
+    min-height: 100dvh;
+  }
+  .preloader-eye { width: 76px; height: 76px; }
+
+  /* (e) Video sizing holds at phone widths (poster/preload/tap in site.js) */
+  .leaf-deck-video, .hero-eye-video, .tulip-deck-video,
+  .painted-banner-video {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+  }
+
+  /* (f) Sticky showcase pin clears the two-row header, never clips cards */
+  #ov-capabilities .ov-sticky-pin {
+    top: 104px;
+    min-height: 0;
+    padding: 16px 0;
+    justify-content: flex-start;
+  }
+  #ov-capabilities .collage-atelier-stage .atelier-card {
+    padding: 12px 0;
+    row-gap: 20px;
+  }
+  #ov-capabilities .atelier-desc { max-width: 100%; font-size: 14px; }
+  #ov-capabilities .atelier-cmd-bar,
+  #ov-capabilities .atelier-cmd-bar.atelier-cmd-with-btn {
+    flex-wrap: wrap;
+  }
+  #ov-capabilities .atelier-cmd-bar code {
+    white-space: normal;
+    overflow-wrap: anywhere;
+    text-overflow: clip;
+    flex: 1 1 100%;
+  }
+
+  /* Plates/cards, banner, verify, downloads, FAQ, footer spacing */
+  .glass-panel { padding: 18px 16px; }
+  .dropzone { min-height: 260px; padding: 32px 18px; }
+  .wf-card-art { height: 160px; }
+  .painted-banner-wrap { min-height: 0; padding: 28px 16px; }
+  .painted-banner-content { padding: 24px 20px; max-width: 100%; }
+  .term-head { padding: 8px 12px; gap: 8px; flex-wrap: wrap; }
+  .faq-section { padding: 48px 0 56px; }
+  .site-footer-dark-inner { padding: 40px 20px 28px; }
+  .footer-bottom { padding: 16px 20px; }
+  .site-footer-dark { padding-bottom: env(safe-area-inset-bottom); }
 }

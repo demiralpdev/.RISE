@@ -478,8 +478,91 @@
   setupSeamlessVideoLoop("leaf-video-a", "leaf-video-b", 1.3);
   setupSeamlessVideoLoop("tulip-video-a", "tulip-video-b", 1.2);
 
+  // ── 2b. Anticipatory video start (warm ~800px before visible) ──
+  // Slow-connection guard (2g/slow-2g/saveData → poster + click-to-play, NO
+  // autoplay, NO preload) and prefers-reduced-motion guard (poster, no
+  // autoplay) run FIRST: on either, strip autoplay, pause, and never
+  // auto-warm. Fail-closed: any play() rejection → paused video on poster.
+  function riseIsSlowConnection() {
+    try {
+      const c = navigator.connection || navigator.mozConnection || navigator.webkitConnection;
+      if (!c) return false;
+      if (c.saveData) return true;
+      const t = String(c.effectiveType || "").toLowerCase();
+      return t.indexOf("2g") !== -1; // covers "2g" + "slow-2g", not 3g/4g
+    } catch (_) {
+      return false;
+    }
+  }
+  function risePrefersReducedMotion() {
+    try {
+      return (
+        typeof window.matchMedia === "function" &&
+        window.matchMedia("(prefers-reduced-motion: reduce)").matches
+      );
+    } catch (_) {
+      return false;
+    }
+  }
+  const riseSlowConn = riseIsSlowConnection();
+  const riseNoAutoplay = riseSlowConn || risePrefersReducedMotion();
+  if (riseNoAutoplay) {
+    document.querySelectorAll("video").forEach((v) => {
+      try {
+        v.removeAttribute("autoplay");
+        if (riseSlowConn) v.preload = "none"; // slow link: no preload bytes
+        v.pause();
+        if (!v.dataset.riseClickToPlay) {
+          v.dataset.riseClickToPlay = "1";
+          v.addEventListener(
+            "click",
+            () => {
+              try {
+                const p = v.play();
+                if (p && typeof p.catch === "function") p.catch(() => {});
+              } catch (_) {}
+            },
+            { passive: true }
+          );
+        }
+      } catch (_) {}
+    });
+  }
+
+  // Warm one video ahead of scroll: muted + playsinline stay (autoplay
+  // policy); never restarts a video that is already playing.
+  function riseWarmVideo(v) {
+    if (!v || v.dataset.riseWarmed) return;
+    try {
+      if (!v.paused && v.readyState >= 2) {
+        v.dataset.riseWarmed = "1";
+        return; // already playing — do not restart on actual entry
+      }
+    } catch (_) {}
+    v.dataset.riseWarmed = "1";
+    try {
+      v.muted = true;
+      v.setAttribute("playsinline", "");
+    } catch (_) {}
+    try {
+      const p = v.play();
+      if (p && typeof p.catch === "function") {
+        p.catch(() => {
+          try {
+            v.pause();
+          } catch (_) {} // fail-closed: poster frame remains
+        });
+      }
+    } catch (_) {
+      try {
+        v.pause();
+      } catch (_) {}
+    }
+  }
+
   // Guarantee background autoplay videos are running right away
   const kickAutoplayVideos = () => {
+    if (riseNoAutoplay) return; // slow-link / reduced-motion: poster only
     document.querySelectorAll("video[autoplay]").forEach((v) => {
       if (v.paused) {
         const p = v.play();
@@ -491,6 +574,45 @@
   ["pointerdown", "touchstart", "scroll", "keydown"].forEach((evt) => {
     window.addEventListener(evt, kickAutoplayVideos, { once: true, passive: true });
   });
+
+  // IntersectionObserver with a generous 800px rootMargin: each video starts
+  // loading/playing well before it becomes visible, so playback is seamless
+  // on arrival. On intersect also idle-kicks the single next upcoming video
+  // in DOM order (preload ahead, not everything at once).
+  try {
+    if (!riseNoAutoplay && "IntersectionObserver" in window) {
+      const riseAheadIO = new IntersectionObserver(
+        (entries) => {
+          entries.forEach((en) => {
+            if (!en.isIntersecting) return;
+            const v = en.target;
+            riseWarmVideo(v);
+            try {
+              riseAheadIO.unobserve(v);
+            } catch (_) {}
+            try {
+              const all = Array.from(document.querySelectorAll("video"));
+              const nxt = all[all.indexOf(v) + 1];
+              if (nxt && !nxt.dataset.riseWarmed) {
+                const kickNext = () => riseWarmVideo(nxt);
+                if ("requestIdleCallback" in window) {
+                  window.requestIdleCallback(kickNext, { timeout: 2000 });
+                } else {
+                  setTimeout(kickNext, 1200);
+                }
+              }
+            } catch (_) {}
+          });
+        },
+        { rootMargin: "800px 0px 800px 0px", threshold: 0 }
+      );
+      document.querySelectorAll("video").forEach((v) => {
+        try {
+          riseAheadIO.observe(v);
+        } catch (_) {}
+      });
+    }
+  } catch (_) {} // fail-closed: poster frame, never a broken player
 
   // ── 3. Navigation, Live Clock & 1st/2nd Visit Toggle ──
   const viewMap = {
@@ -2926,6 +3048,75 @@
     });
   }
 
+  // ── 0. Branded splash preloader (#rise-preloader): show only with a fully-decoded logo ──
+  // The logo must never render partially: the splash is held hidden
+  // (.preloader-wait) and the logo itself stays visibility:hidden (styles.css)
+  // until the logo bytes are fully decoded; on error the text-only fallback
+  // shows (.logo-failed hides the <img>, never a broken-image glyph).
+  (function initRisePreloader() {
+    var el = document.getElementById("rise-preloader");
+    if (!el) return;
+    var done = false;
+    var LOGO_SRC = "./rise-eye-logo-transparent.png";
+    function reveal() {
+      if (done) return;
+      el.classList.remove("preloader-wait");
+      el.classList.add("logo-ready");
+    }
+    function revealTextOnly() {
+      if (done) return;
+      el.classList.remove("preloader-wait");
+      el.classList.add("logo-failed");
+    }
+    function hide() {
+      if (done) return;
+      done = true;
+      el.classList.remove("preloader-wait");
+      el.classList.add("is-done");
+      setTimeout(function () {
+        if (el && el.parentNode) el.parentNode.removeChild(el);
+      }, 450);
+    }
+    el.classList.add("preloader-wait");
+    var logo = el.querySelector(".preloader-logo");
+    function logoReady(img) {
+      try {
+        if (img && typeof img.decode === "function") {
+          img.decode().then(reveal, revealTextOnly);
+          return;
+        }
+      } catch (_) {}
+      reveal();
+    }
+    try {
+      if (logo && logo.complete && logo.naturalWidth > 0) {
+        logoReady(logo);
+      } else {
+        var probe = new Image();
+        probe.onload = function () {
+          logoReady(logo);
+        };
+        probe.onerror = function () {
+          revealTextOnly();
+        };
+        if (logo) {
+          logo.addEventListener("error", revealTextOnly, { once: true });
+        }
+        probe.src = LOGO_SRC;
+      }
+    } catch (_) {
+      reveal();
+    }
+    if (document.readyState === "complete") {
+      setTimeout(hide, 60);
+      return;
+    }
+    window.addEventListener("load", function () {
+      setTimeout(hide, 60);
+    }, { once: true });
+    setTimeout(hide, 8000);
+  })();
+
   // FAQ accordion: one answer open at a time (instant, no transition).
   document.querySelectorAll(".faq-item").forEach((item) => {
     const btn = item.querySelector(".faq-q");
@@ -2945,3 +3136,26 @@
     });
   });
 })();
+
+// Offline cache registration (perf infra only, fail-safe): if Service Workers
+// are unavailable or registration fails, the site works exactly as today.
+try {
+  if (
+    typeof window !== "undefined" &&
+    "serviceWorker" in navigator &&
+    typeof window.location !== "undefined" &&
+    /^https?:$/.test(window.location.protocol)
+  ) {
+    window.addEventListener(
+      "load",
+      function () {
+        try {
+          navigator.serviceWorker
+            .register("./sw.js")
+            .catch(function () {});
+        } catch (_) {}
+      },
+      { once: true }
+    );
+  }
+} catch (_) {}
