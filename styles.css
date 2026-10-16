@@ -2982,6 +2982,61 @@ img.img-failed {
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════
+   NARROW HEADER PASS (≤600px — covers the 481–577px overflow band)
+   The natural single-row header needs ~578px of width; this query engages the
+   two-row header earlier so 481–600px viewports never push the page sideways.
+   Sits before the ≤480 phone pass, which keeps its own phone-specific rules.
+   ═══════════════════════════════════════════════════════════════════════════ */
+@media (max-width: 600px) {
+  /* Hero eye-bleed canvases extend ~24px past the viewport by design; clip the
+     band so it never gains a horizontal scrollbar (mirrors the ≤480 pass) */
+  html, body {
+    overflow-x: clip;
+    max-width: 100%;
+  }
+  /* Two-row sticky header: nav wraps to its own scrollable row so no tab is
+     clipped and nothing pushes the page sideways */
+  .topbar {
+    height: auto;
+    min-height: 52px;
+  }
+  .topbar-inner {
+    flex-wrap: wrap;
+    height: auto;
+    min-height: 52px;
+    padding: 6px 16px;
+    gap: 4px 10px;
+  }
+  .brand-link {
+    min-height: 44px;
+    display: inline-flex;
+    align-items: center;
+  }
+  .page-nav {
+    order: 3;
+    flex: 1 1 100%;
+    width: 100%;
+    height: auto;
+    overflow-x: auto;
+    gap: 18px;
+    scrollbar-width: none;
+    -webkit-overflow-scrolling: touch;
+  }
+  .nav-tab {
+    height: 44px;
+    flex: none;
+  }
+  .topbar-right { margin-left: auto; gap: 8px; }
+  .clock-badge { display: none; }
+  .route-toast { padding: 8px 16px; }
+  .route-toast-inner { flex-wrap: wrap; }
+  /* Anchored sections clear the taller two-row sticky header */
+  #main-content section[id] { scroll-margin-top: 112px; }
+  /* Sticky showcase pin clears the taller header too */
+  #ov-capabilities .ov-sticky-pin { top: 104px; }
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
    MOBILE/PHONE PASS (≤480px — covers the 390px iPhone/Android target)
    CSS-only. All rules scoped inside this max-width query, so ≥981px desktop
    is pixel-identical. No preload/poster/tap logic here: slow-link poster +
@@ -3038,44 +3093,8 @@ img.img-failed {
     padding: 14px;
   }
 
-  /* (f) Two-row sticky header: nav wraps to its own scrollable row so no
-     tab is clipped and nothing pushes the page sideways */
-  .topbar {
-    height: auto;
-    min-height: 52px;
-  }
-  .topbar-inner {
-    flex-wrap: wrap;
-    height: auto;
-    min-height: 52px;
-    padding: 6px 16px;
-    gap: 4px 10px;
-  }
-  .brand-link {
-    min-height: 44px;
-    display: inline-flex;
-    align-items: center;
-  }
-  .page-nav {
-    order: 3;
-    flex: 1 1 100%;
-    width: 100%;
-    height: auto;
-    overflow-x: auto;
-    gap: 18px;
-    scrollbar-width: none;
-    -webkit-overflow-scrolling: touch;
-  }
-  .nav-tab {
-    height: 44px;
-    flex: none;
-  }
-  .topbar-right { margin-left: auto; gap: 8px; }
-  .clock-badge { display: none; }
-  .route-toast { padding: 8px 16px; }
-  .route-toast-inner { flex-wrap: wrap; }
-  /* Anchored sections clear the taller two-row sticky header */
-  #main-content section[id] { scroll-margin-top: 112px; }
+  /* (f) Two-row header + anchor clearance rules now live in the ≤600px block
+     above (covers the 481–600px band; still applies here). */
 
   /* (b) Tap targets ≥44px (mobile query only — desktop sizing untouched) */
   .visit-pill, .gh-badge {
