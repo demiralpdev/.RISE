@@ -103,7 +103,7 @@ def verify(inp: VerifyIn):
     }
     if _db is not None:
         _db.store(vid, t["badge"], t["reason"], inp.manifest, t["trust"])
-    return {
+    resp = {
         "badge": t["badge"],
         "reason": t["reason"],
         "trust": t["trust"],
@@ -111,6 +111,11 @@ def verify(inp: VerifyIn):
         "verify_id": vid,
         "note": "Not evidence, preliminary finding.",
     }
+    if "capture_source" in r:
+        resp["capture_source"] = r["capture_source"]
+    if "capture_note" in r:
+        resp["capture_note"] = r["capture_note"]
+    return resp
 
 
 @app.post("/api/v1/report")

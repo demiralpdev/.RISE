@@ -494,6 +494,13 @@ fn verify_cmd(manifest_path: &str, file: &str, pubkey: Option<&str>, pqc_pub: Op
             };
             match verify_signature(&m, verifier.as_ref()) {
                 Ok(()) => {
+                    // Screen captures attest the capture, never the screen
+                    // content's origin — disclose it on every VALID verdict.
+                    if m.capture_source.as_deref() == Some("screen") {
+                        println!(
+                            "note: screen capture — the capture is attested, but the screen content's origin (camera, edited, or AI-generated) is NOT verified"
+                        );
+                    }
                     // PQC verification if a verification key is provided
                     if let Some(pqc_path) = pqc_pub {
                         let pv =
@@ -1281,8 +1288,7 @@ mod unpack_mp4_tests {
     #[test]
     fn unpack_mp4_uuid_happy_path_exit_0() {
         let manifest = br#"{"rise_version":1,"frame_hashes":[]}"#;
-        let sealed =
-            rise_core::container::mp4_append_box(&synth_mp4(), manifest).expect("seal");
+        let sealed = rise_core::container::mp4_append_box(&synth_mp4(), manifest).expect("seal");
         let p = write_tmp("happy", &sealed);
         assert_eq!(unpack_cmd(&p), 0);
         let _ = fs::remove_file(&p);

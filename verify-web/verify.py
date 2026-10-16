@@ -56,6 +56,26 @@ def _red(reason: str) -> dict:
     return {"badge": "red", "reason": reason[:REASON_MAX]}
 
 
+def _ok(reason: str, m: dict) -> dict:
+    """Success result; screen captures carry an explicit origin disclaimer.
+
+    A screen capture attests that the bytes are a faithful capture of a
+    screen at seal time — it does NOT attest that the screen content
+    originated from a camera (it may be edited or AI-generated). The label
+    and note ride along on every success result so no UI can overclaim.
+    """
+    out = {"badge": GOLD_CAP, "reason": reason[:REASON_MAX]}
+    src = m.get("capture_source")
+    if isinstance(src, str) and src:
+        out["capture_source"] = src
+        if src == "screen":
+            out["capture_note"] = (
+                "Screen capture: the capture is attested, but the screen "
+                "content's origin (camera, edited, or AI-generated) is NOT verified."
+            )
+    return out
+
+
 def _canonical_bytes(manifest: dict) -> bytes:
     ordered: dict = {}
     for key in _CANONICAL_ORDER:
@@ -144,15 +164,15 @@ def verify_badge(
         if signer_pub:
             if not verify_signature(m, signer_pub):
                 return _red("Signature cryptographically invalid.")
-            return {"badge": GOLD_CAP, "reason": "Signature verified (ES256), chain valid."}
+            return _ok("Signature verified (ES256), chain valid.", m)
         tier = m.get("assurance", "silver")
         if tier not in ("gold-L4", "gold-L2", "silver"):
             return _red("Unknown assurance tier.")
         if tier == "gold-L4" and not strong_signal:
-            return {"badge": GOLD_CAP, "reason": "MVP: gold-L4 is not issued, chain unverified."}
+            return _ok("MVP: gold-L4 is not issued, chain unverified.", m)
         if tier == "gold-L2" and not strong_signal:
-            return {"badge": GOLD_CAP, "reason": "No strong signal, downgraded one tier."}
-        return {"badge": GOLD_CAP, "reason": "Structure valid, signature NOT crypto-verified (MS1), informational."}
+            return _ok("No strong signal, downgraded one tier.", m)
+        return _ok("Structure valid, signature NOT crypto-verified (MS1), informational.", m)
     except (json.JSONDecodeError, TypeError):
         return _red("Manifest unreadable, unverified.")
 
