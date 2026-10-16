@@ -4,11 +4,12 @@
 stops, it automatically seals the video with cryptographic proof by running:
 
 ```sh
-rise-core video <recording> --device obs --key <key> --out <recording>.rise
+rise-core video <recording> --device obs --key <key> --out <recording>.rvid
 ```
 
-The `.rise` manifest lands next to the recording. Upload it at
-**riseproof.me** to verify.
+MP4-family recordings become self-contained, playable `.rvid` files
+(manifest embedded); other containers keep a `.rise` JSON sidecar.
+Drop the file at **riseproof.me** to verify.
 
 ## Install
 
@@ -55,9 +56,9 @@ Python Settings path if OBS complains.
 
 ## Verify at riseproof.me
 
-1. Find `<your-recording>.mp4.rise` (or `<name>.mkv.rise`) next to the video.
-2. Open **riseproof.me**, upload the video + `.rise` manifest.
-3. A green check = frames + signature verify against your public key.
+1. Find `<your-recording>.rvid` (MP4-family) or `<name>.mkv.rise` next to the video.
+2. Open **riseproof.me**, drop the file — verification runs in your browser.
+3. A badge = frames + signature verified against the sealed hash chain.
 
 ## Troubleshooting
 

@@ -46,8 +46,14 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: "22"
-      - run: npx -y prettier@latest --check verify-web/static/verify.js verify-web/static/index.html package/rise.js package/install.js
+      - run: >
+          npx -y prettier@latest --check verify-web/static/verify.js
+          verify-web/static/index.html package/rise.js package/install.js
       - run: npx -y eslint@latest verify-web/static/verify.js package/rise.js package/install.js
+      # KAT: canonical JSON + ES256 must match a real rise-core artifact.
+      - run: >
+          node verify-web/tests/kat_node.mjs &&
+          node verify-web/tests/kat_registry_node.mjs
 
   secrets:
     runs-on: ubuntu-latest
@@ -98,26 +104,31 @@ jobs:
       - run: cargo test --test corpus_replay --locked
 
   cross-matrix:
-    runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: core
     strategy:
       fail-fast: false
       matrix:
-        target:
-          - aarch64-apple-darwin
-          - x86_64-pc-windows-gnu
-          - x86_64-unknown-linux-musl
-          - aarch64-unknown-linux-musl
+        include:
+          - os: macos-latest
+            target: aarch64-apple-darwin
+          - os: macos-latest
+            target: x86_64-apple-darwin
+          - os: ubuntu-latest
+            target: x86_64-unknown-linux-musl
+    runs-on: ${{ matrix.os }}
+    defaults:
+      run:
+        working-directory: core
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
         with:
           targets: ${{ matrix.target }}
-      # cargo check needs no cross linker: every release target stays
-      # type-clean on every push (catches the stale-binary / target drift
-      # class of breakage cheaply). Linking stays a release-time job.
+      # ring (rustls) compiles C for the TARGET: apple targets need apple
+      # clang (macos runner), musl needs musl-gcc. aarch64-musl stays a
+      # release-time check (built on macOS with musl-cross toolchains).
+      - name: musl cross toolchain
+        if: runner.os == 'Linux'
+        run: sudo apt-get update -q && sudo apt-get install -y -q musl-tools
       - run: cargo check --locked --target ${{ matrix.target }}
 
   coverage:
