@@ -108,11 +108,10 @@ fn find_rise_box(data: &[u8]) -> Option<(std::ops::Range<usize>, &[u8])> {
         if size == 0 {
             break; // box extends to EOF and it is not ours
         }
-        if size < 8 {
-            break; // malformed; stop walking
-        }
         if size == 1 {
-            // 64-bit largesize box: skip via the extended size.
+            // 64-bit largesize box: skip via the extended size. Checked
+            // BEFORE size < 8 (a 1-sized head is valid here — the real
+            // length lives in the 8-byte largesize that follows).
             if i + 16 > data.len() {
                 break;
             }
@@ -124,6 +123,9 @@ fn find_rise_box(data: &[u8]) -> Option<(std::ops::Range<usize>, &[u8])> {
             }
             i += large;
             continue;
+        }
+        if size < 8 {
+            break; // malformed; stop walking
         }
         if size > data.len() - i {
             break; // declared box runs past EOF; stop
@@ -379,6 +381,95 @@ mod tests {
         assert!(mp4_strip_box(&synth_mp4()).is_none());
     }
 
+    fn mp4_legacy_sealed(prefix: &[u8], payload: &[u8]) -> (Vec<u8>, Vec<u8>) {
+        let mut sealed = prefix.to_vec();
+        sealed.extend_from_slice(&((payload.len() + 8) as u32).to_be_bytes());
+        sealed.extend_from_slice(b"rise");
+        sealed.extend_from_slice(payload);
+        (prefix.to_vec(), sealed)
+    }
+
+    #[test]
+    fn mp4_empty_size8_box_skipped() {
+        // attacker sends an empty box (size 8, no body) ahead of the proof box
+        let mut prefix = synth_mp4();
+        prefix.extend_from_slice(&8u32.to_be_bytes());
+        prefix.extend_from_slice(b"free");
+        let (expected, sealed) = mp4_legacy_sealed(&prefix, b"proof");
+        assert_eq!(mp4_extract_box(&sealed).unwrap(), b"proof");
+        assert_eq!(mp4_strip_box(&sealed).unwrap(), expected);
+    }
+
+    // BUG(mutants): `find_rise_box` checks `size < 8` before `size == 1`, so a
+    // 64-bit largesize box always terminates the walk instead of being skipped
+    // as the doc comment claims. Fail-closed today (returns None), but the
+    // A valid 64-bit largesize box must be SKIPPED via its extended size,
+    // letting the walk reach the proof box that follows.
+    #[test]
+    fn mp4_largesize_box_is_skipped() {
+        // 64-bit largesize box (size == 1) ahead of the proof box
+        let mut prefix = Vec::new();
+        prefix.extend_from_slice(&1u32.to_be_bytes());
+        prefix.extend_from_slice(b"free");
+        prefix.extend_from_slice(&24u64.to_be_bytes());
+        prefix.extend_from_slice(&[0u8; 8]);
+        prefix.extend_from_slice(&synth_mp4());
+        let (mp4, sealed) = mp4_legacy_sealed(&prefix, b"proof");
+        assert_eq!(mp4_extract_box(&sealed).unwrap(), b"proof");
+        assert_eq!(mp4_strip_box(&sealed).unwrap(), mp4);
+    }
+
+    // The smallest legal largesize (16: header only) is skipped too.
+    #[test]
+    fn mp4_largesize_exact16_box_is_skipped() {
+        let mut prefix = Vec::new();
+        prefix.extend_from_slice(&1u32.to_be_bytes());
+        prefix.extend_from_slice(b"free");
+        prefix.extend_from_slice(&16u64.to_be_bytes());
+        let (mp4, sealed) = mp4_legacy_sealed(&prefix, b"proof");
+        assert_eq!(mp4_extract_box(&sealed).unwrap(), b"proof");
+        assert_eq!(mp4_strip_box(&sealed).unwrap(), mp4);
+    }
+
+    #[test]
+    fn mp4_largesize_truncated_header_stops_walk() {
+        // size == 1 at offset 0 but fewer than 16 bytes total
+        let mut data = Vec::new();
+        data.extend_from_slice(&1u32.to_be_bytes());
+        data.extend_from_slice(b"free");
+        data.extend_from_slice(&[0u8; 2]);
+        assert!(mp4_extract_box(&data).is_none());
+        assert!(mp4_strip_box(&data).is_none());
+    }
+
+    #[test]
+    fn mp4_tiny_largesize_value_stops_walk() {
+        // largesize below 16 is malformed even when it fits in the file
+        let mut data = Vec::new();
+        data.extend_from_slice(&1u32.to_be_bytes());
+        data.extend_from_slice(b"free");
+        data.extend_from_slice(&12u64.to_be_bytes());
+        data.extend_from_slice(b"rise");
+        data.extend_from_slice(b"junk");
+        assert_eq!(data.len(), 24);
+        assert!(mp4_extract_box(&data).is_none());
+        assert!(mp4_strip_box(&data).is_none());
+    }
+
+    #[test]
+    fn mp4_big_box_size_second_byte_matters() {
+        // box size above 64 KiB: the second size byte is non-zero
+        let mut prefix = synth_mp4();
+        let big = 70_000usize;
+        prefix.extend_from_slice(&(big as u32).to_be_bytes());
+        prefix.extend_from_slice(b"free");
+        let filler = vec![0u8; big - 8];
+        prefix.extend_from_slice(&filler);
+        let (expected, sealed) = mp4_legacy_sealed(&prefix, b"proof");
+        assert_eq!(mp4_extract_box(&sealed).unwrap(), b"proof");
+        assert_eq!(mp4_strip_box(&sealed).unwrap(), expected);
+    }
+
     #[test]
     fn mp4_truncated_box_stops_walk() {
         let mut sealed = mp4_append_box(&synth_mp4(), b"proof").unwrap();
@@ -479,5 +570,172 @@ mod tests {
     fn png_no_chunk_is_none() {
         assert!(png_extract_chunk(&synth_png()).is_none());
         assert!(png_strip_chunk(&synth_png()).is_none());
+    }
+
+    fn png_test_ihdr() -> Vec<u8> {
+        let mut v = PNG_SIG.to_vec();
+        let d = [0u8; 13];
+        v.extend_from_slice(&13u32.to_be_bytes());
+        v.extend_from_slice(b"IHDR");
+        v.extend_from_slice(&d);
+        v.extend_from_slice(&crc_input(b"IHDR", &d).to_be_bytes());
+        v
+    }
+
+    fn png_test_chunk(kind: &[u8; 4], payload: &[u8]) -> Vec<u8> {
+        let mut v = Vec::new();
+        v.extend_from_slice(&(payload.len() as u32).to_be_bytes());
+        v.extend_from_slice(kind);
+        v.extend_from_slice(payload);
+        v.extend_from_slice(&crc_input(kind, payload).to_be_bytes());
+        v
+    }
+
+    fn png_test_big_filler() -> Vec<u8> {
+        vec![0xFFu8; 70_000]
+    }
+
+    #[test]
+    fn png_insert_sig_only_reports_ihdr() {
+        // exactly the 8-byte signature: passes the length guard, fails IHDR check
+        assert_eq!(
+            png_insert_chunk(&PNG_SIG, b"m").unwrap_err(),
+            "malformed PNG (IHDR not first chunk)"
+        );
+        assert_eq!(
+            png_insert_chunk(&PNG_SIG[..7], b"m").unwrap_err(),
+            "not a PNG (bad signature)"
+        );
+    }
+
+    #[test]
+    fn png_insert_ihdr_only_reports_no_idat() {
+        // 33 bytes: signature + complete IHDR, no room for IDAT
+        let png = png_test_ihdr();
+        assert_eq!(png.len(), 33);
+        assert_eq!(
+            png_insert_chunk(&png, b"m").unwrap_err(),
+            "malformed PNG (no IDAT chunk)"
+        );
+    }
+
+    #[test]
+    fn png_insert_partial_chunk_reports_truncated() {
+        // chunk header at EOF claims 4 data bytes that are not there
+        let mut png = png_test_ihdr();
+        png.extend_from_slice(&4u32.to_be_bytes());
+        png.extend_from_slice(b"IDAT");
+        assert_eq!(
+            png_insert_chunk(&png, b"m").unwrap_err(),
+            "malformed PNG (truncated chunk)"
+        );
+    }
+
+    #[test]
+    fn png_insert_idat_ending_at_exact_eof() {
+        // IDAT chunk ends exactly at EOF (no IEND yet): still a valid slot
+        let mut png = png_test_ihdr();
+        png.extend_from_slice(&png_test_chunk(b"IDAT", b"\x00\x00\x00\x00"));
+        let sealed = png_insert_chunk(&png, b"proof").unwrap();
+        assert_eq!(png_extract_chunk(&sealed).unwrap(), b"proof");
+        assert_eq!(png_strip_chunk(&sealed).unwrap(), png);
+    }
+
+    #[test]
+    fn png_insert_skips_big_chunk_before_idat() {
+        // chunk length above 64 KiB: the second length byte is non-zero
+        let mut png = png_test_ihdr();
+        png.extend_from_slice(&png_test_chunk(b"tEXt", &png_test_big_filler()));
+        png.extend_from_slice(&png_test_chunk(b"IDAT", b"\x00\x00\x00\x00"));
+        png.extend_from_slice(&png_test_chunk(b"IEND", b""));
+        let sealed = png_insert_chunk(&png, b"proof").unwrap();
+        assert_eq!(png_extract_chunk(&sealed).unwrap(), b"proof");
+        assert_eq!(png_strip_chunk(&sealed).unwrap(), png);
+        let ihdr_pos = sealed.windows(4).position(|w| w == b"IHDR").unwrap();
+        let rise_pos = sealed.windows(4).position(|w| w == b"risE").unwrap();
+        let idat_pos = sealed.windows(4).position(|w| w == b"IDAT").unwrap();
+        assert!(ihdr_pos < rise_pos && rise_pos < idat_pos);
+    }
+
+    #[test]
+    fn png_find_rise_chunk_at_exact_eof() {
+        // risE chunk ends exactly at EOF with no IEND after it
+        let mut png = png_test_ihdr();
+        png.extend_from_slice(&png_test_chunk(b"risE", b"proof"));
+        assert_eq!(png_extract_chunk(&png).unwrap(), b"proof");
+    }
+
+    #[test]
+    fn png_find_truncated_rise_is_none() {
+        // risE header + partial body, missing CRC bytes
+        let mut png = png_test_ihdr();
+        png.extend_from_slice(&5u32.to_be_bytes());
+        png.extend_from_slice(b"risE");
+        png.extend_from_slice(b"proof");
+        assert!(png_extract_chunk(&png).is_none());
+    }
+
+    #[test]
+    fn png_find_skips_big_chunk_before_rise() {
+        // chunk length above 64 KiB: the second length byte is non-zero
+        let mut png = png_test_ihdr();
+        png.extend_from_slice(&png_test_chunk(b"tEXt", &png_test_big_filler()));
+        png.extend_from_slice(&png_test_chunk(b"risE", b"proof"));
+        png.extend_from_slice(&png_test_chunk(b"IEND", b""));
+        assert_eq!(png_extract_chunk(&png).unwrap(), b"proof");
+    }
+
+    #[test]
+    fn png_strip_rise_chunk_at_exact_eof() {
+        // risE chunk ends exactly at EOF with no IEND after it
+        let prefix = png_test_ihdr();
+        let mut sealed = prefix.clone();
+        sealed.extend_from_slice(&png_test_chunk(b"risE", b"proof"));
+        assert_eq!(png_strip_chunk(&sealed).unwrap(), prefix);
+    }
+
+    #[test]
+    fn png_strip_truncated_rise_is_none() {
+        // risE header + partial body, missing CRC bytes
+        let mut png = png_test_ihdr();
+        png.extend_from_slice(&5u32.to_be_bytes());
+        png.extend_from_slice(b"risE");
+        png.extend_from_slice(b"proof");
+        assert!(png_strip_chunk(&png).is_none());
+    }
+
+    #[test]
+    fn png_strip_skips_big_chunk_before_rise() {
+        // chunk length above 64 KiB: the second length byte is non-zero
+        let big = png_test_chunk(b"tEXt", &png_test_big_filler());
+        let rise = png_test_chunk(b"risE", b"proof");
+        let iend = png_test_chunk(b"IEND", b"");
+        let mut preseal = png_test_ihdr();
+        preseal.extend_from_slice(&big);
+        preseal.extend_from_slice(&iend);
+        let mut sealed = png_test_ihdr();
+        sealed.extend_from_slice(&big);
+        sealed.extend_from_slice(&rise);
+        sealed.extend_from_slice(&iend);
+        assert_eq!(png_strip_chunk(&sealed).unwrap(), preseal);
+    }
+
+    #[test]
+    fn png_strip_internal_returns_full_chunk() {
+        // the removed chunk covers length + type + body + CRC
+        let prefix = png_test_ihdr();
+        let rise = png_test_chunk(b"risE", b"proof");
+        let idat = png_test_chunk(b"IDAT", b"\x00\x00\x00\x00");
+        let iend = png_test_chunk(b"IEND", b"");
+        let mut sealed = prefix.clone();
+        sealed.extend_from_slice(&rise);
+        sealed.extend_from_slice(&idat);
+        sealed.extend_from_slice(&iend);
+        let (chunk, stream) = png_strip_chunk_internal(&sealed).unwrap();
+        assert_eq!(chunk, rise);
+        let mut expected = prefix;
+        expected.extend_from_slice(&idat);
+        expected.extend_from_slice(&iend);
+        assert_eq!(stream, expected);
     }
 }

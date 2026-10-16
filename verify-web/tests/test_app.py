@@ -105,10 +105,17 @@ def test_report_unknown_or_unavailable():
     assert res.status_code in (404, 501)
 
 
-def test_report_verified_or_unavailable():
-    m = _manifest(issuer=ANCHOR)
+def test_report_verified_returns_stored_verdict():
+    # The report reflects the STORED verdict (frames are not persisted), so a
+    # red demotion can never be upgraded by a structure-only recompute.
+    m = _manifest(issuer="unknown-ca-xyz")
     r = client.post("/api/v1/verify", json={"manifest": m, "frame_b64": _b64()}).json()
+    assert r["badge"] == "red"
     res = client.post("/api/v1/report", json={"verify_id": r["verify_id"]})
-    assert res.status_code in (200, 501)
-    if res.status_code == 200:
-        assert isinstance(res.json(), dict)
+    assert res.status_code == 200
+    rep = res.json()
+    assert rep["verify_id"] == r["verify_id"]
+    assert rep["badge"] == r["badge"]
+    assert rep["reason"] == r["reason"]
+    assert rep["file_hashes"]["sha256"] == hashlib.sha256(b"").hexdigest()
+    assert "disclaimer" in rep

@@ -75,3 +75,19 @@ def test_broken_json_red():
 def test_verify_id_short():
     # hash-id link identity is 16 characters
     assert len(verify_id("abc")) == 16
+
+
+def test_screen_capture_labeled():
+    # screen grab: capture attested, screen content origin explicitly NOT verified
+    m = _valid_manifest(b"screen-frame", capture_source="screen")
+    r = verify_badge(m, b"screen-frame")
+    assert r["badge"] == GOLD_CAP
+    assert r["capture_source"] == "screen"
+    assert "NOT verified" in r.get("capture_note", "")
+
+
+def test_plain_manifest_has_no_capture_fields():
+    # camera/file seals (no capture_source) never grow capture fields
+    r = verify_badge(_valid_manifest(b"plain-frame"), b"plain-frame")
+    assert "capture_source" not in r
+    assert "capture_note" not in r

@@ -79,7 +79,7 @@ def test_canonical_matches_rust_serde_layout():
         b'{"rise_version":1,"frame_hashes":["aa"],"tile_hashes":["bb"],'
         b'"merkle_root":"cc","sig_alg":"ES256","timestamp_ms":123,'
         b'"device_id":"test-device","assurance":"silver",'
-        b'"signing_key_id":"p256-soft"}'
+        b'"timestamp_token":null,"signing_key_id":"p256-soft"}'
     )
 
 

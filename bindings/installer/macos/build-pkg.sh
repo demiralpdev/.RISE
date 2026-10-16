@@ -12,7 +12,7 @@ REPO="$(cd "$DIR/../../.." && pwd)"
 STAGE="$DIR/.stage"
 PAYLOAD="$STAGE/payload"
 SCRIPTS="$STAGE/scripts"
-VERSION="0.2.4"
+VERSION="0.2.5"
 
 rm -rf "$STAGE"
 mkdir -p "$PAYLOAD/Applications" "$PAYLOAD/usr/local/bin" \

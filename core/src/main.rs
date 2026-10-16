@@ -126,6 +126,9 @@ enum Cmd {
         /// Manifest JSON output path (prints to stdout when omitted).
         #[arg(long)]
         out: Option<String>,
+        /// RFC 3161 TSA to stamp the manifest with before signing.
+        #[arg(long)]
+        tsa: Option<String>,
     },
     /// Seals a screenshot from the REAL OS framebuffer: captures via the
     /// OS screen-capture API, hashes immediately, signs with
@@ -144,8 +147,9 @@ enum Cmd {
         #[arg(long)]
         out: Option<String>,
     },
-    /// Placeholder screen recording via ffmpeg avfoundation.
-    /// --start begins a background capture, --stop ends it.
+    /// Records the screen via ffmpeg's avfoundation input (macOS; requires
+    /// ffmpeg installed). --start begins a background capture, --stop ends
+    /// it and seals the recording to .rvid.
     ScreenRecord {
         /// Start a background screen recording.
         #[arg(long, default_value_t = false)]
@@ -165,6 +169,9 @@ enum Cmd {
         /// Signature algorithm (es256|ed25519).
         #[arg(long, default_value = "es256")]
         alg: String,
+        /// RFC 3161 TSA to stamp the recording manifest with.
+        #[arg(long)]
+        tsa: Option<String>,
     },
 }
 
@@ -217,7 +224,16 @@ fn main() {
             key,
             alg,
             out,
-        } => video_cmd(&input, &device, fps, key.as_deref(), &alg, out.as_deref()),
+            tsa,
+        } => video_cmd(
+            &input,
+            &device,
+            fps,
+            key.as_deref(),
+            &alg,
+            out.as_deref(),
+            tsa.as_deref(),
+        ),
         Cmd::Screen {
             device,
             key,
@@ -231,7 +247,16 @@ fn main() {
             key,
             device,
             alg,
-        } => screen_record_cmd(start, stop, &out, key.as_deref(), &device, &alg),
+            tsa,
+        } => screen_record_cmd(
+            start,
+            stop,
+            &out,
+            key.as_deref(),
+            &device,
+            &alg,
+            tsa.as_deref(),
+        ),
     };
     std::process::exit(kod);
 }
@@ -470,6 +495,13 @@ fn verify_cmd(manifest_path: &str, file: &str, pubkey: Option<&str>, pqc_pub: Op
             };
             match verify_signature(&m, verifier.as_ref()) {
                 Ok(()) => {
+                    // Screen captures attest the capture, never the screen
+                    // content's origin — disclose it on every VALID verdict.
+                    if m.capture_source.as_deref() == Some("screen") {
+                        println!(
+                            "note: screen capture — the capture is attested, but the screen content's origin (camera, edited, or AI-generated) is NOT verified"
+                        );
+                    }
                     // PQC verification if a verification key is provided
                     if let Some(pqc_path) = pqc_pub {
                         let pv =
@@ -702,6 +734,7 @@ fn video_cmd(
     key: Option<&str>,
     alg: &str,
     out: Option<&str>,
+    tsa: Option<&str>,
 ) -> i32 {
     // ffmpeg must be on PATH; shell out via std::process::Command
     if Command::new("ffmpeg").arg("-version").output().is_err() {
@@ -798,6 +831,16 @@ fn video_cmd(
     // build the multi-frame manifest (tiles span all frames)
     let refs: Vec<&[u8]> = frames.iter().map(|f| &f[..]).collect();
     let mut m = create_manifest_v1(&refs, device, now_ms(), sig_alg, "silver");
+    // stamp-then-sign when a TSA is given; a TSA outage downgrades the
+    // evidence (no RFC 3161 token) but must not lose the sealed recording
+    if let Some(tsa_url) = tsa {
+        match attach_timestamp_token(&mut m, tsa_url, None) {
+            Ok(n) => eprintln!("stamped ({n} bytes DER, {tsa_url})"),
+            Err(e) => {
+                eprintln!("WARN tsa unreachable ({e}); sealing WITHOUT timestamp token");
+            }
+        }
+    }
     // sign when a key is given
     if let Some(key_path) = key {
         let signer = match load_signer(alg, key_path) {
@@ -1043,6 +1086,7 @@ fn screen_record_cmd(
     key: Option<&str>,
     device: &str,
     alg: &str,
+    tsa: Option<&str>,
 ) -> i32 {
     if start == stop {
         eprintln!("specify exactly one of --start or --stop");
@@ -1086,9 +1130,10 @@ fn screen_record_cmd(
         match child {
             Ok(c) => {
                 let stash = format!(
-                    "{}\n{out}\n{}\n{device}\n{alg}\n",
+                    "{}\n{out}\n{}\n{device}\n{alg}\n{}\n",
                     c.id(),
-                    key.unwrap_or("")
+                    key.unwrap_or(""),
+                    tsa.unwrap_or("")
                 );
                 if let Err(e) = fs::write(&pid_file, stash) {
                     eprintln!("pid write error: {e}");
@@ -1121,6 +1166,7 @@ fn screen_record_cmd(
         let stashed_key = lines.next().map(str::to_string).filter(|s| !s.is_empty());
         let stashed_device = lines.next().unwrap_or("auto").to_string();
         let stashed_alg = lines.next().unwrap_or("es256").to_string();
+        let stashed_tsa = lines.next().map(str::to_string).filter(|s| !s.is_empty());
         let _ = fs::remove_file(&pid_file);
         let killed = Command::new("kill")
             .arg(pid.to_string())
@@ -1160,6 +1206,7 @@ fn screen_record_cmd(
             stashed_key.as_deref(),
             &stashed_alg,
             Some(&rvid_out),
+            stashed_tsa.as_deref(),
         );
         if code == 0 {
             let _ = fs::remove_file(&rec_path);
@@ -1205,5 +1252,73 @@ fn unpack_cmd(file: &str) -> i32 {
             eprintln!("no embedded manifest found in: {file}");
             3
         }
+    }
+}
+
+#[cfg(test)]
+mod unpack_mp4_tests {
+    use super::*;
+
+    /// Minimal synthetic MP4: one `ftyp` box (detect() keys on `ftyp` at offset 4).
+    fn synth_mp4() -> Vec<u8> {
+        let mut out = Vec::new();
+        out.extend_from_slice(&24u32.to_be_bytes());
+        out.extend_from_slice(b"ftypisom\x00\x00\x02\x00isomiso2");
+        out
+    }
+
+    fn write_tmp(name: &str, bytes: &[u8]) -> String {
+        let path = std::env::temp_dir().join(format!(
+            "rise-unpack-test-{}-{}-{name}",
+            std::process::id(),
+            name.len()
+        ));
+        fs::write(&path, bytes).expect("tmp write");
+        path.to_string_lossy().into_owned()
+    }
+
+    fn uuid_box(uuid: &[u8; 16], payload: &[u8]) -> Vec<u8> {
+        let mut v = Vec::new();
+        v.extend_from_slice(&((payload.len() + 16 + 8) as u32).to_be_bytes());
+        v.extend_from_slice(b"uuid");
+        v.extend_from_slice(uuid);
+        v.extend_from_slice(payload);
+        v
+    }
+
+    #[test]
+    fn unpack_mp4_uuid_happy_path_exit_0() {
+        let manifest = br#"{"rise_version":1,"frame_hashes":[]}"#;
+        let sealed = rise_core::container::mp4_append_box(&synth_mp4(), manifest).expect("seal");
+        let p = write_tmp("happy", &sealed);
+        assert_eq!(unpack_cmd(&p), 0);
+        let _ = fs::remove_file(&p);
+    }
+
+    #[test]
+    fn unpack_mp4_missing_uuid_exit_3() {
+        let p = write_tmp("missing", &synth_mp4());
+        assert_eq!(unpack_cmd(&p), 3);
+        let _ = fs::remove_file(&p);
+    }
+
+    #[test]
+    fn unpack_mp4_truncated_box_exit_3_no_panic() {
+        let manifest = br#"{"rise_version":1}"#;
+        let mut sealed =
+            rise_core::container::mp4_append_box(&synth_mp4(), manifest).expect("seal");
+        sealed.truncate(sealed.len() - 2); // declared box runs past EOF
+        let p = write_tmp("trunc", &sealed);
+        assert_eq!(unpack_cmd(&p), 3);
+        let _ = fs::remove_file(&p);
+    }
+
+    #[test]
+    fn unpack_mp4_wrong_uuid_ignored_exit_3() {
+        let mut data = synth_mp4();
+        data.extend_from_slice(&uuid_box(&[0u8; 16], b"not-rise"));
+        let p = write_tmp("wrong", &data);
+        assert_eq!(unpack_cmd(&p), 3);
+        let _ = fs::remove_file(&p);
     }
 }

@@ -139,6 +139,43 @@ object RiseKeystore {
         }
     }
 
+    /**
+     * Returns the alias' P-256 PUBLIC key as SPKI PEM ("PUBLIC KEY"), the
+     * format `rise-core verify --pubkey` expects. Public material only: the
+     * private key is never touched. Fail-closed on a missing or non-EC key.
+     */
+    fun publicKeyPem(alias: String): String {
+        val store = KeyStore.getInstance(ANDROID_KEYSTORE)
+        store.load(null)
+        val cert = store.getCertificate(alias)
+            ?: throw IllegalStateException("no certificate for alias $alias")
+        val pub = cert.publicKey
+        require(pub.algorithm == KeyProperties.KEY_ALGORITHM_EC) {
+            "unexpected public key algorithm: ${pub.algorithm}"
+        }
+        val spki = pub.encoded
+        require(spki != null && spki.isNotEmpty()) { "public key has no SPKI encoding" }
+        val b64 = android.util.Base64.encodeToString(spki, android.util.Base64.NO_WRAP)
+        return "-----BEGIN PUBLIC KEY-----\n" +
+            b64.chunked(64).joinToString("\n") +
+            "\n-----END PUBLIC KEY-----\n"
+    }
+
+    /**
+     * Checks a DER ECDSA signature against the alias' certificate public key
+     * using the platform verifier (no crypto reimplemented here).
+     */
+    fun verifyWithPublicKey(alias: String, message: ByteArray, sigDer: ByteArray): Boolean {
+        val store = KeyStore.getInstance(ANDROID_KEYSTORE)
+        store.load(null)
+        val cert = store.getCertificate(alias)
+            ?: throw IllegalStateException("no certificate for alias $alias")
+        val v = java.security.Signature.getInstance("SHA256withECDSA")
+        v.initVerify(cert.publicKey)
+        v.update(message)
+        return v.verify(sigDer)
+    }
+
     private fun generate(alias: String, challenge: ByteArray?, strongBox: Boolean) {
         val specBuilder = KeyGenParameterSpec.Builder(
             alias,
