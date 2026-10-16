@@ -2361,11 +2361,17 @@
     });
     cards[0].classList.add("is-viewer-active", "is-active-piece");
 
-    function activatePlateOnScroll(newIdx) {
+    let lastSwitchTime = 0;
+    let queuedTargetIdx = null;
+    let dwellTimer = null;
+    const MIN_CARD_DWELL_MS = 600; // Balanced dwell time: never skips cards, never feels stuck
+
+    function commitCardSwitch(stepIdx) {
       const n = cards.length;
-      const targetIdx = Math.max(0, Math.min(n - 1, newIdx));
+      const targetIdx = Math.max(0, Math.min(n - 1, stepIdx));
       if (targetIdx === currentIdx) return;
       currentIdx = targetIdx;
+      lastSwitchTime = performance.now();
 
       cards.forEach((card, i) => {
         const isOn = i === currentIdx;
@@ -2386,17 +2392,62 @@
       }
     }
 
+    // Sequential Single-Step Gate: steps 1 -> 2 -> 3 at a balanced 600ms pace
+    function activatePlateOnScroll(desiredIdx) {
+      const n = cards.length;
+      const clampedDesired = Math.max(0, Math.min(n - 1, desiredIdx));
+      queuedTargetIdx = clampedDesired;
+
+      if (currentIdx === -1) {
+        commitCardSwitch(clampedDesired);
+        return;
+      }
+
+      if (clampedDesired === currentIdx) {
+        if (dwellTimer) {
+          clearTimeout(dwellTimer);
+          dwellTimer = null;
+        }
+        return;
+      }
+
+      const now = performance.now();
+      const elapsed = now - lastSwitchTime;
+      const nextStepIdx =
+        currentIdx + (clampedDesired > currentIdx ? 1 : -1);
+
+      if (elapsed >= MIN_CARD_DWELL_MS) {
+        commitCardSwitch(nextStepIdx);
+        if (queuedTargetIdx !== currentIdx) {
+          if (dwellTimer) clearTimeout(dwellTimer);
+          dwellTimer = setTimeout(() => {
+            dwellTimer = null;
+            if (queuedTargetIdx !== null && queuedTargetIdx !== currentIdx) {
+              activatePlateOnScroll(queuedTargetIdx);
+            }
+          }, MIN_CARD_DWELL_MS);
+        }
+      } else if (!dwellTimer) {
+        const waitMs = Math.max(50, MIN_CARD_DWELL_MS - elapsed);
+        dwellTimer = setTimeout(() => {
+          dwellTimer = null;
+          if (queuedTargetIdx !== null && queuedTargetIdx !== currentIdx) {
+            activatePlateOnScroll(queuedTargetIdx);
+          }
+        }, waitMs);
+      }
+    }
+
     function clamp01(v) {
       return Math.max(0, Math.min(1, v));
     }
 
-    // Hysteresis helper so scrolling near a threshold (e.g. 0.20, 0.40) never flickers between cards
     function computeHysteresisCardIndex(stageProgress, count, activeIdx) {
       const rawFloat = stageProgress * count;
       const candidate = Math.min(count - 1, Math.max(0, Math.floor(rawFloat)));
       if (activeIdx < 0 || candidate === activeIdx) return candidate;
 
-      const deadband = 0.08;
+      const deadband = 0.12;
       if (candidate > activeIdx) {
         const boundary = activeIdx + 1;
         if (rawFloat < boundary + deadband) return activeIdx;
@@ -2407,8 +2458,71 @@
       return candidate;
     }
 
+    // Balanced wheel speed cap inside #ov-capabilities: prevents flying past multiple cards
+    // on a fast flick without making normal scroll feel blocked
+    if (capStage) {
+      window.addEventListener(
+        "wheel",
+        (e) => {
+          const vh = window.innerHeight || 800;
+          const rect = capStage.getBoundingClientRect();
+          const isPinned = rect.top <= 56 && rect.bottom >= vh - 10;
+          if (!isPinned) return;
+
+          if (currentIdx <= 0 && e.deltaY < 0 && rect.top >= -40) return;
+          if (currentIdx >= cards.length - 1 && e.deltaY > 0 && rect.bottom <= vh + 80) return;
+
+          const now = performance.now();
+          const inCooldown = now - lastSwitchTime < MIN_CARD_DWELL_MS * 0.65;
+          const maxDelta = inCooldown ? 44 : 82;
+
+          if (Math.abs(e.deltaY) > maxDelta) {
+            e.preventDefault();
+            window.scrollBy({
+              top: Math.sign(e.deltaY) * maxDelta,
+              behavior: "auto",
+            });
+          }
+        },
+        { passive: false }
+      );
+    }
+
+    const quickJumpBtn = document.getElementById("quick-jump-download-btn");
+    const paintedCtaSection = document.getElementById("ov-painted-cta");
+    const paintedBannerWrap = document.getElementById("painted-banner-wrap");
+    let isQuickJumping = false;
+
+    if (quickJumpBtn) {
+      quickJumpBtn.addEventListener("click", () => {
+        const targetEl = paintedBannerWrap || paintedCtaSection;
+        if (!targetEl) return;
+
+        // Bypass wheel/dwell lock during direct jump to Download banner
+        isQuickJumping = true;
+        if (dwellTimer) {
+          clearTimeout(dwellTimer);
+          dwellTimer = null;
+        }
+        targetEl.scrollIntoView({ behavior: "smooth", block: "center" });
+        setTimeout(() => {
+          isQuickJumping = false;
+        }, 1100);
+      });
+    }
+
     function onScrollFrame() {
       const vh = window.innerHeight || 800;
+
+      // Toggle quick-jump button visibility (hide once user reaches the Download RISE v0.2.5 banner)
+      if (quickJumpBtn && paintedCtaSection) {
+        const ctaRect = paintedCtaSection.getBoundingClientRect();
+        if (ctaRect.top <= vh * 0.68) {
+          quickJumpBtn.classList.add("is-hidden-at-target");
+        } else {
+          quickJumpBtn.classList.remove("is-hidden-at-target");
+        }
+      }
 
       // A. Trigger typewriter for non-card headings/paragraphs as they scroll into view
       typeRegistry.forEach((item) => {
@@ -2420,7 +2534,7 @@
       });
 
       // B. Pure-white scroll-driven sequence inside #ov-capabilities
-      if (capStage) {
+      if (capStage && !isQuickJumping) {
         const rect = capStage.getBoundingClientRect();
         const scrolledDown = (window.scrollY || window.pageYOffset || 0) > 20;
         const inView = scrolledDown && rect.top <= vh * 0.72 && rect.bottom >= vh * 0.20;
@@ -2435,6 +2549,11 @@
           );
           activatePlateOnScroll(scrollIdx);
         } else if (rect.top > vh * 0.88 && currentIdx !== -1) {
+          if (dwellTimer) {
+            clearTimeout(dwellTimer);
+            dwellTimer = null;
+          }
+          queuedTargetIdx = null;
           currentIdx = -1;
           cards.forEach((c) => resetPlateToWhitePaper(c));
           cards[0].classList.add("is-viewer-active", "is-active-piece");
@@ -2911,10 +3030,11 @@
         const pem = pubkeyEl && pubkeyEl.value.trim() ? pubkeyEl.value.trim() : undefined;
         const out = await mod.verifyBadge(manifest, frameBytes, pem ? { pubkeyPem: pem } : {});
         setProg(100, true);
+        const capNote = out.captureNote ? " — " + out.captureNote : "";
         showResult(
           out.badge || "unknown",
-          out.reason || "",
-          `${f.name || "file"} · ${buf.length} bytes · ${kind}`
+          (out.reason || "") + capNote,
+          `${f.name || "file"} · ${buf.length} bytes · ${kind}${out.captureSource ? " · capture:" + out.captureSource : ""}`
         );
       } catch (err) {
         setProg(0, false);
@@ -2955,6 +3075,95 @@
 
   initVerifyRun();
   initGithubStars();
+
+  // ── 7d. RISE-OSDL-V1: lead with the visitor's OS in downloads ──
+  function riseVisitorOS() {
+    try {
+      const ua = navigator.userAgent || "";
+      if (/Android/i.test(ua)) return "android";
+      if (/iPhone|iPad|iPod/i.test(ua)) return "ios";
+      const pl =
+        (navigator.userAgentData && navigator.userAgentData.platform) ||
+        navigator.platform ||
+        "";
+      if (/Win/i.test(pl) || /Windows/i.test(ua)) return "windows";
+      if (/Mac/i.test(pl) || /Macintosh/i.test(ua)) return "macos";
+      if (/Linux/i.test(pl) || /Linux/i.test(ua)) return "linux";
+    } catch (_) {}
+    return null;
+  }
+
+  function initDeviceDownloads() {
+    const os = riseVisitorOS();
+    if (!os) return;
+    const names = {
+      android: "Android",
+      ios: "iOS",
+      windows: "Windows",
+      macos: "macOS",
+      linux: "Linux",
+    };
+    // Download view: pull the matching OS row to the top and tag it.
+    try {
+      const rows = document.querySelector(".dl-rows");
+      if (rows) {
+        const items = Array.prototype.slice.call(rows.querySelectorAll(".dl-item"));
+        for (let i = 0; i < items.length; i++) {
+          const titleEl = items[i].querySelector(".dl-os-title");
+          if (!titleEl) continue;
+          if (titleEl.textContent.trim().toLowerCase() !== os) continue;
+          items[i].classList.add("is-device-match");
+          if (!titleEl.querySelector(".dl-you")) {
+            const pill = document.createElement("span");
+            pill.className = "dl-you";
+            pill.textContent = "your device";
+            titleEl.appendChild(pill);
+          }
+          rows.insertBefore(items[i], rows.firstChild);
+          break;
+        }
+      }
+    } catch (_) {}
+    // Quick Download sidebar: lead with the visitor's OS chip (mobile gets a pointer).
+    try {
+      const panels = document.querySelectorAll(".glass-panel");
+      Array.prototype.forEach.call(panels, function (panel) {
+        const kicker = panel.querySelector(".panel-kicker");
+        if (!kicker || !/Quick Download/i.test(kicker.textContent || "")) return;
+        const firstChip = panel.querySelector("a.dl-chip");
+        if (!firstChip) return;
+        const box = firstChip.parentElement;
+        if (!box) return;
+        if (os === "android" || os === "ios") {
+          const hint = document.createElement("a");
+          hint.className = "dl-chip sec";
+          hint.setAttribute("href", "./index.html?view=download");
+          hint.style.justifyContent = "space-between";
+          const s1 = document.createElement("span");
+          s1.textContent = names[os] + " setup \u2192";
+          const s2 = document.createElement("span");
+          s2.textContent = "see Download";
+          hint.appendChild(s1);
+          hint.appendChild(s2);
+          box.insertBefore(hint, box.firstChild);
+          return;
+        }
+        const chips = Array.prototype.slice.call(box.querySelectorAll("a.dl-chip"));
+        for (let i = 0; i < chips.length; i++) {
+          const label = (chips[i].textContent || "").toLowerCase();
+          const hit =
+            (os === "windows" && /windows/.test(label)) ||
+            (os === "macos" && /macos/.test(label) && /pkg|installer/.test(label)) ||
+            (os === "linux" && /linux/.test(label));
+          if (!hit) continue;
+          box.insertBefore(chips[i], box.firstChild);
+          break;
+        }
+      });
+    } catch (_) {}
+  }
+
+  initDeviceDownloads();
 
   // ── 8. Install Terminal Tabs & Copy Buttons + Sample .rise Trigger ──
   const tabBtns = document.querySelectorAll(".tab-btn[data-tab]");

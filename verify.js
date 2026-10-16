@@ -155,14 +155,31 @@ async function verifyBadge(rawManifest, frameBytes, opts = {}) {
   const tier = m.assurance ?? SILVER;
   if (![GOLD_L4, GOLD_L2, SILVER].includes(tier))
     return { badge: RED, reason: "Unknown assurance tier." };
+  // Capture class: a screen capture attests the capture, never the screen
+  // content's origin — the label + disclaimer ride along on success results
+  // so no UI can present a screen grab as a camera capture.
+  const capFields =
+    typeof m.capture_source === "string" && m.capture_source
+      ? {
+          captureSource: m.capture_source,
+          ...(m.capture_source === "screen"
+            ? {
+                captureNote:
+                  "Screen capture: the capture is attested, but the screen content's origin (camera, edited, or AI-generated) is NOT verified.",
+              }
+            : {}),
+        }
+      : {};
   if (tier === GOLD_L4 || (tier === GOLD_L2 && !opts.strong_signal))
     return {
       badge: GOLD_CAP,
       reason: "Gold not issued in MS1 (verification limits), downgraded.",
+      ...capFields,
     };
   return {
     badge: GOLD_CAP,
     reason: "Software signature valid (MS1), informational.",
+    ...capFields,
   };
 }
 

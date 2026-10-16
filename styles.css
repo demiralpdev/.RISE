@@ -1294,7 +1294,7 @@ pre.art {
   background: #181614;
   box-shadow: 0 22px 56px rgba(24, 22, 20, 0.16);
   border: 1px solid rgba(255, 255, 255, 0.08);
-  will-change: transform;
+  isolation: isolate;
 }
 
 .painted-banner-video {
@@ -1328,13 +1328,32 @@ pre.art {
   display: flex;
   flex-direction: column;
   align-items: center;
-  background: rgba(252, 249, 240, 0.84);
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
-  border: 1px solid rgba(255, 253, 248, 0.72);
+  background: transparent;
+  border: 1px solid rgba(255, 253, 248, 0.65);
   border-radius: 22px;
   padding: 34px 40px;
   box-shadow: 0 18px 44px rgba(24, 22, 20, 0.18);
+  isolation: isolate;
+}
+
+/* Dedicated GPU backdrop layer so child text animations never cause a 1s white box flash */
+.painted-banner-content::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  border-radius: inherit;
+  background: rgba(252, 249, 240, 0.72);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  transform: translateZ(0);
+  pointer-events: none;
+}
+
+.painted-banner-content .word-inner,
+.painted-banner-content .ink-word {
+  filter: none !important;
+  will-change: transform, opacity;
 }
 
 .rise-app-emblem {
@@ -1925,6 +1944,25 @@ button.go:disabled {
   border: 1px dashed var(--line-hi);
 }
 
+/* OS-aware downloads: the visitor's platform leads with a tag (RISE-OSDL-V1). */
+.dl-item.is-device-match {
+  background: rgba(154, 91, 50, 0.06);
+  border-left: 3px solid var(--amber);
+  padding-left: 14px;
+}
+.dl-you {
+  display: inline-block;
+  margin-left: 8px;
+  padding: 2px 7px;
+  font-family: var(--mono);
+  font-size: 9.5px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: #f5f2eb;
+  background: var(--amber);
+  vertical-align: 2px;
+}
+
 /* ── Install Terminal Tabs ── */
 .tabs {
   display: inline-flex;
@@ -2280,7 +2318,7 @@ pre.term-code .v {
 
 @media (max-width: 980px) {
   #ov-capabilities {
-    min-height: 280vh;
+    min-height: 380vh;
   }
   .collage-atelier-stage .atelier-card.is-viewer-active {
     width: 100%;
@@ -2297,7 +2335,7 @@ pre.term-code .v {
 #ov-capabilities {
   position: relative;
   z-index: 30;
-  min-height: 330vh;
+  min-height: 465vh;
   padding: 0;
   background: #ffffff;
   box-shadow: none;
@@ -2904,10 +2942,11 @@ img.img-failed {
   align-items: center;
   justify-content: center;
 }
-.preloader-logo {
-  width: 52px;
+.preloader-eye .preloader-logo {
+  width: 48px;
   height: auto;
   display: block;
+  flex: none; /* never shrink inside the flex-centered ring box */
   object-fit: contain;
   visibility: hidden; /* logo-gated: never a half-decoded render — site.js reveals on decode */
 }
@@ -3160,4 +3199,61 @@ img.img-failed {
   .site-footer-dark-inner { padding: 40px 20px 28px; }
   .footer-bottom { padding: 16px 20px; }
   .site-footer-dark { padding-bottom: env(safe-area-inset-bottom); }
+}
+
+/* ── Side Downward-Arrow Quick-Jump Button (Scrolls directly to Download RISE v0.2.5 Banner) ── */
+.quick-jump-download-btn {
+  position: fixed;
+  right: 28px;
+  bottom: 32px;
+  z-index: 560;
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(24, 22, 20, 0.9);
+  color: #f5f2eb;
+  border: 1px solid rgba(255, 253, 248, 0.28);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  box-shadow: 0 12px 30px rgba(0, 0, 0, 0.24);
+  cursor: pointer;
+  opacity: 1;
+  transform: translate3d(0, 0, 0);
+  transition:
+    opacity 0.28s cubic-bezier(0.16, 1, 0.3, 1),
+    transform 0.28s cubic-bezier(0.16, 1, 0.3, 1),
+    background 0.18s ease,
+    border-color 0.18s ease;
+}
+
+.quick-jump-download-btn svg {
+  transition: transform 0.22s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.quick-jump-download-btn:hover {
+  background: #9a5b32;
+  border-color: rgba(255, 253, 248, 0.55);
+  transform: translate3d(0, -2px, 0);
+}
+
+.quick-jump-download-btn:hover svg {
+  transform: translateY(3px);
+}
+
+.quick-jump-download-btn.is-hidden-at-target {
+  opacity: 0;
+  pointer-events: none;
+  transform: translate3d(0, 12px, 0);
+}
+
+@media (max-width: 760px) {
+  .quick-jump-download-btn {
+    right: 18px;
+    bottom: 20px;
+    width: 42px;
+    height: 42px;
+  }
 }
