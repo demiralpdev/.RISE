@@ -95,7 +95,7 @@ python -m pytest tests/ -q
 ## Install (npm)
 
 ```bash
-npm install -g @rise/cli
+npm install -g @univerisr-ai/rise-cli
 rise --help
 ```
 
@@ -146,7 +146,7 @@ phantom-box mechanism (F1).
   bindings/MATRIX.md   5-OS status table with evidence
   verify-web/      Verifier and badge API (FastAPI) plus trust, report, and attack tests
   spec/            Protocol specs: RISE-01, threat model, assurance levels, solutions
-  package/         npm wrapper (@rise/cli)
+  package/         npm wrapper (@univerisr-ai/rise-cli)
   PLAN.md          Unified build plan with milestones and acceptance gates
   ROADMAP.md       Phase 0 to 6 roadmap
 ```
