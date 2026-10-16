@@ -54,11 +54,12 @@ function netFirst(request, cacheName) {
       try {
         if (res && (res.ok || res.type === "opaque")) {
           var copy = res.clone();
-          caches.open(cacheName).then(function (c) {
-            try {
-              c.put(request, copy);
-            } catch (_) {}
-          });
+          caches
+            .open(cacheName)
+            .then(function (c) {
+              return c.put(request, copy);
+            })
+            .catch(function () {});
         }
       } catch (_) {}
       return res;
@@ -83,11 +84,12 @@ function cacheFirst(request, cacheName) {
       try {
         if (res && (res.ok || res.type === "opaque")) {
           var copy = res.clone();
-          caches.open(cacheName).then(function (c) {
-            try {
-              c.put(request, copy);
-            } catch (_) {}
-          });
+          caches
+            .open(cacheName)
+            .then(function (c) {
+              return c.put(request, copy);
+            })
+            .catch(function () {});
         }
       } catch (_) {}
       return res;
