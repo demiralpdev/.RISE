@@ -442,7 +442,10 @@
     window.addEventListener("pageshow", () => ensurePlay(active));
 
     function checkTime() {
+      if (risePerfLiteOn()) return; // perf-lite: crossfade chains stay off
       if (
+        !document.hidden &&
+        !active.paused &&
         !isCrossfading &&
         active.duration &&
         isFinite(active.duration) &&
@@ -506,33 +509,34 @@
   }
   const riseSlowConn = riseIsSlowConnection();
   const riseNoAutoplay = riseSlowConn || risePrefersReducedMotion();
+  function risePosterizeVideo(v, dropPreload) {
+    try {
+      v.removeAttribute("autoplay");
+      if (dropPreload) v.preload = "none"; // no preload bytes on constrained links
+      v.pause();
+      if (!v.dataset.riseClickToPlay) {
+        v.dataset.riseClickToPlay = "1";
+        v.addEventListener(
+          "click",
+          () => {
+            try {
+              const p = v.play();
+              if (p && typeof p.catch === "function") p.catch(() => {});
+            } catch (_) {}
+          },
+          { passive: true }
+        );
+      }
+    } catch (_) {}
+  }
   if (riseNoAutoplay) {
-    document.querySelectorAll("video").forEach((v) => {
-      try {
-        v.removeAttribute("autoplay");
-        if (riseSlowConn) v.preload = "none"; // slow link: no preload bytes
-        v.pause();
-        if (!v.dataset.riseClickToPlay) {
-          v.dataset.riseClickToPlay = "1";
-          v.addEventListener(
-            "click",
-            () => {
-              try {
-                const p = v.play();
-                if (p && typeof p.catch === "function") p.catch(() => {});
-              } catch (_) {}
-            },
-            { passive: true }
-          );
-        }
-      } catch (_) {}
-    });
+    document.querySelectorAll("video").forEach((v) => risePosterizeVideo(v, riseSlowConn));
   }
 
   // Warm one video ahead of scroll: muted + playsinline stay (autoplay
   // policy); never restarts a video that is already playing.
   function riseWarmVideo(v) {
-    if (!v || v.dataset.riseWarmed) return;
+    if (!v || risePerfLiteOn() || v.dataset.riseWarmed) return;
     try {
       if (!v.paused && v.readyState >= 2) {
         v.dataset.riseWarmed = "1";
@@ -562,7 +566,7 @@
 
   // Guarantee background autoplay videos are running right away
   const kickAutoplayVideos = () => {
-    if (riseNoAutoplay) return; // slow-link / reduced-motion: poster only
+    if (riseNoAutoplay || risePerfLiteOn()) return; // poster-only modes
     document.querySelectorAll("video[autoplay]").forEach((v) => {
       if (v.paused) {
         const p = v.play();
@@ -613,6 +617,127 @@
       });
     }
   } catch (_) {} // fail-closed: poster frame, never a broken player
+
+  // ── 2c. perf-lite mode + video lifecycle (offscreen / tab-hidden pause) ──
+  // perf-lite is the one-way switch for struggling devices: reduced motion,
+  // data saver, two consecutive sub-42fps seconds, or battery saver (Chromium:
+  // getBattery). Effects: html.perf-lite drops every backdrop-filter
+  // (styles.css) and videos + crossfade chains go poster-only.
+  function risePerfLiteOn() {
+    return document.documentElement.classList.contains("perf-lite");
+  }
+  function riseEngagePerfLite(reason) {
+    try {
+      if (risePerfLiteOn()) return;
+      document.documentElement.classList.add("perf-lite");
+      document.documentElement.setAttribute("data-perf-lite-reason", reason);
+      document.querySelectorAll("video").forEach((v) => risePosterizeVideo(v, true));
+    } catch (_) {}
+  }
+
+  if (risePrefersReducedMotion()) riseEngagePerfLite("reduced-motion");
+  else if (riseSlowConn) riseEngagePerfLite("slow-connection");
+
+  function riseWatchFps() {
+    if (risePerfLiteOn() || navigator.webdriver) return; // rAF timing is not meaningful under automation
+    let frames = 0;
+    let badWindows = 0;
+    let windows = 0;
+    let start = performance.now();
+    function tick(now) {
+      frames++;
+      const elapsed = now - start;
+      if (elapsed >= 1000) {
+        if ((frames * 1000) / elapsed < 42) badWindows++;
+        else badWindows = 0;
+        windows++;
+        frames = 0;
+        start = now;
+        if (badWindows >= 2) {
+          riseEngagePerfLite("low-fps");
+          return;
+        }
+        if (windows >= 6) return;
+      }
+      requestAnimationFrame(tick);
+    }
+    requestAnimationFrame(tick);
+  }
+  window.addEventListener("load", () => setTimeout(riseWatchFps, 1500), { once: true });
+
+  try {
+    if (navigator.getBattery) {
+      navigator
+        .getBattery()
+        .then((b) => {
+          const check = () => {
+            if (!b.charging && b.level <= 0.2) riseEngagePerfLite("battery");
+          };
+          check();
+          b.addEventListener("levelchange", check);
+          b.addEventListener("chargingchange", check);
+        })
+        .catch(() => {});
+    }
+  } catch (_) {}
+
+  // All modes: stop decoding videos that left the viewport or the tab.
+  function riseResumeVideo(v) {
+    if (riseNoAutoplay || risePerfLiteOn()) return;
+    try {
+      const p = v.play();
+      if (p && typeof p.catch === "function") p.catch(() => {});
+    } catch (_) {}
+  }
+  try {
+    if ("IntersectionObserver" in window) {
+      const riseVisibleIO = new IntersectionObserver(
+        (entries) => {
+          entries.forEach((en) => {
+            const v = en.target;
+            try {
+              if (!en.isIntersecting) {
+                if (!v.paused) {
+                  v.dataset.risePausedOffscreen = "1";
+                  v.pause();
+                }
+              } else if (v.dataset.risePausedOffscreen) {
+                delete v.dataset.risePausedOffscreen;
+                riseResumeVideo(v);
+              }
+            } catch (_) {}
+          });
+        },
+        { rootMargin: "200px 0px 200px 0px", threshold: 0 }
+      );
+      document.querySelectorAll("video").forEach((v) => {
+        try {
+          riseVisibleIO.observe(v);
+        } catch (_) {}
+      });
+    }
+  } catch (_) {}
+
+  document.addEventListener("visibilitychange", () => {
+    try {
+      const vids = document.querySelectorAll("video");
+      if (document.hidden) {
+        vids.forEach((v) => {
+          if (!v.paused) {
+            v.dataset.riseHiddenWasPlaying = "1";
+            v.pause();
+          }
+        });
+      } else {
+        vids.forEach((v) => {
+          if (v.dataset.riseHiddenWasPlaying) {
+            delete v.dataset.riseHiddenWasPlaying;
+            riseResumeVideo(v);
+          }
+        });
+      }
+    } catch (_) {}
+  });
 
   // ── 3. Navigation, Live Clock & 1st/2nd Visit Toggle ──
   const viewMap = {

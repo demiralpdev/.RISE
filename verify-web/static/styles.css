@@ -3276,3 +3276,17 @@ img.img-failed {
     height: 42px;
   }
 }
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   PERF-LITE MODE (html.perf-lite, applied by site.js)
+   One-way switch for struggling devices: reduced motion, data saver, sustained
+   low FPS or battery saver. Blurred glass is the most expensive paint on weak
+   GPUs, so every backdrop-filter drops here; videos and animation chains are
+   stopped in JS.
+   ═══════════════════════════════════════════════════════════════════════════ */
+html.perf-lite *,
+html.perf-lite *::before,
+html.perf-lite *::after {
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+}
