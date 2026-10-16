@@ -3,13 +3,29 @@
 # a real Android app process. kotlinc -> d8 -> aapt2 -> zip -> zipalign -> apksigner.
 # No gradle, no Android Studio. Requires: NDK-built librise_jni.so (see ../jni/).
 set -e
-SDK=${ANDROID_SDK_ROOT:-$HOME/Android/Sdk}
+SDK=${ANDROID_SDK_ROOT:-${ANDROID_HOME:-$HOME/Android/Sdk}}
+if [ ! -d "$SDK" ] && [ -d "/Users/demir/Android/Sdk" ]; then
+  SDK="/Users/demir/Android/Sdk"
+fi
 BT=$SDK/build-tools/35.0.0
 PLATFORM=$SDK/platforms/android-35/android.jar
 KOTLINC=${KOTLINC:-/tmp/kotlinc/bin/kotlinc}
-JAVA_HOME=${JAVA_HOME:-"$(brew --prefix openjdk@21)/libexec/openjdk.jdk/Contents/Home"}
+if [ ! -x "$KOTLINC" ] && command -v kotlinc >/dev/null 2>&1; then
+  KOTLINC=$(command -v kotlinc)
+fi
+if [ -z "$JAVA_HOME" ]; then
+  if [ -d "/opt/homebrew/opt/openjdk@21/libexec/openjdk.jdk/Contents/Home" ]; then
+    JAVA_HOME="/opt/homebrew/opt/openjdk@21/libexec/openjdk.jdk/Contents/Home"
+  else
+    JAVA_HOME="$(brew --prefix openjdk@21)/libexec/openjdk.jdk/Contents/Home"
+  fi
+fi
 export JAVA_HOME
 cd "$(dirname "$0")"
+if [ ! -f ../jni/build/arm64-v8a/librise_jni.so ]; then
+  echo "ERROR: prebuilt librise_jni.so missing at bindings/android/jni/build/arm64-v8a/ - rebuild it first (see ../jni/README.md)" 1>&2
+  exit 1
+fi
 rm -rf build
 mkdir -p build/classes build/dex build/stage/lib/arm64-v8a
 

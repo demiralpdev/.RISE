@@ -34,6 +34,26 @@ def check_ocsp(cert_pem=None, responder_url=None):
     return (UNKNOWN, "No OCSP responder configured, unverified.")
 
 
+def time_revocation_verdict(manifest: dict) -> dict:
+    """Time-proof + revocation verdicts for the live verify path. Never raises.
+
+    timestamp: never "trusted" client-side (single-token format cannot prove
+        a multi-TSA cross-check). tsa: unknown with/without a token (one TSA
+        is insufficient per policy). ocsp: exactly what check_ocsp() returns.
+    """
+    try:
+        token = manifest.get("timestamp_token") if isinstance(manifest, dict) else None
+    except Exception:
+        token = None
+    if isinstance(token, str) and token.strip():
+        timestamp = (UNKNOWN, "RFC3161 token present; multi-TSA cross-check not provable yet.")
+        tsa = (UNKNOWN, "Single timestamp token present; one TSA is insufficient by policy.")
+    else:
+        timestamp = (UNKNOWN, "No RFC3161 token present; time proof missing (fail-closed).")
+        tsa = (UNKNOWN, "No timestamp token.")
+    return {"timestamp": timestamp, "tsa": tsa, "ocsp": check_ocsp()}
+
+
 def cross_check_tsa(token_a, token_b):
     """Multi-TSA cross-check: imprints must agree, times within 5-min skew, else reject."""
     try:

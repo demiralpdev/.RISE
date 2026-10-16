@@ -212,22 +212,6 @@ pub fn verify_manifest_v1(manifest: &ManifestV1, frames: &[&[u8]]) -> Result<(),
     Ok(())
 }
 
-/// Legacy single-frame manifest (to be removed).
-#[deprecated(note = "use create_manifest_v1")]
-pub fn create_manifest(frame: &[u8], cihaz: &str, zaman: u64) -> String {
-    let kare = sha256_frame(frame);
-    let dosemeler: Vec<String> = dilimler(frame).iter().map(|d| tile_hash(d)).collect();
-    let kok = merkle_root(&dosemeler);
-    serde_json::json!({
-        "frame_hash": kare,
-        "tile_hashes": dosemeler,
-        "merkle_root": kok,
-        "timestamp": zaman,
-        "device": cihaz,
-    })
-    .to_string()
-}
-
 /// Trust decision (MS3, R-205). Fail-closed: suspicion downgrades,
 /// an unreachable trust source yields Unknown, never Valid.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -326,42 +310,6 @@ pub fn verify_signature(m: &ManifestV1, verifier: &dyn signer::Verifier) -> Resu
     tmp.pqc_signature = None;
     let canon = manifest_to_json(&tmp)?;
     verifier.verify(canon.as_bytes(), &sig_bytes)
-}
-
-/// Signs the manifest (unnamed stub).
-/// TODO: add a real key and signature (offline).
-pub fn sign_manifest(manifest: &str) -> String {
-    // TODO: finalize the signature format.
-    format!("UNSIGNED:{}", manifest)
-}
-
-/// Verifies the legacy manifest by local recomputation.
-pub fn verify_manifest(manifest: &str, frame: &[u8]) -> bool {
-    let v: serde_json::Value = match serde_json::from_str(manifest) {
-        Ok(v) => v,
-        Err(_) => return false,
-    };
-    let Some(kare) = v.get("frame_hash").and_then(|x| x.as_str()) else {
-        return false;
-    };
-    let Some(dizi) = v.get("tile_hashes") else {
-        return false;
-    };
-    let Some(kok) = v.get("merkle_root").and_then(|x| x.as_str()) else {
-        return false;
-    };
-    if sha256_frame(frame) != kare {
-        return false;
-    }
-    let taze: Vec<String> = dilimler(frame).iter().map(|d| tile_hash(d)).collect();
-    let bek: Vec<String> = match serde_json::from_value(dizi.clone()) {
-        Ok(x) => x,
-        Err(_) => return false,
-    };
-    if taze != bek {
-        return false;
-    }
-    merkle_root(&taze) == kok
 }
 
 /// Hash of a tile (raw frame slice).
@@ -636,20 +584,6 @@ mod tests {
         let kok = merkle_root(&iki);
         assert_eq!(kok.len(), 64);
         assert_ne!(kok, iki[0]);
-    }
-    #[test]
-    fn legacy_verification_roundtrip() {
-        // fixed input
-        let kare = b"rise-test";
-        // the legacy API still works
-        #[allow(deprecated)]
-        let m = create_manifest(kare, "test-device", 123);
-        // the correct frame passes
-        assert!(verify_manifest(&m, kare));
-        // a wrong frame fails
-        assert!(!verify_manifest(&m, b"wrong"));
-        // corrupt JSON fails
-        assert!(!verify_manifest("broken", kare));
     }
     #[test]
     fn reordered_tiles_fail_verification() {
