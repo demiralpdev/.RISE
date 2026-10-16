@@ -67,3 +67,10 @@ path is closed. Gold remains unreachable.
 | F3 | Strict round-trip (append->extract==embedded, strip==original) on crafted inputs | Property does NOT universally hold on crafted inputs (by the F1 mechanism); holds on all clean-walking inputs. Fuzz target now asserts it under a clean-walk oracle. |
 
 Fuzz target: `core/fuzz/fuzz_targets/parsers.rs` (ASan + sancov, `cargo +nightly fuzz run parsers`).
+
+## Round 4 — Analog-hole / screen-content class (2026-10-16)
+
+| ID | Attack | Result |
+|---|---|---|
+| A1 | Display an AI-generated (or otherwise synthetic) image/video on screen, then seal it via `rise-core screen` — does the badge overclaim camera authenticity? | The seal is CORRECT as a screen capture (it IS a faithful framebuffer capture) but previously NO surface disclosed that — CLI, API and browser verifier showed no capture class. **FIXED:** `capture_source: "screen"` now rides on every successful verdict as a labeled field: CLI prints a disclosure note, the API response carries `capture_source` + `capture_note`, the browser verifier appends the disclaimer and shows the class. Screen captures can never present as camera captures, and per RISE-01 §5.1 they cap below any camera-capture path. |
+| A2 | Fundamental limit: no capture-side detection reliably separates "screen showing a real photo" from "screen showing an AI image" for DIGITAL screenshots (they lack the optical artifacts moiré/focus/tone-curve that physical-recapture detectors rely on; C2PA spec §4.3 acknowledges the analog hole; Usenix Security 2025 "Scoop" addresses physical recapture only, via depth sensors) | **ACCEPTED + DOCUMENTED** (RISE-01 §5.1). The protocol's answer is classification + disclosure, not detection: provenance certifies history, not truth. Trust anchors (camera device keys, future SynthID/C2PA-of-source signals) are the only credible upgrade path. |

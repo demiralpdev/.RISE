@@ -86,6 +86,10 @@ async function verifyEs256(pemText, msgBytes, sigHex) {
 }
 
 function canonicalJson(m) {
+  // Lockstep with Rust serde (core/src/lib.rs ManifestV1 + sign_manifest_v1):
+  // at signing time `signature` and the pqc fields are absent, timestamp_token
+  // is ALWAYS serialized (null included), signing_key_id and capture_source
+  // only when set. Locked by tests/vectors + tests/kat_node.mjs.
   const o = {};
   o.rise_version = m.rise_version ?? 1;
   o.frame_hashes = m.frame_hashes ?? [];
@@ -96,9 +100,53 @@ function canonicalJson(m) {
   o.device_id = m.device_id ?? "";
   o.assurance = m.assurance ?? "silver";
   o.timestamp_token = m.timestamp_token ?? null;
-  o.signature = null;
-  o.signing_key_id = m.signing_key_id ?? null;
+  if (m.signing_key_id != null) o.signing_key_id = m.signing_key_id;
+  if (m.capture_source != null) o.capture_source = m.capture_source;
   return JSON.stringify(o);
+}
+
+/* Pinned device-key registry: same-origin ./keys.json maps
+ * device_id -> SPKI PEM. Fetched at most once per page load and cached;
+ * NEVER throws — absent file, unknown device, or any fetch/parse error
+ * resolves to null so verifyBadge falls through to the existing fail-closed
+ * path (no claim of validity). Only the static keys.json is fetched;
+ * manifest/frame bytes are never sent anywhere (100% client-side). */
+let registryPromise = null;
+
+async function pinnedPemFor(deviceId) {
+  try {
+    if (typeof deviceId !== "string" || !deviceId) return null;
+    if (typeof fetch === "undefined") return null;
+    if (!registryPromise) {
+      registryPromise = (async () => {
+        try {
+          const res = await fetch("./keys.json");
+          if (!res || !res.ok) return null;
+          const data = await res.json();
+          const map = new Map();
+          if (data && Array.isArray(data.keys)) {
+            for (const e of data.keys) {
+              if (
+                e &&
+                typeof e.device_id === "string" &&
+                typeof e.pem === "string"
+              ) {
+                map.set(e.device_id, e.pem);
+              }
+            }
+          }
+          return map;
+        } catch {
+          return null;
+        }
+      })();
+    }
+    const map = await registryPromise;
+    if (!map) return null;
+    return map.get(deviceId) ?? null;
+  } catch {
+    return null;
+  }
 }
 
 async function verifyBadge(rawManifest, frameBytes, opts = {}) {
@@ -137,6 +185,11 @@ async function verifyBadge(rawManifest, frameBytes, opts = {}) {
   if (frameBytes.length && root !== m.merkle_root)
     return { badge: RED, reason: "Chain root mismatch, content changed." };
 
+  if (opts.pubkeyPem && m.sig_alg !== "ES256")
+    return {
+      badge: RED,
+      reason: "Signature algorithm unsupported, rejected.",
+    };
   if (opts.pubkeyPem && m.sig_alg === "ES256") {
     const canon = canonicalJson(m);
     try {
@@ -155,14 +208,59 @@ async function verifyBadge(rawManifest, frameBytes, opts = {}) {
   const tier = m.assurance ?? SILVER;
   if (![GOLD_L4, GOLD_L2, SILVER].includes(tier))
     return { badge: RED, reason: "Unknown assurance tier." };
+  // Capture class: a screen capture attests the capture, never the screen
+  // content's origin — the label + disclaimer ride along on success results
+  // so no UI can present a screen grab as a camera capture.
+  const capFields =
+    typeof m.capture_source === "string" && m.capture_source
+      ? {
+          captureSource: m.capture_source,
+          ...(m.capture_source === "screen"
+            ? {
+                captureNote:
+                  "Screen capture: the capture is attested, but the screen content's origin (camera, edited, or AI-generated) is NOT verified.",
+              }
+            : {}),
+        }
+      : {};
+  if (!opts.pubkeyPem && m.sig_alg === "ES256") {
+    const pem = await pinnedPemFor(m.device_id);
+    if (pem) {
+      const canon = canonicalJson(m);
+      try {
+        const ok = await verifyEs256(
+          pem,
+          new TextEncoder().encode(canon),
+          m.signature,
+        );
+        if (!ok)
+          return {
+            badge: RED,
+            reason: "Signature invalid for pinned device key.",
+          };
+      } catch {
+        return { badge: RED, reason: "Signature verification error." };
+      }
+      return {
+        badge: GOLD_CAP,
+        reason: "Signature verified against pinned device key.",
+        keySource: "registry",
+        ...capFields,
+      };
+    }
+  }
   if (tier === GOLD_L4 || (tier === GOLD_L2 && !opts.strong_signal))
     return {
       badge: GOLD_CAP,
       reason: "Gold not issued in MS1 (verification limits), downgraded.",
+      ...capFields,
     };
   return {
     badge: GOLD_CAP,
-    reason: "Software signature valid (MS1), informational.",
+    // No crypto check ran without a pubkey: never claim the signature is valid.
+    reason:
+      "Structure valid, signature NOT crypto-verified (MS1), informational.",
+    ...capFields,
   };
 }
 

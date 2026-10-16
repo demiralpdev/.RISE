@@ -1,9 +1,53 @@
 """MS1 verify-web MVP: badge decision tree (Phase 1). Fail-closed, no file persistence."""
 import hashlib
 import json
+from pathlib import Path
 
 GOLD_CAP = "silver"  # MS1 cap: no gold-L4
 REASON_MAX = 120
+
+KEY_REGISTRY_PATH = Path(__file__).resolve().parent / "static" / "keys.json"
+
+
+def load_key_registry(path=None) -> dict[str, str]:
+    """Load the pinned device-key registry (device_id -> SPKI PEM).
+
+    Fail-closed: returns {} on ANY problem (missing file, bad JSON, wrong
+    type, missing "keys"). Never raises, never logs secrets.
+    """
+    try:
+        p = Path(path) if path else KEY_REGISTRY_PATH
+        doc = json.loads(p.read_text())
+        if not isinstance(doc, dict):
+            return {}
+        entries = doc.get("keys")
+        if not isinstance(entries, list):
+            return {}
+        out: dict[str, str] = {}
+        for e in entries:
+            if not isinstance(e, dict):
+                continue
+            did = e.get("device_id")
+            pem = e.get("pem")
+            if isinstance(did, str) and did and isinstance(pem, str) and pem:
+                out[did] = pem
+        return out
+    except Exception:
+        return {}
+
+
+def resolve_pubkey(manifest, path=None) -> str | None:
+    """Resolve a pinned SPKI PEM for manifest["device_id"]. None when absent/unmatched."""
+    try:
+        m = json.loads(manifest) if isinstance(manifest, str) else manifest
+        if not isinstance(m, dict):
+            return None
+        did = m.get("device_id")
+        if not isinstance(did, str) or not did:
+            return None
+        return load_key_registry(path).get(did)
+    except Exception:
+        return None
 
 # Canonical ManifestV1 field order — must match Rust serde output in core/src/lib.rs:
 # rise_version, frame_hashes, tile_hashes, merkle_root, sig_alg, timestamp_ms,
@@ -56,6 +100,26 @@ def _red(reason: str) -> dict:
     return {"badge": "red", "reason": reason[:REASON_MAX]}
 
 
+def _ok(reason: str, m: dict) -> dict:
+    """Success result; screen captures carry an explicit origin disclaimer.
+
+    A screen capture attests that the bytes are a faithful capture of a
+    screen at seal time — it does NOT attest that the screen content
+    originated from a camera (it may be edited or AI-generated). The label
+    and note ride along on every success result so no UI can overclaim.
+    """
+    out = {"badge": GOLD_CAP, "reason": reason[:REASON_MAX]}
+    src = m.get("capture_source")
+    if isinstance(src, str) and src:
+        out["capture_source"] = src
+        if src == "screen":
+            out["capture_note"] = (
+                "Screen capture: the capture is attested, but the screen "
+                "content's origin (camera, edited, or AI-generated) is NOT verified."
+            )
+    return out
+
+
 def _canonical_bytes(manifest: dict) -> bytes:
     ordered: dict = {}
     for key in _CANONICAL_ORDER:
@@ -65,6 +129,10 @@ def _canonical_bytes(manifest: dict) -> bytes:
             continue
         if key == "assurance":
             ordered[key] = manifest.get(key, "silver")
+        elif key == "timestamp_token":
+            # Rust serializes this field even when None (no skip_serializing_if):
+            # must always emit "timestamp_token":null to match the Rust bytes.
+            ordered[key] = manifest.get(key)
         elif key in manifest and manifest[key] is not None:
             ordered[key] = manifest[key]
     return json.dumps(ordered, separators=(",", ":"), ensure_ascii=False).encode("utf-8")
@@ -143,16 +211,45 @@ def verify_badge(
             return _red("Nonce replay suspicion, unverified.")
         if signer_pub:
             if not verify_signature(m, signer_pub):
-                return _red("Signature cryptographically invalid.")
-            return {"badge": GOLD_CAP, "reason": "Signature verified (ES256), chain valid."}
+                r = _red("Signature cryptographically invalid.")
+                r["key_verified"] = False
+                r["key_source"] = "caller"
+                return r
+            r = _ok("Signature verified (ES256), chain valid.", m)
+            r["key_verified"] = True
+            r["key_source"] = "caller"
+            return r
+        reg_pub = resolve_pubkey(m)
+        if reg_pub:
+            if not verify_signature(m, reg_pub):
+                r = _red("Signature cryptographically invalid.")
+                r["key_verified"] = False
+                r["key_source"] = "registry"
+                return r
+            r = _ok("Signature verified against pinned device key.", m)
+            r["key_verified"] = True
+            r["key_source"] = "registry"
+            return r
         tier = m.get("assurance", "silver")
         if tier not in ("gold-L4", "gold-L2", "silver"):
-            return _red("Unknown assurance tier.")
+            r = _red("Unknown assurance tier.")
+            r["key_verified"] = False
+            r["key_source"] = None
+            return r
         if tier == "gold-L4" and not strong_signal:
-            return {"badge": GOLD_CAP, "reason": "MVP: gold-L4 is not issued, chain unverified."}
+            r = _ok("MVP: gold-L4 is not issued, chain unverified.", m)
+            r["key_verified"] = False
+            r["key_source"] = None
+            return r
         if tier == "gold-L2" and not strong_signal:
-            return {"badge": GOLD_CAP, "reason": "No strong signal, downgraded one tier."}
-        return {"badge": GOLD_CAP, "reason": "Structure valid, signature NOT crypto-verified (MS1), informational."}
+            r = _ok("No strong signal, downgraded one tier.", m)
+            r["key_verified"] = False
+            r["key_source"] = None
+            return r
+        r = _ok("Structure valid, signature NOT crypto-verified (MS1), informational.", m)
+        r["key_verified"] = False
+        r["key_source"] = None
+        return r
     except (json.JSONDecodeError, TypeError):
         return _red("Manifest unreadable, unverified.")
 

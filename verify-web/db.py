@@ -23,7 +23,7 @@ def _get_client():
                     line = line.strip()
                     if line.startswith("RISE_MONGO_URI="):
                         uri = line.split("=", 1)[1].strip().strip('"').strip("'")
-                    break
+                        break
     if not uri:
         return None
     try:
