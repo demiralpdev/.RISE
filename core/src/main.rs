@@ -147,8 +147,9 @@ enum Cmd {
         #[arg(long)]
         out: Option<String>,
     },
-    /// Placeholder screen recording via ffmpeg avfoundation.
-    /// --start begins a background capture, --stop ends it.
+    /// Records the screen via ffmpeg's avfoundation input (macOS; requires
+    /// ffmpeg installed). --start begins a background capture, --stop ends
+    /// it and seals the recording to .rvid.
     ScreenRecord {
         /// Start a background screen recording.
         #[arg(long, default_value_t = false)]
