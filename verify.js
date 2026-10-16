@@ -105,6 +105,50 @@ function canonicalJson(m) {
   return JSON.stringify(o);
 }
 
+/* Pinned device-key registry: same-origin ./keys.json maps
+ * device_id -> SPKI PEM. Fetched at most once per page load and cached;
+ * NEVER throws — absent file, unknown device, or any fetch/parse error
+ * resolves to null so verifyBadge falls through to the existing fail-closed
+ * path (no claim of validity). Only the static keys.json is fetched;
+ * manifest/frame bytes are never sent anywhere (100% client-side). */
+let registryPromise = null;
+
+async function pinnedPemFor(deviceId) {
+  try {
+    if (typeof deviceId !== "string" || !deviceId) return null;
+    if (typeof fetch === "undefined") return null;
+    if (!registryPromise) {
+      registryPromise = (async () => {
+        try {
+          const res = await fetch("./keys.json");
+          if (!res || !res.ok) return null;
+          const data = await res.json();
+          const map = new Map();
+          if (data && Array.isArray(data.keys)) {
+            for (const e of data.keys) {
+              if (
+                e &&
+                typeof e.device_id === "string" &&
+                typeof e.pem === "string"
+              ) {
+                map.set(e.device_id, e.pem);
+              }
+            }
+          }
+          return map;
+        } catch {
+          return null;
+        }
+      })();
+    }
+    const map = await registryPromise;
+    if (!map) return null;
+    return map.get(deviceId) ?? null;
+  } catch {
+    return null;
+  }
+}
+
 async function verifyBadge(rawManifest, frameBytes, opts = {}) {
   let m;
   try {
@@ -179,6 +223,32 @@ async function verifyBadge(rawManifest, frameBytes, opts = {}) {
             : {}),
         }
       : {};
+  if (!opts.pubkeyPem && m.sig_alg === "ES256") {
+    const pem = await pinnedPemFor(m.device_id);
+    if (pem) {
+      const canon = canonicalJson(m);
+      try {
+        const ok = await verifyEs256(
+          pem,
+          new TextEncoder().encode(canon),
+          m.signature,
+        );
+        if (!ok)
+          return {
+            badge: RED,
+            reason: "Signature invalid for pinned device key.",
+          };
+      } catch {
+        return { badge: RED, reason: "Signature verification error." };
+      }
+      return {
+        badge: GOLD_CAP,
+        reason: "Signature verified against pinned device key.",
+        keySource: "registry",
+        ...capFields,
+      };
+    }
+  }
   if (tier === GOLD_L4 || (tier === GOLD_L2 && !opts.strong_signal))
     return {
       badge: GOLD_CAP,
