@@ -3,8 +3,9 @@ RISE — Auto-seal OBS recordings with cryptographic proof.
 
 Install: OBS -> Tools -> Scripts -> + -> select this file.
 After every recording stops, the script runs:
-    rise-core video <recording> --device obs --key <key>
-and writes a <recording>.rise manifest next to the video.
+    rise-core video <recording> --device obs --key <key> --out <recording>.rvid
+and writes a self-contained, playable .rvid next to the video (MP4-family
+recordings) or a manifest-JSON .rise sidecar (other containers).
 
 Requires: Python 3.6+ in OBS (macOS: set Python path in Scripts settings),
           rise-core binary (auto-detected), ffmpeg on PATH.
@@ -113,9 +114,14 @@ def seal_recording(recording_path):
             % recording_path)
         return
 
-    manifest = recording_path + ".rise"
+    # MP4-family recordings seal into a self-contained playable .rvid
+    # (manifest embedded as a uuid box); other containers keep the
+    # manifest-JSON .rise sidecar until converted to MP4.
+    ext = os.path.splitext(recording_path)[1].lower()
+    sealed = recording_path + (".rvid" if ext in (".mp4", ".m4v", ".mov")
+                               else ".rise")
     cmd = [binary, "video", recording_path,
-           "--device", "obs", "--key", key, "--out", manifest]
+           "--device", "obs", "--key", key, "--out", sealed]
     log("RISE: sealing %s ..." % recording_path)
     try:
         proc = subprocess.run(cmd, capture_output=True, text=True,
@@ -127,9 +133,8 @@ def seal_recording(recording_path):
         log("RISE: failed to launch rise-core: %s" % e)
         return
 
-    if proc.returncode == 0 and os.path.isfile(manifest):
-        log("RISE: sealed ✓  manifest: %s  (verify at riseproof.me)"
-            % manifest)
+    if proc.returncode == 0 and os.path.isfile(sealed):
+        log("RISE: sealed ✓  %s  (verify at riseproof.me)" % sealed)
     else:
         log("RISE: sealing FAILED (exit %d): %s"
             % (proc.returncode, (proc.stderr or proc.stdout or "").strip()))
