@@ -85,6 +85,10 @@ def _canonical_bytes(manifest: dict) -> bytes:
             continue
         if key == "assurance":
             ordered[key] = manifest.get(key, "silver")
+        elif key == "timestamp_token":
+            # Rust serializes this field even when None (no skip_serializing_if):
+            # must always emit "timestamp_token":null to match the Rust bytes.
+            ordered[key] = manifest.get(key)
         elif key in manifest and manifest[key] is not None:
             ordered[key] = manifest[key]
     return json.dumps(ordered, separators=(",", ":"), ensure_ascii=False).encode("utf-8")

@@ -86,6 +86,10 @@ async function verifyEs256(pemText, msgBytes, sigHex) {
 }
 
 function canonicalJson(m) {
+  // Lockstep with Rust serde (core/src/lib.rs ManifestV1 + sign_manifest_v1):
+  // at signing time `signature` and the pqc fields are absent, timestamp_token
+  // is ALWAYS serialized (null included), signing_key_id and capture_source
+  // only when set. Locked by tests/vectors + tests/kat_node.mjs.
   const o = {};
   o.rise_version = m.rise_version ?? 1;
   o.frame_hashes = m.frame_hashes ?? [];
@@ -96,8 +100,8 @@ function canonicalJson(m) {
   o.device_id = m.device_id ?? "";
   o.assurance = m.assurance ?? "silver";
   o.timestamp_token = m.timestamp_token ?? null;
-  o.signature = null;
-  o.signing_key_id = m.signing_key_id ?? null;
+  if (m.signing_key_id != null) o.signing_key_id = m.signing_key_id;
+  if (m.capture_source != null) o.capture_source = m.capture_source;
   return JSON.stringify(o);
 }
 
@@ -178,7 +182,9 @@ async function verifyBadge(rawManifest, frameBytes, opts = {}) {
     };
   return {
     badge: GOLD_CAP,
-    reason: "Software signature valid (MS1), informational.",
+    // No crypto check ran without a pubkey: never claim the signature is valid.
+    reason:
+      "Structure valid, signature NOT crypto-verified (MS1), informational.",
     ...capFields,
   };
 }

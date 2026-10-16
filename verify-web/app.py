@@ -56,16 +56,19 @@ def _apply_trust(badge: str, reason: str, raw_manifest: str) -> dict:
 
 
 def _build_report_bundle(vid: str, stored: dict):
-    """Call into report.py via the first known builder; raise 501 if unusable."""
-    builders = ("build_bundle", "build_report", "get_report", "make_report", "bundle", "report_bundle")
-    for name in builders:
-        fn = getattr(_report, name, None)
-        if callable(fn):
-            try:
-                return fn(vid, stored)
-            except TypeError:
-                return fn(vid)
-    raise HTTPException(status_code=501, detail="report module has no bundle builder.")
+    """Build the printable report from the stored verdict (report.py contract).
+
+    Frames are not persisted, so report.build_report cannot re-run the frame
+    checks; the stored verdict WINS and the badge is never upgraded.
+    """
+    fn = getattr(_report, "build_report", None)
+    if not callable(fn):
+        raise HTTPException(status_code=501, detail="report module has no builder.")
+    rep = fn(stored.get("manifest", ""), b"", trust_result=stored.get("trust"))
+    rep["verify_id"] = vid
+    rep["badge"] = stored.get("badge", "red")
+    rep["reason"] = stored.get("reason", rep.get("reason", ""))
+    return rep
 
 
 class VerifyIn(BaseModel):
