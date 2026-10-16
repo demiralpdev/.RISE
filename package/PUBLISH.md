@@ -8,8 +8,16 @@
 
 - `@univerisr-ai/rise-cli@0.2.0` is LIVE on npm (published 2026-10-11; the
   scoped first release used `npm publish --access public`).
-- `package.json`: `name` = `@univerisr-ai/rise-cli`, `version` = `0.2.0`,
-  `bin.rise` = `./rise.js`. `npm pack --dry-run` succeeds and ships
+- `0.2.1` is prepared in this repo and NOT yet published. Changes vs 0.2.0:
+  - `bin.rise` normalized to `rise.js` (npm 11 normalizes a `./` prefix at
+    publish time with a confusing "invalid and removed" warning),
+  - `files` allowlist added (`install.js`, `rise.js`, `README.md`) so the
+    tarball no longer includes `PUBLISH.md`,
+  - installer asset names now carry the release `rel-` prefix (0.2.0's
+    downloads 404ed into a silent source-build fallback),
+  - package README corrected to `@univerisr-ai/rise-cli`.
+- `package.json`: `name` = `@univerisr-ai/rise-cli`, `version` = `0.2.1`,
+  `bin.rise` = `rise.js`. `npm publish --dry-run` is warning-free and ships
   `install.js`, `package.json`, `rise.js`, `README.md` (`bin/` is excluded —
   binaries download at install time).
 - Download URL in `install.js`: `.../releases/latest/download/{asset}` where
