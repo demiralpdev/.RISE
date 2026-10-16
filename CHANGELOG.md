@@ -1,5 +1,5 @@
 # Changelog
-## 0.2.5 (unreleased)
+## 0.2.5 (2026-10-13)
 
 ### Added
 - `screen-record --tsa <url>`: RFC 3161 stamp in the record->seal chain

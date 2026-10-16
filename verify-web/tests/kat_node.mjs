@@ -5,7 +5,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { webcrypto } from "node:crypto";
 import { fileURLToPath } from "node:url";
-import { canonicalJson, verifyEs256 } from "../static/verify.js";
+import { canonicalJson, verifyBadge, verifyEs256 } from "../static/verify.js";
 
 if (!globalThis.crypto?.subtle) globalThis.crypto = webcrypto;
 
@@ -31,3 +31,25 @@ if (!ok) {
   process.exit(1);
 }
 console.log("KAT ok: canonical JSON + ES256 match the rise-core fixture");
+
+const edManifest = {
+  rise_version: 1,
+  frame_hashes: [],
+  tile_hashes: [],
+  merkle_root: "n/a",
+  sig_alg: "Ed25519",
+  timestamp_ms: 0,
+  device_id: "kat",
+  assurance: "silver",
+  signature: "00".repeat(64),
+};
+const edRes = await verifyBadge(JSON.stringify(edManifest), new Uint8Array(), {
+  pubkeyPem: pubkey,
+});
+if (edRes.badge !== "red") {
+  console.error(
+    "Ed25519 + pubkey must fail closed (got badge: " + edRes.badge + ")",
+  );
+  process.exit(1);
+}
+console.log("Fail-closed ok: Ed25519 + pubkey rejected (matches Python badge tree)");

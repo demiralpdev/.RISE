@@ -22,6 +22,7 @@ export default [
         TextEncoder: "readonly",
         atob: "readonly",
         crypto: "readonly",
+        fetch: "readonly",
         console: "readonly",
         document: "readonly",
         window: "readonly",
