@@ -37,7 +37,7 @@ jobs:
         run: |
           cd verify-web/static
           python3 -m http.server 8088 >/tmp/rise-http.log 2>&1 &
-          for i in $(seq 1 30); do
+          for _ in $(seq 1 30); do
             curl -sf http://127.0.0.1:8088/index.html >/dev/null && break
             sleep 1
           done
@@ -78,7 +78,8 @@ jobs:
             }
           }
           EOF
-          node -e "JSON.parse(require('fs').readFileSync('/tmp/lighthouserc.json','utf8')); console.log('lighthouserc.json: valid JSON')"
+          python3 -m json.tool /tmp/lighthouserc.json >/dev/null \
+            && echo "lighthouserc.json: valid JSON"
 
       - name: Collect (LHCI via npx, no repo install)
         run: npx -y @lhci/cli@latest collect --config=/tmp/lighthouserc.json
