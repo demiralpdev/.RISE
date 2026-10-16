@@ -1,4 +1,34 @@
 # Changelog
+## 0.2.5 (2026-10-13)
+
+### Added
+- `screen-record --tsa <url>`: RFC 3161 stamp in the record->seal chain
+  (stamp-then-sign; `video --tsa` likewise). Live FreeTSA E2E proven.
+- OBS auto-seal now writes self-contained playable `.rvid` files for
+  MP4-family recordings (`.rise` JSON sidecar only for other containers).
+- Quality gate: dependabot, cross-compile matrix, coverage (cargo-llvm-cov
+  + pytest-cov), TruffleHog, shellcheck, pip-audit, fuzz corpus replay,
+  SonarCloud CI-based analysis.
+
+### Fixed
+- MP4 walker: 64-bit `largesize` branch was dead code (`size < 8` guard ran
+  first) — valid largesize boxes now skip correctly (mutation-testing find).
+- `sync_trust.py`: trust-list URL scheme pinned to https (bandit find).
+
+### Changed
+- 19 new mutation-hardened parser tests (container.rs suite 15 -> 33).
+- **Android V3.2: video sealing (.rvid) — REAL FULL CHAIN on device**
+  (Xiaomi M2103K19C, 2026-10-14): in-app Camera2+MediaRecorder 1080p
+  recording, 14 frames hashed on device, Merkle root independently
+  recomputed on Mac (MATCH), 14/14 frame hashes verified in order,
+  ES256 signature openssl-verified under the device TEE key, .rvid
+  plays in ffprobe, rise-core unpack exit 0, real device-millis
+  timestamp. Includes 12 review-hardening fixes (fail-closed JPEG
+  compression, Throwable on seal thread, hash-length validation,
+  resource-leak guards in capture, JNI empty-input/local-ref fixes,
+  build script fallbacks). Prebuilt librise_jni.so needs an NDK rebuild
+  to pick up the C-side fixes (Kotlin guards cover the gap).
+
 
 ## 0.2.0 (2026-10-10)
 
