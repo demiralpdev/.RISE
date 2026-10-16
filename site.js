@@ -2460,6 +2460,11 @@
 
     let currentIdx = -1;
 
+    // Doc-space travel cache: stage progress is measured against frozen document
+    // geometry captured on section entry, so mobile URL-bar innerHeight changes
+    // (which resize the vh-based runway height) can never rewind stage progress
+    const travelCache = { ready: false, vh: 0, topDoc: 0, travel: 1 };
+
     // Initialize all cards on white paper; clicking text or photo drops an ink droplet right there
     cards.forEach((c, idx) => {
       resetPlateToWhitePaper(c);
@@ -2572,13 +2577,17 @@
       const candidate = Math.min(count - 1, Math.max(0, Math.floor(rawFloat)));
       if (activeIdx < 0 || candidate === activeIdx) return candidate;
 
-      const deadband = 0.12;
+      // Asymmetric deadband: forward advances stay responsive (0.12), backward
+      // flips need a deliberate scroll-up (0.35) so rubber-band jolts and
+      // URL-bar height shifts cannot rewind the counter mid-scroll
+      const forwardDeadband = 0.12;
+      const backwardDeadband = 0.35;
       if (candidate > activeIdx) {
         const boundary = activeIdx + 1;
-        if (rawFloat < boundary + deadband) return activeIdx;
+        if (rawFloat < boundary + forwardDeadband) return activeIdx;
       } else if (candidate < activeIdx) {
         const boundary = activeIdx;
-        if (rawFloat > boundary - deadband) return activeIdx;
+        if (rawFloat > boundary - backwardDeadband) return activeIdx;
       }
       return candidate;
     }
@@ -2661,27 +2670,47 @@
       // B. Pure-white scroll-driven sequence inside #ov-capabilities
       if (capStage && !isQuickJumping) {
         const rect = capStage.getBoundingClientRect();
-        const scrolledDown = (window.scrollY || window.pageYOffset || 0) > 20;
+        const scrollY = window.scrollY || window.pageYOffset || 0;
+        const scrolledDown = scrollY > 20;
         const inView = scrolledDown && rect.top <= vh * 0.72 && rect.bottom >= vh * 0.20;
 
         if (inView) {
-          const scrollable = Math.max(1, rect.height - vh);
-          const stageProgress = clamp01(-rect.top / scrollable);
+          // Capture once per entry; recapture only on a viewport jump (>150px,
+          // e.g. rotation) — the runway is min-height:465vh, so innerHeight
+          // changes were previously warping stageProgress mid-scroll
+          if (!travelCache.ready || Math.abs(vh - travelCache.vh) > 150) {
+            travelCache.vh = vh;
+            travelCache.topDoc = rect.top + scrollY;
+            travelCache.travel = Math.max(1, rect.height - vh);
+            travelCache.ready = true;
+          }
+          const stageProgress = clamp01(
+            (scrollY - travelCache.topDoc) / travelCache.travel
+          );
           const scrollIdx = computeHysteresisCardIndex(
             stageProgress,
             cards.length,
             currentIdx
           );
           activatePlateOnScroll(scrollIdx);
-        } else if (rect.top > vh * 0.88 && currentIdx !== -1) {
-          if (dwellTimer) {
-            clearTimeout(dwellTimer);
-            dwellTimer = null;
+        } else {
+          travelCache.ready = false;
+          if (rect.top > vh * 0.88 && currentIdx !== -1) {
+            if (dwellTimer) {
+              clearTimeout(dwellTimer);
+              dwellTimer = null;
+            }
+            queuedTargetIdx = null;
+            currentIdx = -1;
+            cards.forEach((c) => resetPlateToWhitePaper(c));
+            cards[0].classList.add("is-viewer-active", "is-active-piece");
+            // Keep the counter in sync with the restored first card
+            if (capStage) capStage.style.setProperty("--cap-progress", String(1 / cards.length));
+            if (progressLabel) {
+              progressLabel.textContent =
+                "01 / " + String(cards.length).padStart(2, "0");
+            }
           }
-          queuedTargetIdx = null;
-          currentIdx = -1;
-          cards.forEach((c) => resetPlateToWhitePaper(c));
-          cards[0].classList.add("is-viewer-active", "is-active-piece");
         }
       }
 
