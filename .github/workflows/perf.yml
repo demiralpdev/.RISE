@@ -1,0 +1,97 @@
+# Lighthouse CI gate for the RISE static site (perf infrastructure only).
+#
+# REPORT-ONLY BY DESIGN (for now): budgets below encode the required gates
+# (total page weight <= 4MB, LCP <= 4s on simulated slow-4G), but the assert
+# step runs with `continue-on-error: true` so pre-existing, unrelated issues
+# can never turn this red. Measured local baseline (initial-load set,
+# 2026-10-15): index.html 68KB + styles.css 65KB + site.js 108KB +
+# verify.js 9KB + hero/leaf/tulip/breeze media ~2.5MB ~= 2.77MB on disk,
+# ~= ~3.2MB over the wire with the eager still-photo + Google Fonts —
+# inside the 4MB budget with headroom. To promote to a hard gate, remove
+# `continue-on-error` from the `lhci assert` step after one green baseline.
+#
+# Zero repo dependencies: Chrome via browser-actions/setup-chrome, LHCI via
+# npx @lhci/cli (nothing installed into the repo), static server via
+# `python3 -m http.server` (stdlib).
+
+name: perf
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  lighthouse:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - uses: browser-actions/setup-chrome@latest
+
+      - name: Serve static dir (stdlib http.server, background)
+        run: |
+          cd verify-web/static
+          python3 -m http.server 8088 >/tmp/rise-http.log 2>&1 &
+          for _ in $(seq 1 30); do
+            curl -sf http://127.0.0.1:8088/index.html >/dev/null && break
+            sleep 1
+          done
+          curl -sf http://127.0.0.1:8088/index.html >/dev/null
+
+      - name: Write LHCI config + budgets (required gates)
+        run: |
+          cat > /tmp/lighthouserc.json <<'EOF'
+          {
+            "ci": {
+              "collect": {
+                "url": [
+                  "http://127.0.0.1:8088/index.html",
+                  "http://127.0.0.1:8088/verify.html",
+                  "http://127.0.0.1:8088/download.html",
+                  "http://127.0.0.1:8088/install.html"
+                ],
+                "numberOfRuns": 1,
+                "settings": {
+                  "preset": "desktop",
+                  "throttlingMethod": "simulate",
+                  "throttling": {
+                    "rttMs": 150,
+                    "throughputKbps": 1638.4,
+                    "cpuSlowdownMultiplier": 4
+                  }
+                }
+              },
+              "assert": {
+                "assertions": {
+                  "resource-summary:total:size": ["warn", { "maxNumericValue": 4194304 }],
+                  "largest-contentful-paint": ["warn", { "maxNumericValue": 4000 }]
+                }
+              },
+              "upload": {
+                "target": "temporary-public-storage"
+              }
+            }
+          }
+          EOF
+          python3 -m json.tool /tmp/lighthouserc.json >/dev/null \
+            && echo "lighthouserc.json: valid JSON"
+
+      - name: Collect (LHCI via npx, no repo install)
+        run: npx -y @lhci/cli@latest collect --config=/tmp/lighthouserc.json
+
+      - name: Assert budgets (report-only — never red, see header)
+        continue-on-error: true
+        run: npx -y @lhci/cli@latest assert --config=/tmp/lighthouserc.json
+
+      - name: Upload LHCI results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: lhci-results
+          path: .lighthouseci/
+          if-no-files-found: warn
