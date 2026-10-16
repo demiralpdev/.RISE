@@ -1,4 +1,4 @@
-# @rise/cli
+# @univerisr-ai/rise-cli
 
 Photo/video authenticity CLI: hash, sign, stamp, verify, pack, unpack.
 
@@ -13,7 +13,7 @@ Main repo: **https://github.com/demiralpdev/.RISE**
 ## Install
 
 ```bash
-npm install -g @rise/cli
+npm install -g @univerisr-ai/rise-cli
 rise --help
 ```
 
@@ -67,13 +67,13 @@ unreachable trust anchor means unknown — never green.
 Prebuilt binaries are fetched from
 `https://github.com/demiralpdev/.RISE/releases/latest/download/rise-core-{target}`:
 
-| Platform | Binary | Status (v0.2.0) |
+| Platform | Binary | Status (v0.2.5) |
 |---|---|---|
-| macOS arm64 | `rise-core-aarch64-apple-darwin` | ✅ prebuilt |
-| macOS x64 | `rise-core-x86_64-apple-darwin` | ⚠️ source build |
-| Linux x64 | `rise-core-x86_64-unknown-linux-musl` | ✅ prebuilt |
-| Linux arm64 | `rise-core-aarch64-unknown-linux-musl` | ✅ prebuilt |
-| Windows x64 | `rise-core-x86_64-pc-windows-msvc.exe` | ⚠️ source build |
+| macOS arm64 | `rel-rise-core-aarch64-apple-darwin` | ✅ prebuilt |
+| macOS x64 | `rel-rise-core-x86_64-apple-darwin` | ⚠️ source build |
+| Linux x64 | `rel-rise-core-x86_64-unknown-linux-musl` | ✅ prebuilt |
+| Linux arm64 | `rel-rise-core-aarch64-unknown-linux-musl` | ✅ prebuilt |
+| Windows x64 | `rel-rise-core-x86_64-pc-windows-gnu.exe` | ✅ prebuilt |
 
 ⚠️ = installer falls back to `cargo build --release` from a cloned repo.
 To build from source manually:

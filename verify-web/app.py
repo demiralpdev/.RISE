@@ -22,6 +22,9 @@ app = FastAPI(title="RISE verify-web MS1")
 
 _results: dict = {}
 
+# Bounded in-memory store: evict oldest past the cap (unbounded growth is a DoS surface).
+_RESULTS_MAX = 4096
+
 # Badge ladder (legal weight): red < silver < gold-L2 < gold-L4. Demote only.
 _LADDER = ["red", "silver", "gold-L2", "gold-L4"]
 
@@ -104,6 +107,8 @@ def verify(inp: VerifyIn):
         "trust": t["trust"],
         "manifest": inp.manifest,
     }
+    while len(_results) > _RESULTS_MAX:
+        _results.pop(next(iter(_results)))
     if _db is not None:
         _db.store(vid, t["badge"], t["reason"], inp.manifest, t["trust"])
     resp = {

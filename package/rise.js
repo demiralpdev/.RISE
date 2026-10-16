@@ -1,15 +1,15 @@
 #!/usr/bin/env node
-/* @rise/cli bin wrapper — runs the downloaded/source-built rise-core binary. */
+/* @univerisr-ai/rise-cli bin wrapper — runs the downloaded/source-built rise-core binary. */
 const { spawn } = require("child_process");
 const path = require("path");
 const fs = require("fs");
 
 const PLATFORMS = {
-  "darwin-arm64": "rise-core-aarch64-apple-darwin",
-  "darwin-x64": "rise-core-x86_64-apple-darwin",
-  "linux-arm64": "rise-core-aarch64-unknown-linux-musl",
-  "linux-x64": "rise-core-x86_64-unknown-linux-musl",
-  "win32-x64": "rise-core-x86_64-pc-windows-gnu.exe",
+  "darwin-arm64": "rel-rise-core-aarch64-apple-darwin",
+  "darwin-x64": "rel-rise-core-x86_64-apple-darwin",
+  "linux-arm64": "rel-rise-core-aarch64-unknown-linux-musl",
+  "linux-x64": "rel-rise-core-x86_64-unknown-linux-musl",
+  "win32-x64": "rel-rise-core-x86_64-pc-windows-gnu.exe",
 };
 
 const key = `${process.platform}-${process.arch}`;
@@ -41,7 +41,7 @@ const exe = candidates.find((p) => fs.existsSync(p) && fs.statSync(p).size > 0);
 
 if (!exe) {
   console.error(
-    "rise-core binary not found. Run: npm install -g @rise/cli (rebuilds)",
+    "rise-core binary not found. Run: npm install -g @univerisr-ai/rise-cli (rebuilds)",
   );
   console.error(
     "Or: git clone https://github.com/demiralpdev/.RISE.git && cd .RISE/core && cargo build --release",

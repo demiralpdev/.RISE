@@ -1,33 +1,28 @@
-# Publishing @rise/cli — checklist + steps
+# Publishing @univerisr-ai/rise-cli — checklist + steps
 
 > Do NOT run `npm publish` from automation. A human with an npm account runs
 > the steps below. (Anyone can create a free account at https://www.npmjs.com/signup —
 > no age/payment barrier beyond a valid email.)
 
-## Pre-publish verification (done 2026-10-11, all green unless noted)
+## Status
 
-- [x] `package.json`: `name` = `@rise/cli`, `version` = `0.2.0`,
-      `bin.rise` = `./rise.js`. Valid JSON, `npm pack --dry-run` succeeds.
-- [x] `npm pack --dry-run` (in `package/`): includes `install.js`,
-      `package.json`, `rise.js` (+ `README.md` after it was added).
-      `bin/` is excluded via `.gitignore` — correct, binaries download at
-      install time.
-- [x] `npm view @rise/cli` → **404 Not Found**: the name is available,
-      nothing published yet under this scope/name.
-- [x] Download URL in `install.js`:
-      `https://github.com/demiralpdev/.RISE/releases/latest/download/rise-core-{target}`
-      — repo + path correct, and `latest` currently resolves to **v0.2.0**
-      (`gh release view --json tagName` → `v0.2.0`).
-- [⚠️] Release asset coverage (v0.2.0 has 3 of the 5 binaries `install.js` asks for):
-  - ✅ `rise-core-aarch64-apple-darwin` (macOS arm64)
-  - ✅ `rise-core-aarch64-unknown-linux-musl` (Linux arm64)
-  - ✅ `rise-core-x86_64-unknown-linux-musl` (Linux x64)
-  - ❌ `rise-core-x86_64-apple-darwin` (macOS x64 — falls back to source build)
-  - ❌ `rise-core-x86_64-pc-windows-msvc.exe` (Windows x64 — falls back to source build)
-  - Fallback is graceful (no hard failure), but consider uploading the two
-    missing binaries to the v0.2.0 release before publishing for full coverage.
-- [ℹ️] `npm pack` warns "No .npmignore file found, using .gitignore" — harmless;
-      `bin/` exclusion already works via `.gitignore`.
+- `@univerisr-ai/rise-cli@0.2.0` is LIVE on npm (published 2026-10-11; the
+  scoped first release used `npm publish --access public`).
+- `package.json`: `name` = `@univerisr-ai/rise-cli`, `version` = `0.2.0`,
+  `bin.rise` = `./rise.js`. `npm pack --dry-run` succeeds and ships
+  `install.js`, `package.json`, `rise.js`, `README.md` (`bin/` is excluded —
+  binaries download at install time).
+- Download URL in `install.js`: `.../releases/latest/download/{asset}` where
+  the asset names carry the release `rel-` prefix (e.g.
+  `rel-rise-core-aarch64-apple-darwin`); `latest` currently resolves to
+  **v0.2.5**.
+- v0.2.5 asset coverage (macOS x64 has no asset; the installer falls back to a
+  source build — graceful, no hard failure):
+  - ✅ `rel-rise-core-aarch64-apple-darwin` (macOS arm64)
+  - ✅ `rel-rise-core-x86_64-unknown-linux-musl` (Linux x64)
+  - ✅ `rel-rise-core-aarch64-unknown-linux-musl` (Linux arm64)
+  - ✅ `rel-rise-core-x86_64-pc-windows-gnu.exe` (Windows x64)
+  - ❌ macOS x64 (`rel-rise-core-x86_64-apple-darwin` — source build)
 
 ## Exact publish steps (human, in order)
 
@@ -37,23 +32,22 @@ cd package/
 # 1. Sanity check what will be published (must succeed, no errors)
 npm pack --dry-run
 
-# 2. Create a free account once (browser): https://www.npmjs.com/signup
-#    then log in from the CLI:
+# 2. Log in once (account: https://www.npmjs.com/signup)
 npm login
 
 # 3. Confirm you're logged in as the right user
 npm whoami
 
-# 4. (First release of a scoped package only — required, otherwise 402/403)
+# 4. Publish (first release of a scoped package needs --access public)
 npm publish --access public
 
 # 5. Verify it went live (may take a few minutes to appear)
-npm view @rise/cli version   # expect: 0.2.0
+npm view @univerisr-ai/rise-cli version   # expect: the package.json version
 
 # 6. Smoke-test from a clean shell
-npm install -g @rise/cli && rise --help
+npm install -g @univerisr-ai/rise-cli && rise --help
 ```
 
 Later versions: bump `version` in `package.json`, re-run step 1, then
-`npm publish --access public` again (no `--access` needed after the first
-publish, but harmless to keep).
+`npm publish` again (`--access public` is only required for the first
+publish of a scoped package; keeping it is harmless).

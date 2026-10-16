@@ -141,6 +141,11 @@ async function verifyBadge(rawManifest, frameBytes, opts = {}) {
   if (frameBytes.length && root !== m.merkle_root)
     return { badge: RED, reason: "Chain root mismatch, content changed." };
 
+  if (opts.pubkeyPem && m.sig_alg !== "ES256")
+    return {
+      badge: RED,
+      reason: "Signature algorithm unsupported, rejected.",
+    };
   if (opts.pubkeyPem && m.sig_alg === "ES256") {
     const canon = canonicalJson(m);
     try {
