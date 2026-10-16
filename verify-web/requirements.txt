@@ -1,6 +1,6 @@
 fastapi>=0.143.0,<1
-uvicorn>=0.29,<1
+uvicorn>=0.54.0,<1
 pymongo>=4.18.3,<5
-pydantic>=2.5,<3
+pydantic>=2.14.0,<3
 httpx>=0.28.1,<1
-cryptography>=41,<52
+cryptography>=50.0.2,<52
