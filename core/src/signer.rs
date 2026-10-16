@@ -451,5 +451,9 @@ mod tests {
         let now = 1_000_000_000_000u64;
         assert!(!key_expired(now - 89 * 24 * 3600 * 1000, now));
         assert!(key_expired(now - 91 * 24 * 3600 * 1000, now));
+        // exact boundary: 90 days to the millisecond is NOT yet expired
+        const ROTATION_MS: u64 = 90 * 24 * 3600 * 1000;
+        assert!(!key_expired(now - ROTATION_MS, now));
+        assert!(key_expired(now - ROTATION_MS - 1, now));
     }
 }

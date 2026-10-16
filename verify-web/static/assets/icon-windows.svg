@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120" width="120" height="120" role="img" aria-label="Windows platform icon">
+  <rect width="120" height="120" rx="14" fill="#0d111a"/>
+  <rect x="6" y="6" width="108" height="108" rx="10" fill="none" stroke="#1e293b" stroke-width="1.5"/>
+  <path d="M8 24V12a4 4 0 0 1 4-4h12M96 8h12a4 4 0 0 1 4 4v12M112 96v12a4 4 0 0 1-4 4H96M24 112H12a4 4 0 0 1-4-4V96" fill="none" stroke="#38bdf8" stroke-width="2"/>
+  <polygon points="28,36 56,32 56,57 28,57" fill="#132036" stroke="#38bdf8" stroke-width="2.2"/>
+  <polygon points="61,31 92,26 92,57 61,57" fill="#16253f" stroke="#60a5fa" stroke-width="2.2"/>
+  <polygon points="28,63 56,63 56,88 28,84" fill="#16253f" stroke="#a78bfa" stroke-width="2.2"/>
+  <polygon points="61,63 92,63 92,94 61,89" fill="#132036" stroke="#34d399" stroke-width="2.2"/>
+</svg>
