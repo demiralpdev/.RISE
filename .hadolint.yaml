@@ -1,0 +1,5 @@
+# DL3025 (CMD shell form) is ignored DELIBERATELY: the image must expand
+# ${PORT:-8000} from the platform env (Render sets PORT and health-checks it);
+# exec-form JSON notation cannot do shell expansion.
+ignored:
+  - DL3025

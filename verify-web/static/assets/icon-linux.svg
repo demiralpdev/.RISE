@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120" width="120" height="120" role="img" aria-label="Linux platform icon">
+  <rect width="120" height="120" rx="14" fill="#0d111a"/>
+  <rect x="6" y="6" width="108" height="108" rx="10" fill="none" stroke="#1e293b" stroke-width="1.5"/>
+  <path d="M8 24V12a4 4 0 0 1 4-4h12M96 8h12a4 4 0 0 1 4 4v12M112 96v12a4 4 0 0 1-4 4H96M24 112H12a4 4 0 0 1-4-4V96" fill="none" stroke="#f59e0b" stroke-width="2"/>
+  <polygon points="60,22 73,29 76,45 88,66 80,82 72,92 48,92 40,82 32,66 44,45 47,29" fill="#141c2b" stroke="#e2e8f0" stroke-width="2" stroke-linejoin="round"/>
+  <polygon points="55,36 65,36 60,42" fill="#f59e0b"/>
+  <polyline points="48,57 56,64 48,71" fill="none" stroke="#34d399" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/>
+  <line x1="60" y1="71" x2="71" y2="71" stroke="#38bdf8" stroke-width="2.6" stroke-linecap="round"/>
+  <polygon points="42,92 54,92 50,98 38,96" fill="none" stroke="#f59e0b" stroke-width="1.8"/>
+  <polygon points="66,92 78,92 82,96 70,98" fill="none" stroke="#f59e0b" stroke-width="1.8"/>
+</svg>

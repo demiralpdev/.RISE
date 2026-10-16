@@ -97,7 +97,10 @@ pub fn fuzz_parsers(data: &[u8]) {
             (Some(p), Some(q)) => assert_eq!(p, &q),
             (None, Some(q)) if png_walks_clean(data) => {
                 assert_eq!(q.as_slice(), data);
-                assert_eq!(container::png_strip_chunk(&sealed).unwrap().as_slice(), data);
+                assert_eq!(
+                    container::png_strip_chunk(&sealed).unwrap().as_slice(),
+                    data
+                );
             }
             (None, Some(_)) => {}
             _ => {}

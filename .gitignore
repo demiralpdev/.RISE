@@ -40,7 +40,12 @@ core/dist/
 bindings/viewer/macos/RISE Viewer.app/
 bindings/installer/macos/RISE-*.pkg
 bindings/installer/macos/.stage/
+bindings/installer/windows/RISE-Setup-*.exe
+bindings/installer/windows/rel-rise-core-*.exe
 
 # coverage + mutation artifacts (generated, CI uploads them)
 core/lcov.info
 mutants.out/
+.coverage
+mutants.out.old/
+verify-web/static/Breeze_blowing_through_meadow_1080p_*.mp4
