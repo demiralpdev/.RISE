@@ -634,6 +634,19 @@
       document.querySelectorAll("video").forEach((v) => risePosterizeVideo(v, true));
     } catch (_) {}
   }
+  // Ink-bleed canvas pixel budget: full 1.75x only on fine-pointer desktops.
+  // Phones/tablets (coarse pointer) get 1.25x and perf-lite devices 1x, because
+  // these margin-inclusive canvases are repainted every animation frame and are
+  // the heaviest paint on weak mobile GPUs (reported: Android showcase jank).
+  function riseInkCanvasCap() {
+    if (risePerfLiteOn()) return 1;
+    try {
+      if (window.matchMedia && window.matchMedia("(pointer: coarse)").matches) {
+        return 1.25;
+      }
+    } catch (_) {}
+    return 1.75;
+  }
 
   if (risePrefersReducedMotion()) riseEngagePerfLite("reduced-motion");
   else if (riseSlowConn) riseEngagePerfLite("slow-connection");
@@ -1975,7 +1988,7 @@
     const rect = canvas.getBoundingClientRect();
     const cw = Math.max(320, Math.round(rect.width || 820));
     const ch = Math.max(180, Math.round(rect.height || 461));
-    const dpr = Math.min(window.devicePixelRatio || 1, 1.75);
+    const dpr = Math.min(window.devicePixelRatio || 1, riseInkCanvasCap());
     const W = Math.round(cw * dpr);
     const H = Math.round(ch * dpr);
     if (canvas.width !== W || canvas.height !== H) {
@@ -2041,8 +2054,9 @@
     const baseW = contentW * 0.54;
     const baseH = contentH * 0.56;
 
-    // 260 perimeter points for high-density jagged capillary detail ("tırtıklar")
-    const numPts = 260;
+    // 260 perimeter points for high-density jagged capillary detail ("tırtıklar");
+    // phones and lite devices trace at 150 (the per-frame math is O(points))
+    const numPts = riseInkCanvasCap() < 1.75 ? 150 : 260;
     const points = [];
 
     // Helper: shortest angular distance
@@ -2256,7 +2270,7 @@
     const cardBody = card.querySelector(".atelier-card-body");
     if (!canvas || !textCanvas) return;
 
-    const dpr = Math.min(window.devicePixelRatio || 1, 1.75);
+    const dpr = Math.min(window.devicePixelRatio || 1, riseInkCanvasCap());
 
     // Photo canvas sizing
     const rect = canvas.getBoundingClientRect();
@@ -2445,6 +2459,12 @@
 
     clearCanvasToPureWhite(card);
     if (tctx) tctx.clearRect(0, 0, textW, textH);
+    if (risePerfLiteOn()) {
+      // Lite devices skip the 1600ms repaint loop and paint the final revealed
+      // state in a single pass (rawT=1 also takes frame()'s finalize branch)
+      frame(startNow + totalDuration + 50);
+      return;
+    }
     const st = { rafId: requestAnimationFrame(frame) };
     plateAnimState.set(card, st);
   }
@@ -2455,6 +2475,9 @@
     const cards = Array.from(document.querySelectorAll(".atelier-card[data-stack-card]"));
     const progressLabel = document.getElementById("stack-progress-label");
     const wfCards = Array.from(document.querySelectorAll(".wf-card"));
+    // Entrance write cache: once a setup card's eased progress settles, its
+    // per-frame opacity/transform writes in section C are skipped entirely
+    const wfLastEase = new Array(wfCards.length).fill(-1);
 
     if (!cards.length) return;
 
@@ -2603,8 +2626,11 @@
           const isPinned = rect.top <= 56 && rect.bottom >= vh - 10;
           if (!isPinned) return;
 
-          if (currentIdx <= 0 && e.deltaY < 0 && rect.top >= -40) return;
-          if (currentIdx >= cards.length - 1 && e.deltaY > 0 && rect.bottom <= vh + 80) return;
+          // Boundary escape: with the first/last card active there is nothing
+          // left to pace, and clamping here trapped the user inside the runway
+          // (reported: scrolling up from card 1 jittered and snapped back).
+          if (currentIdx <= 0 && e.deltaY < 0) return;
+          if (currentIdx >= cards.length - 1 && e.deltaY > 0) return;
 
           const now = performance.now();
           const inCooldown = now - lastSwitchTime < MIN_CARD_DWELL_MS * 0.65;
@@ -2612,9 +2638,13 @@
 
           if (Math.abs(e.deltaY) > maxDelta) {
             e.preventDefault();
+            // "instant", not "auto": html { scroll-behavior: smooth } turns
+            // "auto" into an animated glide, and a stale in-flight animation
+            // could re-target mid-gesture, so fast wheels made the page jump
+            // up and snap back ("yukarı atıp tekrar aynı yere atıyor").
             window.scrollBy({
               top: Math.sign(e.deltaY) * maxDelta,
-              behavior: "auto",
+              behavior: "instant",
             });
           }
         },
@@ -2726,6 +2756,8 @@
         const endY = vh * 0.62;
         const p = clamp01((startY - rect.top) / Math.max(1, startY - endY));
         const ease = 1 - Math.pow(1 - p, 3);
+        if (Math.abs(ease - wfLastEase[idx]) < 0.002) return;
+        wfLastEase[idx] = ease;
         const dir = wfDirs[idx % wfDirs.length];
         const tx = (1 - ease) * dir.x;
         const ty = (1 - ease) * dir.y;
@@ -3257,6 +3289,7 @@
       macos: "macOS",
       linux: "Linux",
     };
+    let matchedItem = null;
     // Download view: pull the matching OS row to the top and tag it.
     try {
       const rows = document.querySelector(".dl-rows");
@@ -3274,7 +3307,32 @@
             titleEl.appendChild(pill);
           }
           rows.insertBefore(items[i], rows.firstChild);
+          matchedItem = items[i];
           break;
+        }
+      }
+    } catch (_) {}
+    // Painted bottom CTA: the baked HTML pill hardcodes "· Apple Silicon" with
+    // the macOS .pkg link, so Android visitors were offered the Mac installer.
+    // Retarget it to the visitor's own row (first real chip); macOS stays as-is.
+    try {
+      const ctaLabels = {
+        android: "\u00b7 Android (build guide)",
+        windows: "\u00b7 Windows x64",
+        linux: "\u00b7 Linux x64",
+      };
+      if (matchedItem && os !== "macos" && ctaLabels[os]) {
+        const cta = document.querySelector("#ov-painted-cta .pill-cta-primary");
+        const muted = cta ? cta.querySelector(".pill-cta-muted") : null;
+        const chip = matchedItem.querySelector(".dl-chip[href]");
+        if (cta && muted && chip) {
+          cta.setAttribute("href", chip.getAttribute("href"));
+          if (chip.getAttribute("rel")) {
+            cta.setAttribute("rel", chip.getAttribute("rel"));
+          } else {
+            cta.removeAttribute("rel");
+          }
+          muted.textContent = ctaLabels[os];
         }
       }
     } catch (_) {}
