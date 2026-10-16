@@ -6,17 +6,20 @@
 
 ## Status
 
-- `@univerisr-ai/rise-cli@0.2.0` is LIVE on npm (published 2026-10-11; the
-  scoped first release used `npm publish --access public`).
-- `0.2.1` is prepared in this repo and NOT yet published. Changes vs 0.2.0:
-  - `bin.rise` normalized to `rise.js` (npm 11 normalizes a `./` prefix at
-    publish time with a confusing "invalid and removed" warning),
-  - `files` allowlist added (`install.js`, `rise.js`, `README.md`) so the
-    tarball no longer includes `PUBLISH.md`,
-  - installer asset names now carry the release `rel-` prefix (0.2.0's
-    downloads 404ed into a silent source-build fallback),
-  - package README corrected to `@univerisr-ai/rise-cli`.
-- `package.json`: `name` = `@univerisr-ai/rise-cli`, `version` = `0.2.1`,
+- `@univerisr-ai/rise-cli@0.2.1` is LIVE on npm (published 2026-10-16;
+  scoped releases use `npm publish --access public`). It shipped the fixed
+  installer (`rel-` asset names — 0.2.0's downloads 404ed into the silent
+  source-build fallback), the corrected README, `bin.rise` normalized to
+  `rise.js`, and a `files` allowlist (no `PUBLISH.md` in the tarball).
+  `latest` points at `0.2.1`.
+- `0.2.2` is prepared in this repo and NOT yet published. Changes vs 0.2.1:
+  - update gate in `rise.js`: npm-installed copies check the registry at
+    most once per day and refuse to run when outdated — only the latest
+    version is supported; offline runs proceed. Enforcement starts with the
+    version that ships the gate (0.2.2+; older installs cannot be
+    retrofitted).
+  - README "Updates" section documents the policy.
+- `package.json`: `name` = `@univerisr-ai/rise-cli`, `version` = `0.2.2`,
   `bin.rise` = `rise.js`. `npm publish --dry-run` is warning-free and ships
   `install.js`, `package.json`, `rise.js`, `README.md` (`bin/` is excluded —
   binaries download at install time).
@@ -58,4 +61,5 @@ npm install -g @univerisr-ai/rise-cli && rise --help
 
 Later versions: bump `version` in `package.json`, re-run step 1, then
 `npm publish` again (`--access public` is only required for the first
-publish of a scoped package; keeping it is harmless).
+publish of a scoped package; keeping it is harmless). Keep `bin.rise` as
+`rise.js` (no `./` prefix).

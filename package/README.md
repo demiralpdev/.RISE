@@ -21,6 +21,18 @@ Requirements: Node.js (for the installer/wrapper only). No Rust needed unless
 your platform has no prebuilt binary (see
 [Supported platforms](#supported-platforms)).
 
+## Updates
+
+Only the latest version is supported. npm-installed copies check the registry
+for a newer release at most once per day and refuse to run when outdated:
+
+```bash
+npm install -g @univerisr-ai/rise-cli@latest
+```
+
+No internet connection? The check is skipped and the CLI keeps working —
+offline verification is never blocked.
+
 ## Usage
 
 ```bash
