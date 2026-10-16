@@ -94,6 +94,29 @@ Payload rules:
 | `timestamp_token` | RFC 3161 token |
 | `device_id` | anonymous device id |
 | `assurance` | trust tier: `silver`, `gold-L2`, `gold-L4` |
+| `capture_source` | capture class: absent = camera/file seal; `screen` = OS screen capture |
+
+## 5.1 Capture Classes
+
+`capture_source` follows the IPTC/C2PA `digitalSourceType` distinction:
+
+- **absent** — camera or file seal (equivalent to `digitalCapture`).
+- **`screen`** — a capture of the OS framebuffer (equivalent to
+  `screenCapture`).
+
+Rules (fail-closed, never overclaim):
+
+- A screen capture attests that the bytes are a faithful capture of a
+  screen at seal time. It does **NOT** attest that the screen content
+  originated from a camera — the screen may have displayed edited or
+  AI-generated (`trainedAlgorithmicMedia`) content. This is the
+  fundamental analog-hole limit (C2PA 2.x security considerations §4.3);
+  no capture-side detection reliably closes it for digital screenshots.
+- Every verification surface (CLI, API, browser verifier) MUST disclose
+  the screen-capture class with the content-origin disclaimer whenever
+  `capture_source == "screen"` on a successful verdict.
+- Screen captures never improve the trust tier: they cap below any
+  camera-capture path at the same assurance level.
 
 ## 6. Versioning
 
