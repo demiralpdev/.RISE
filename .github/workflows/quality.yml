@@ -146,7 +146,7 @@ jobs:
         working-directory: verify-web
       - run: python -m pytest tests/ -q --cov=. --cov-report=xml:coverage.xml --cov-report=term
         working-directory: verify-web
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: coverage
           path: |
