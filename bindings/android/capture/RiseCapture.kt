@@ -30,7 +30,10 @@ import java.util.concurrent.atomic.AtomicBoolean
 /**
  * Single-frame and video Camera2 capture shell.
  *
- * - Back camera preferred, first available otherwise.
+ * - Only a built-in camera may be selected. An external/virtual source
+ *   (LENS_FACING_EXTERNAL, a non-finite or absent physical sensor size, or no
+ *   finite focal length) fails closed with [CaptureError.VirtualCameraRejected].
+ * - Back camera preferred, first accepted camera otherwise.
  * - Photo: ImageReader format is YUV_420_888 (raw sensor planes, no JPEG encode).
  * - Video: Camera2 TEMPLATE_RECORD + MediaRecorder (H.264 MP4), followed by
  *   up to [MAX_VIDEO_FRAMES] evenly spaced frames via [MediaMetadataRetriever].
@@ -167,6 +170,8 @@ class RiseCapture(private val context: Context) {
         class NoCamera : CaptureError("no back camera available")
         class PermissionMissing : CaptureError("camera permission not granted")
         class SessionFailed(cause: String) : CaptureError("capture session failed: $cause")
+        class VirtualCameraRejected(reason: String) :
+            CaptureError("ERR_VIRTUAL_CAMERA_REJECTED: $reason")
     }
 
     /** True while a video recording session is currently active. */
@@ -189,11 +194,8 @@ class RiseCapture(private val context: Context) {
         onComplete: (Result<VideoRecording>) -> Unit,
     ) {
         val manager = context.getSystemService(Context.CAMERA_SERVICE) as CameraManager
-        val cameraId = pickBackCamera(manager)
-        if (cameraId == null) {
-            onComplete(Result.failure(CaptureError.NoCamera()))
-            return
-        }
+        val cameraId = backCameraOrFail(manager) { onComplete(Result.failure(it)) }
+        if (cameraId == null) return
         val characteristics = try {
             manager.getCameraCharacteristics(cameraId)
         } catch (e: Exception) {
@@ -374,11 +376,8 @@ class RiseCapture(private val context: Context) {
             }
         }
         val manager = context.getSystemService(Context.CAMERA_SERVICE) as CameraManager
-        val cameraId = pickBackCamera(manager)
-        if (cameraId == null) {
-            complete(Result.failure(CaptureError.NoCamera()))
-            return
-        }
+        val cameraId = backCameraOrFail(manager) { complete(Result.failure(it)) }
+        if (cameraId == null) return
         val characteristics = manager.getCameraCharacteristics(cameraId)
         val map = characteristics.get(CameraCharacteristics.SCALER_STREAM_CONFIGURATION_MAP)
         val size: Size = map
@@ -536,23 +535,91 @@ class RiseCapture(private val context: Context) {
         stopBackgroundThread()
     }
 
-    private fun pickBackCamera(manager: CameraManager): String? {
+    private data class CameraPick(val id: String?, val rejection: String?)
+
+    private fun pickFailure(pick: CameraPick): CaptureError =
+        pick.rejection?.let { CaptureError.VirtualCameraRejected(it) } ?: CaptureError.NoCamera()
+
+    private fun backCameraOrFail(manager: CameraManager, onFail: (CaptureError) -> Unit): String? {
+        val pick = pickBackCamera(manager)
+        val id = pick.id
+        if (id == null) {
+            onFail(pickFailure(pick))
+            return null
+        }
+        return id
+    }
+
+    private fun lensRejection(chars: CameraCharacteristics): String? {
+        val facing = chars.get(CameraCharacteristics.LENS_FACING)
+        return if (facing == CameraCharacteristics.LENS_FACING_EXTERNAL) {
+            "external lens facing"
+        } else {
+            null
+        }
+    }
+
+    private fun hardwareLevelRejection(chars: CameraCharacteristics): String? {
+        val level = chars.get(CameraCharacteristics.INFO_SUPPORTED_HARDWARE_LEVEL)
+        return when (level) {
+            CameraCharacteristics.INFO_SUPPORTED_HARDWARE_LEVEL_LEGACY -> "legacy hardware level"
+            CameraCharacteristics.INFO_SUPPORTED_HARDWARE_LEVEL_EXTERNAL -> "external hardware level"
+            null -> "unknown hardware level"
+            else -> null
+        }
+    }
+
+    private fun sensorSizeRejection(chars: CameraCharacteristics): String? {
+        val size = chars.get(CameraCharacteristics.SENSOR_INFO_PHYSICAL_SIZE)
+            ?: return "no physical sensor size"
+        if (!size.width.isFinite() || !size.height.isFinite()) return "no physical sensor size"
+        if (size.width <= 0f || size.height <= 0f) return "no physical sensor size"
+        return null
+    }
+
+    private fun positiveFinite(value: Float): Boolean = value.isFinite() && value > 0f
+
+    private fun focalLengthRejection(chars: CameraCharacteristics): String? {
+        val focal = chars.get(CameraCharacteristics.LENS_INFO_AVAILABLE_FOCAL_LENGTHS)
+            ?: return "no finite focal length"
+        if (focal.isEmpty()) return "no finite focal length"
+        if (!focal.any { positiveFinite(it) }) return "no finite focal length"
+        return null
+    }
+
+    private fun sourceRejection(chars: CameraCharacteristics): String? =
+        lensRejection(chars)
+            ?: hardwareLevelRejection(chars)
+            ?: sensorSizeRejection(chars)
+            ?: focalLengthRejection(chars)
+
+    private fun offerCamera(manager: CameraManager, id: String): CameraPick {
+        val chars = manager.getCameraCharacteristics(id)
+        if (chars.get(CameraCharacteristics.LENS_FACING) != CameraCharacteristics.LENS_FACING_BACK) {
+            return CameraPick(null, null)
+        }
+        val rejection = sourceRejection(chars)
+        return if (rejection == null) CameraPick(id, null) else CameraPick(null, rejection)
+    }
+
+    private fun pickBackCamera(manager: CameraManager): CameraPick {
         val ids = try {
             manager.cameraIdList
         } catch (_: Exception) {
-            return null
+            return CameraPick(null, null)
         }
+        var lastRejection: String? = null
         for (id in ids) {
-            val chars = try {
-                manager.getCameraCharacteristics(id)
-            } catch (_: Exception) {
+            val pick = try {
+                offerCamera(manager, id)
+            } catch (e: Exception) {
+                Log.w("RISE", "RISE_CAMERA_SKIP: id=$id reason=${e.message}")
                 continue
             }
-            if (chars.get(CameraCharacteristics.LENS_FACING) == CameraCharacteristics.LENS_FACING_BACK) {
-                return id
-            }
+            if (pick.id != null) return pick
+            if (pick.rejection != null) lastRejection = pick.rejection
         }
-        return ids.firstOrNull()
+        return CameraPick(null, lastRejection)
     }
 
     private data class PlaneData(val bytes: ByteArray, val rowStride: Int, val pixelStride: Int)

@@ -116,21 +116,28 @@ class MainActivity : Activity() {
         capture.captureSingleFrame { result ->
             runOnUiThread {
                 result.onSuccess { raw ->
-                    val hex = RiseCore.hashFrame(raw.yuvBytes)
+                    val jpg = try {
+                        frameToJpeg(raw)
+                    } catch (e: Exception) {
+                        status.text = "CAPTURE FAIL: ${e.message}"
+                        Log.e("RISE", "JPEG_ERROR: " + e.message, e)
+                        return@onSuccess
+                    }
+                    val hex = RiseCore.hashFrame(jpg)
                     require(hex.length == 64) { "JNI frame hash length mismatch" }
                     Log.i("RISE", "HASH=$hex")
-                    Log.i("RISE", "BYTES=${raw.yuvBytes.size} W=${raw.width} H=${raw.height} T=${raw.timestampMs}")
-                    val f = File(getExternalFilesDir(null), "frame-001.yuv")
-                    f.writeBytes(raw.yuvBytes)
+                    Log.i("RISE", "BYTES=${jpg.size} W=${raw.width} H=${raw.height} T=${raw.timestampMs}")
+                    val f = File(getExternalFilesDir(null), "frame-001.jpg")
+                    f.writeBytes(jpg)
                     Log.i("RISE", "SAVED=${f.absolutePath}")
-                    status.text = "SEALED: ${raw.yuvBytes.size} bytes\nHASH=$hex"
+                    status.text = "SEALED: ${jpg.size} bytes\nHASH=$hex"
                     try {
-                        val path = signAndSeal(raw, hex)
-                        status.text = "SEALED + SIGNED: ${raw.yuvBytes.size} bytes\nHASH=$hex"
+                        val path = signAndSeal(raw, jpg, hex)
+                        status.text = "SEALED + SIGNED: ${jpg.size} bytes\nHASH=$hex"
                         Log.i("RISE", "MANIFEST_SAVED=$path")
                         try {
-                            val risePath = packRise(raw)
-                            status.text = "SEALED + SIGNED + PACKED: ${raw.yuvBytes.size} bytes\nHASH=$hex"
+                            val risePath = packRise(jpg)
+                            status.text = "SEALED + SIGNED + PACKED: ${jpg.size} bytes\nHASH=$hex"
                             Log.i("RISE", "RISE_FILE_SAVED=$risePath")
                         } catch (e: Exception) {
                             Log.e("RISE", "PACK_ERROR: " + e.message, e)
@@ -340,19 +347,19 @@ class MainActivity : Activity() {
         capture.close()
     }
 
-    private fun signAndSeal(raw: RiseCapture.RawFrame, frameHex: String): String {
+    private fun signAndSeal(raw: RiseCapture.RawFrame, jpg: ByteArray, frameHex: String): String {
         try {
-            return signAndSealInner(raw, frameHex)
+            return signAndSealInner(raw, jpg, frameHex)
         } catch (e: Exception) {
             Log.e("RISE", "SIGN_ERROR: " + e.message, e)
             throw e
         }
     }
 
-    private fun signAndSealInner(raw: RiseCapture.RawFrame, frameHex: String): String {
+    private fun signAndSealInner(raw: RiseCapture.RawFrame, jpg: ByteArray, frameHex: String): String {
         val alias = RiseKeystore.DEFAULT_ALIAS
         RiseKeystore.ensureP256Key(alias, ByteArray(32).also { SecureRandom().nextBytes(it) })
-        val tiles = splitTiles(raw.yuvBytes).map { sha256Hex(it) }
+        val tiles = splitTiles(jpg).map { sha256Hex(it) }
         val root = merkleRoot(tiles)
         val deviceId = android.provider.Settings.Secure.getString(
             contentResolver,
@@ -386,10 +393,9 @@ class MainActivity : Activity() {
     }
 
     /** Packs the sealed manifest into a .rise file (JPEG + APP11 JUMBF). */
-    private fun packRise(raw: RiseCapture.RawFrame): String {
+    private fun packRise(jpg: ByteArray): String {
         val mf = File(getExternalFilesDir(null), "frame-001.manifest.json")
         val manifestBytes = mf.readBytes()
-        val jpg = frameToJpeg(raw)
         val sealed = jpegEmbed(jpg, manifestBytes)
         val out = File(getExternalFilesDir(null), "frame-001.rise")
         out.writeBytes(sealed)
@@ -526,7 +532,9 @@ class MainActivity : Activity() {
     /**
      * Emits ManifestV1 JSON in the exact field order of Rust serde (core/src/lib.rs):
      * rise_version, frame_hashes, tile_hashes, merkle_root, sig_alg, timestamp_ms,
-     * device_id, assurance, timestamp_token, then optional signature and signing_key_id.
+     * device_id, assurance, timestamp_token, then optional signature, signing_key_id
+     * and capture_source. This app only seals the built-in camera, so capture_source
+     * is always the literal "camera".
      */
     private fun canonicalMultiFrameJson(
         frameHashes: List<String>,
@@ -541,7 +549,7 @@ class MainActivity : Activity() {
         val tileArr = tileHashes.joinToString(",", "[", "]") { "\"$it\"" }
         val sigPart = if (sigHex != null) ",\"signature\":\"$sigHex\"" else ""
         val keyPart = if (alias != null) ",\"signing_key_id\":\"${jsonEscape(alias)}\"" else ""
-        return "{\"rise_version\":1,\"frame_hashes\":$framesArr,\"tile_hashes\":$tileArr,\"merkle_root\":\"$root\",\"sig_alg\":\"ES256\",\"timestamp_ms\":$ts,\"device_id\":\"${jsonEscape(deviceId)}\",\"assurance\":\"silver\",\"timestamp_token\":null$sigPart$keyPart}"
+        return "{\"rise_version\":1,\"frame_hashes\":$framesArr,\"tile_hashes\":$tileArr,\"merkle_root\":\"$root\",\"sig_alg\":\"ES256\",\"timestamp_ms\":$ts,\"device_id\":\"${jsonEscape(deviceId)}\",\"assurance\":\"silver\",\"timestamp_token\":null$sigPart$keyPart,\"capture_source\":\"camera\"}"
     }
 
     private fun splitTiles(data: ByteArray): List<ByteArray> {
