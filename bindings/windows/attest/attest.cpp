@@ -1,13 +1,19 @@
 // attest.cpp — Windows keystore + attestation probe (TPM 2.0 / VBS).
 //
-// Status: REAL — compiled and run on DESKTOP-1LD8TK1 (2026-10-10). Output:
+// Status: REAL — compiled and run on DESKTOP-1LD8TK1 (2026-10-10), on the
+// pre-2026-10-17 revision which printed:
 //   facts=tpm:1 key:1 vbs:0
 //   TIER=silver reason=no TPM 2.0 and/or VBS: silver-only
 // (TPM present, RISE-device-key P-256 created+finalized in the TPM; VBS off
 // in registry -> fail-closed silver. Re-run after enabling VBS for gold-L2.)
+// The fact key is now `vbs_enablement` and the reason says "enablement
+// requested"; the wording change itself has NOT been recompiled here.
 //
 // Thin shell: reports keystore facts only. No signing logic here — core/
 // verifies signatures. Fail-closed: every probe failure downgrades.
+// F7 OPEN: the TPM EK/AIK certificate chain and a PCR/VBS quote are NOT
+// emitted — tpm_ecc_signature / tpm_cert_chain / tpm_quote have no producer,
+// so no caller may claim a TPM-bound signature today.
 //
 // Build (VS x64 prompt or vcvars64 + cl):
 //   cl /EHsc /std:c++17 attest.cpp
@@ -33,7 +39,7 @@ enum class Tier { kSilver, kGoldL2, kRed };
 struct AttestFacts {
   bool tpm_present = false;      // platform crypto provider opened.
   bool key_in_tpm = false;       // RISE-device-key usable in the TPM.
-  bool vbs_enabled = false;      // DeviceGuard registry enablement = 1.
+  bool vbs_enabled = false;      // DeviceGuard enablement REQUESTED = 1, not proof of running.
   bool chain_broken = false;     // reserved: replay/PCR break from caller.
 };
 
@@ -42,8 +48,9 @@ struct AttestFacts {
 // - no TPM or no VBS -> silver (silver-only rule)
 // - TPM + VBS, key usable -> gold-L2 (max here; L4 unreachable, no sensor path)
 DWORD ReadVbsRegistry() {
-  // 1 = enablement requested. The stricter WMI status==2 (running) check is a
-  // TODO: registry alone says "enabled", not "running".
+  // SECURITY: 1 means enablement was REQUESTED (boot-time registry value), NOT
+  // that VBS is running. No surface may read this as "VBS RUNNING"; the
+  // WMI status==2 / HVCI check that would prove running is still a TODO.
   DWORD value = 0;
   DWORD size = sizeof(value);
   LSTATUS st = RegGetValueA(
@@ -96,7 +103,7 @@ const char* DecideTier(const AttestFacts& f, std::string* reason_out) {
     reason = "broken chain or replay suspicion";
   } else if (!f.tpm_present || !f.vbs_enabled) {
     tier = Tier::kSilver;
-    reason = "no TPM 2.0 and/or VBS: silver-only";
+    reason = "no TPM 2.0 and/or VBS enablement requested: silver-only";
   } else if (!f.key_in_tpm) {
     tier = Tier::kSilver;
     reason = "TPM+VBS present but key probe failed: fail-closed silver";
@@ -126,8 +133,9 @@ int main() {
 
   std::string reason;
   const char* tier = DecideTier(facts, &reason);
-  std::printf("facts=tpm:%d key:%d vbs:%d\n", facts.tpm_present ? 1 : 0,
-              facts.key_in_tpm ? 1 : 0, facts.vbs_enabled ? 1 : 0);
+  std::printf("facts=tpm:%d key:%d vbs_enablement:%d (running unverified)\n",
+              facts.tpm_present ? 1 : 0, facts.key_in_tpm ? 1 : 0,
+              facts.vbs_enabled ? 1 : 0);
   std::printf("TIER=%s reason=%s\n", tier, reason.c_str());
   return 0;
 }
