@@ -5,7 +5,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { webcrypto } from "node:crypto";
 import { fileURLToPath } from "node:url";
-import { canonicalJson, verifyBadge, verifyEs256 } from "../static/verify.js";
+import { canonicalJson, verifyBadge, verifyEs256, NON_CAMERA_SOURCES } from "../static/verify.js";
 
 if (!globalThis.crypto?.subtle) globalThis.crypto = webcrypto;
 
@@ -53,3 +53,42 @@ if (edRes.badge !== "red") {
   process.exit(1);
 }
 console.log("Fail-closed ok: Ed25519 + pubkey rejected (matches Python badge tree)");
+
+const expectedSources = ["screen", "obs", "virtual", "external_usb"];
+if (
+  JSON.stringify(Object.keys(NON_CAMERA_SOURCES).sort()) !==
+  JSON.stringify(expectedSources.slice().sort())
+) {
+  console.error(
+    "non-camera class set drifted from core CAPTURE_SOURCES: " +
+      Object.keys(NON_CAMERA_SOURCES),
+  );
+  process.exit(1);
+}
+const plainManifest = {
+  rise_version: 1,
+  frame_hashes: [],
+  tile_hashes: [],
+  merkle_root: "n/a",
+  sig_alg: "ES256",
+  timestamp_ms: 0,
+  device_id: "kat-noncamera",
+  assurance: "silver",
+  signature: "00".repeat(64),
+};
+for (const src of expectedSources) {
+  const res = await verifyBadge(
+    JSON.stringify({ ...plainManifest, capture_source: src }),
+    new Uint8Array(),
+  );
+  if (res.captureSource !== src || !res.captureNote) {
+    console.error(`missing capture disclaimer for ${src}: ${JSON.stringify(res)}`);
+    process.exit(1);
+  }
+}
+const clean = await verifyBadge(JSON.stringify(plainManifest), new Uint8Array());
+if (clean.captureSource || clean.captureNote) {
+  console.error("plain camera seal must not carry capture fields");
+  process.exit(1);
+}
+console.log("Non-camera labels ok: 4 classes disclaimed, plain seal clean");

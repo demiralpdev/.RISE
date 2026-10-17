@@ -9,31 +9,57 @@ REASON_MAX = 120
 KEY_REGISTRY_PATH = Path(__file__).resolve().parent / "static" / "keys.json"
 
 
+def _registry_entries(path=None) -> list:
+    """Raw pinned registry entries; [] on ANY problem (fail-closed)."""
+    try:
+        p = Path(path) if path else KEY_REGISTRY_PATH
+        doc = json.loads(p.read_text())
+        if not isinstance(doc, dict):
+            return []
+        entries = doc.get("keys")
+        return entries if isinstance(entries, list) else []
+    except Exception:
+        return []
+
+
 def load_key_registry(path=None) -> dict[str, str]:
     """Load the pinned device-key registry (device_id -> SPKI PEM).
 
     Fail-closed: returns {} on ANY problem (missing file, bad JSON, wrong
     type, missing "keys"). Never raises, never logs secrets.
     """
-    try:
-        p = Path(path) if path else KEY_REGISTRY_PATH
-        doc = json.loads(p.read_text())
-        if not isinstance(doc, dict):
-            return {}
-        entries = doc.get("keys")
-        if not isinstance(entries, list):
-            return {}
-        out: dict[str, str] = {}
-        for e in entries:
-            if not isinstance(e, dict):
-                continue
-            did = e.get("device_id")
-            pem = e.get("pem")
-            if isinstance(did, str) and did and isinstance(pem, str) and pem:
-                out[did] = pem
-        return out
-    except Exception:
-        return {}
+    out: dict[str, str] = {}
+    for e in _registry_entries(path):
+        if not isinstance(e, dict):
+            continue
+        did = e.get("device_id")
+        pem = e.get("pem")
+        if isinstance(did, str) and did and isinstance(pem, str) and pem:
+            out[did] = pem
+    return out
+
+
+# Backing classes that count as hardware. Anything else — including a missing
+# registry entry — is software, so a self-declared claim inside the
+# attacker-supplied manifest can never raise a tier.
+_HARDWARE_BACKINGS = frozenset({"tpm", "secure_enclave", "tee", "strongbox"})
+
+
+def _entry_is_hardware(e: dict) -> bool:
+    if e.get("hardware_backed") is True:
+        return True
+    b = e.get("backing")
+    return isinstance(b, str) and b.strip().lower() in _HARDWARE_BACKINGS
+
+
+def hardware_backing(device_id, path=None) -> str:
+    """'hardware' only when the PINNED registry entry declares it, else 'software'."""
+    if not isinstance(device_id, str) or not device_id:
+        return "software"
+    for e in _registry_entries(path):
+        if isinstance(e, dict) and e.get("device_id") == device_id:
+            return "hardware" if _entry_is_hardware(e) else "software"
+    return "software"
 
 
 def resolve_pubkey(manifest, path=None) -> str | None:
@@ -100,23 +126,45 @@ def _red(reason: str) -> dict:
     return {"badge": "red", "reason": reason[:REASON_MAX]}
 
 
-def _ok(reason: str, m: dict) -> dict:
-    """Success result; screen captures carry an explicit origin disclaimer.
+# Non-camera capture classes: the seal proves the bytes were stamped, NOT that a
+# real camera sensor produced the scene. Each maps to an explicit disclaimer so
+# no surface can present a virtual/screen/external seal as camera evidence.
+# Values mirror core's --capture-source (camera|screen|obs|virtual|external_usb).
+_NON_CAMERA_SOURCES = {
+    "screen": (
+        "Screen capture: the capture is attested, but the screen "
+        "content's origin (camera, edited, or AI-generated) is NOT verified."
+    ),
+    "obs": (
+        "Software/virtual-camera capture (OBS): the recording is attested, "
+        "but it does NOT prove the pixels came from a real camera sensor."
+    ),
+    "virtual": (
+        "Virtual camera: the frames come from a software device, not a real "
+        "camera sensor; this is not camera evidence."
+    ),
+    "external_usb": (
+        "External USB camera: the capture is attested, but an external source "
+        "can be fed arbitrary video; camera evidence is capped."
+    ),
+}
 
-    A screen capture attests that the bytes are a faithful capture of a
-    screen at seal time — it does NOT attest that the screen content
-    originated from a camera (it may be edited or AI-generated). The label
-    and note ride along on every success result so no UI can overclaim.
+
+def _ok(reason: str, m: dict) -> dict:
+    """Success result; non-camera captures carry an explicit origin disclaimer.
+
+    A non-camera capture (screen/obs/virtual/external_usb) attests that the
+    bytes are a faithful capture at seal time — it does NOT attest that a real
+    camera sensor produced the scene (it may be edited or AI-generated). The
+    label and note ride along on every success result so no UI can overclaim.
     """
     out = {"badge": GOLD_CAP, "reason": reason[:REASON_MAX]}
     src = m.get("capture_source")
     if isinstance(src, str) and src:
         out["capture_source"] = src
-        if src == "screen":
-            out["capture_note"] = (
-                "Screen capture: the capture is attested, but the screen "
-                "content's origin (camera, edited, or AI-generated) is NOT verified."
-            )
+        note = _NON_CAMERA_SOURCES.get(src.strip().lower())
+        if note:
+            out["capture_note"] = note
     return out
 
 
@@ -176,6 +224,40 @@ def verify_signature(manifest, pubkey_pem: str) -> bool:
         return False
 
 
+def _malformed_error(m: dict) -> dict | None:
+    if not isinstance(m.get("frame_hashes"), list):
+        return _red("Malformed frame hashes, rejected.")
+    if not isinstance(m.get("tile_hashes"), list):
+        return _red("Malformed tile hashes, rejected.")
+    if not isinstance(m.get("merkle_root"), str):
+        return _red("Malformed merkle root, rejected.")
+    return None
+
+
+def _content_error(m: dict, frame: bytes) -> dict | None:
+    tiles = [_sha256(t) for t in _tiles(frame)]
+    if frame and _sha256(frame) not in m.get("frame_hashes"):
+        return _red("Frame hash mismatch, content changed.")
+    if frame and tiles != m.get("tile_hashes"):
+        return _red("Tile hashes mismatch, content changed.")
+    if _merkle(tiles) != m.get("merkle_root"):
+        return _red("Chain root mismatch, content changed.")
+    return None
+
+
+def _gold_key_is_hardware(m: dict) -> bool:
+    return hardware_backing(m.get("device_id")) == "hardware"
+
+
+def _gold_needs_hardware(m: dict) -> dict:
+    """Gold requires a hardware-backed key from the pinned registry, never the manifest's own claim."""
+    r = _ok("Gold needs a hardware-backed key; this key is software-backed.", m)
+    r["key_verified"] = False
+    r["key_source"] = None
+    r["hardware_backing"] = hardware_backing(m.get("device_id"))
+    return r
+
+
 def verify_badge(
     raw_manifest: str, frame: bytes, replay: bool = False, strong_signal: bool = False,
     signer_pub: str | None = None,
@@ -191,22 +273,12 @@ def verify_badge(
             return _red("No signature, not evidence.")
         if not m.get("sig_alg"):
             return _red("No signature algorithm, not evidence.")
-        # MS1 manifest v1: frame_hashes list (type-strict, fail-closed)
-        frame_hashes = m.get("frame_hashes")
-        if not isinstance(frame_hashes, list):
-            return _red("Malformed frame hashes, rejected.")
-        tile_hashes_in = m.get("tile_hashes")
-        if not isinstance(tile_hashes_in, list):
-            return _red("Malformed tile hashes, rejected.")
-        if not isinstance(m.get("merkle_root"), str):
-            return _red("Malformed merkle root, rejected.")
-        tiles = [_sha256(t) for t in _tiles(frame)]
-        if frame and _sha256(frame) not in frame_hashes:
-            return _red("Frame hash mismatch, content changed.")
-        if frame and tiles != tile_hashes_in:
-            return _red("Tile hashes mismatch, content changed.")
-        if _merkle(tiles) != m.get("merkle_root"):
-            return _red("Chain root mismatch, content changed.")
+        malformed = _malformed_error(m)
+        if malformed is not None:
+            return malformed
+        content = _content_error(m, frame)
+        if content is not None:
+            return content
         if replay:
             return _red("Nonce replay suspicion, unverified.")
         if signer_pub:
@@ -229,6 +301,7 @@ def verify_badge(
             r = _ok("Signature verified against pinned device key.", m)
             r["key_verified"] = True
             r["key_source"] = "registry"
+            r["hardware_backing"] = hardware_backing(m.get("device_id"))
             return r
         tier = m.get("assurance", "silver")
         if tier not in ("gold-L4", "gold-L2", "silver"):
@@ -246,6 +319,8 @@ def verify_badge(
             r["key_verified"] = False
             r["key_source"] = None
             return r
+        if tier in ("gold-L4", "gold-L2") and not _gold_key_is_hardware(m):
+            return _gold_needs_hardware(m)
         r = _ok("Structure valid, signature NOT crypto-verified (MS1), informational.", m)
         r["key_verified"] = False
         r["key_source"] = None

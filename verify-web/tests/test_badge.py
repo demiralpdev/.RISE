@@ -91,3 +91,75 @@ def test_plain_manifest_has_no_capture_fields():
     r = verify_badge(_valid_manifest(b"plain-frame"), b"plain-frame")
     assert "capture_source" not in r
     assert "capture_note" not in r
+
+
+def test_obs_capture_labeled_not_camera():
+    # OBS/virtual-camera seal: attested, but never presented as camera evidence
+    m = _valid_manifest(b"obs-frame", capture_source="obs")
+    r = verify_badge(m, b"obs-frame")
+    assert r["badge"] == GOLD_CAP
+    assert r["capture_source"] == "obs"
+    assert "NOT prove" in r.get("capture_note", "")
+
+
+def test_virtual_and_external_usb_labeled():
+    # virtual + external_usb seals carry an origin disclaimer too
+    for src in ("virtual", "external_usb"):
+        r = verify_badge(_valid_manifest(b"x", capture_source=src), b"x")
+        assert r["capture_source"] == src
+        assert r.get("capture_note")
+
+
+def test_non_camera_source_set_matches_core():
+    # drift guard: Python/JS/Rust must agree on which classes are not a camera
+    from verify import _NON_CAMERA_SOURCES
+
+    assert set(_NON_CAMERA_SOURCES) == {"screen", "obs", "virtual", "external_usb"}
+    assert "camera" not in _NON_CAMERA_SOURCES
+
+
+def _pin_registry(monkeypatch, tmp_path, entries):
+    import verify
+
+    p = tmp_path / "keys.json"
+    p.write_text(json.dumps({"keys": entries}))
+    monkeypatch.setattr(verify, "KEY_REGISTRY_PATH", p)
+
+
+def test_hardware_backing_requires_pinned_declaration(monkeypatch, tmp_path):
+    from verify import hardware_backing
+
+    _pin_registry(monkeypatch, tmp_path, [{"device_id": "hw-device", "backing": "tpm"}])
+    assert hardware_backing("hw-device") == "hardware"
+
+
+def test_hardware_backing_accepts_full_vocabulary(monkeypatch, tmp_path):
+    from verify import hardware_backing
+
+    for i, backing in enumerate(("tpm", "secure_enclave", "tee", "strongbox", "TPM ")):
+        _pin_registry(monkeypatch, tmp_path, [{"device_id": f"d{i}", "backing": backing}])
+        assert hardware_backing(f"d{i}") == "hardware"
+
+
+def test_missing_or_undeclared_entry_is_software(monkeypatch, tmp_path):
+    from verify import hardware_backing
+
+    _pin_registry(monkeypatch, tmp_path, [{"device_id": "plain-device", "pem": "x"}])
+    assert hardware_backing("plain-device") == "software"
+    assert hardware_backing("absent-device") == "software"
+    assert hardware_backing(None) == "software"
+
+
+def test_manifest_self_claim_cannot_raise_backing(monkeypatch, tmp_path):
+    # an attacker-supplied manifest claiming hardware must not raise the tier
+    _pin_registry(monkeypatch, tmp_path, [])
+    m = _valid_manifest(
+        b"gold-frame",
+        assurance="gold-L2",
+        hardware_backed=True,
+        backing="secure_enclave",
+    )
+    r = verify_badge(m, b"gold-frame", strong_signal=True)
+    assert r["badge"] == "silver"
+    assert r["hardware_backing"] == "software"
+    assert "hardware-backed key" in r["reason"]

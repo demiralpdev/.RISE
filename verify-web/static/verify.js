@@ -5,6 +5,20 @@ const SILVER = "silver";
 const GOLD_L4 = "gold-L4";
 const GOLD_L2 = "gold-L2";
 
+/* Non-camera capture classes and their origin disclaimers. Mirrors
+ * verify-web/verify.py `_NON_CAMERA_SOURCES` and core's `non_camera_note`:
+ * a non-camera seal attests the capture, never that a real camera sensor
+ * produced the scene. Kept in sync by the cross-surface parity test. */
+const NON_CAMERA_SOURCES = {
+  screen:
+    "Screen capture: the capture is attested, but the screen content's origin (camera, edited, or AI-generated) is NOT verified.",
+  obs: "Software/virtual-camera capture (OBS): the recording is attested, but it does NOT prove the pixels came from a real camera sensor.",
+  virtual:
+    "Virtual camera: the frames come from a software device, not a real camera sensor; this is not camera evidence.",
+  external_usb:
+    "External USB camera: the capture is attested, but an external source can be fed arbitrary video; camera evidence is capped.",
+};
+
 async function sha256Hex(data) {
   const d = await crypto.subtle.digest("SHA-256", data);
   return [...new Uint8Array(d)]
@@ -208,18 +222,12 @@ async function verifyBadge(rawManifest, frameBytes, opts = {}) {
   const tier = m.assurance ?? SILVER;
   if (![GOLD_L4, GOLD_L2, SILVER].includes(tier))
     return { badge: RED, reason: "Unknown assurance tier." };
-  // Capture class: a screen capture attests the capture, never the screen
-  // content's origin — the label + disclaimer ride along on success results
-  // so no UI can present a screen grab as a camera capture.
   const capFields =
     typeof m.capture_source === "string" && m.capture_source
       ? {
           captureSource: m.capture_source,
-          ...(m.capture_source === "screen"
-            ? {
-                captureNote:
-                  "Screen capture: the capture is attested, but the screen content's origin (camera, edited, or AI-generated) is NOT verified.",
-              }
+          ...(NON_CAMERA_SOURCES[m.capture_source]
+            ? { captureNote: NON_CAMERA_SOURCES[m.capture_source] }
             : {}),
         }
       : {};
@@ -400,4 +408,5 @@ export {
   canonicalJson,
   verifyEs256,
   extractRise,
+  NON_CAMERA_SOURCES,
 };
