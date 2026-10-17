@@ -7,6 +7,8 @@
 [![License](https://img.shields.io/badge/license-Apache--2.0-green)](LICENSE)
 [![Release](https://img.shields.io/github/v/release/demiralpdev/.RISE)](https://github.com/demiralpdev/.RISE/releases)
 [![CodeScene Average Code Health](https://codescene.io/projects/86246/status-badges/average-code-health)](https://codescene.io/projects/86246)
+[![CodeScene Hotspot Code Health](https://codescene.io/projects/86246/status-badges/hotspot-code-health)](https://codescene.io/projects/86246)
+[![CodeScene System Mastery](https://codescene.io/projects/86246/status-badges/system-mastery)](https://codescene.io/projects/86246)
 
 .rise is an open source photo and video authenticity protocol. It hashes each camera frame at shutter time, signs the hash with the device key, stamps it with an independent timestamp, and seals the result into the file itself, so anyone can later check whether a picture is original or has been altered.
 
