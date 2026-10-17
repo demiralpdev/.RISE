@@ -8,9 +8,15 @@ OUT="${1:-../../target/frame-001.jpg}"
 mkdir -p "$(dirname "$OUT")"
 
 # Device priority: L-101 — the device node is parsed by name from the device
-# list (no hardcode). USB cameras win over integrated ones.
-DEV=""
-DEV_NAME=""
+# list (no hardcode). Rank 1: a node with no physical bus device
+# (v4l2loopback/akvcam) is refused, and a built-in camera wins over external USB.
+. ./cam_class.sh
+
+readonly EXIT_NO_CAMERA=1
+readonly EXIT_VIRTUAL_CAMERA=10
+
+SYSFS_ROOT="${RISE_SYSFS_ROOT:-/sys}"
+CANDIDATES=""
 LISTING=""
 if command -v v4l2-ctl >/dev/null 2>&1; then
   LISTING=$(v4l2-ctl --list-devices 2>/dev/null || true)
@@ -21,34 +27,56 @@ if [ -n "$LISTING" ]; then
   #   Rapoo Camera: USB Camera (usb-...):
   #           /dev/video0
   #           /dev/video1
-  # Prefer a block whose label mentions USB (covers "Rapoo Camera: USB Camera").
-  USB_BLOCK_DEV=$(echo "$LISTING" | grep -i -B1 -A3 'usb' | grep -o '/dev/video[0-9]*' | head -1 || true)
-  if [ -n "$USB_BLOCK_DEV" ]; then
-    DEV="$USB_BLOCK_DEV"
-    DEV_NAME="usb-camera"
-  else
-    # No USB label: fall back to the first listed node by name order.
-    DEV=$(echo "$LISTING" | grep -o '/dev/video[0-9]*' | head -1 || true)
-    DEV_NAME="integrated-v4l2"
-  fi
+  CANDIDATES=$(echo "$LISTING" | grep -o '/dev/video[0-9]*' || true)
 else
-  # No v4l2-ctl: enumerate nodes directly, prefer the lowest even index
+  # No v4l2-ctl: enumerate nodes directly, even indexes first
   # (odd indexes are usually V4L2 metadata nodes, e.g. /dev/video1).
   for node in /dev/video0 /dev/video2 /dev/video4 /dev/video6 /dev/video8 /dev/video1 /dev/video3; do
     if [ -e "$node" ]; then
-      DEV="$node"
-      break
+      CANDIDATES="$CANDIDATES $node"
     fi
   done
-  DEV_NAME="fallback-v4l2"
 fi
+
+DEV=""
+DEV_NAME=""
+CAPTURE_SOURCE="camera"
+EXTERNAL_DEV=""
+REJECTED=""
+for node in $CANDIDATES; do
+  case "$(rise_classify_video_node "$node" "$SYSFS_ROOT")" in
+    virtual)
+      REJECTED="$REJECTED $node"
+      echo "REFUSED: $node has no physical bus device (software/virtual camera)."
+      ;;
+    builtin)
+      DEV="$node"
+      DEV_NAME="builtin-camera"
+      break
+      ;;
+    external_usb)
+      [ -n "$EXTERNAL_DEV" ] || EXTERNAL_DEV="$node"
+      ;;
+  esac
+done
+
+if [ -z "$DEV" ] && [ -n "$EXTERNAL_DEV" ]; then
+  DEV="$EXTERNAL_DEV"
+  DEV_NAME="usb-camera"
+  CAPTURE_SOURCE="external_usb"
+fi
+
 if [ -z "$DEV" ]; then
+  if [ -n "$REJECTED" ]; then
+    echo "ERR_VIRTUAL_CAMERA_REJECTED:$REJECTED no physical bus device — RISE refuses to seal a software/virtual camera as camera evidence." >&2
+    exit "$EXIT_VIRTUAL_CAMERA"
+  fi
   echo "ERROR: no suitable camera found (no /dev/video* node, no v4l2-ctl listing)."
   echo "Permission hint: check that the camera is plugged in and readable:"
   echo "  ls -l /dev/video* ; sudo usermod -aG video \$USER (log out/in), then run again."
-  exit 1
+  exit "$EXIT_NO_CAMERA"
 fi
-echo "Camera device: $DEV ($DEV_NAME)"
+echo "Camera device: $DEV ($DEV_NAME, capture_source=$CAPTURE_SOURCE)"
 
 if ffmpeg -f v4l2 -framerate 30 -video_size 1280x720 -i "$DEV" \
     -frames:v 1 -q:v 2 -y "$OUT" 2>capture.log; then
@@ -75,7 +103,8 @@ fi
 CORE_BIN="../../../core/target/release/rise-core"
 [ -x "$CORE_BIN" ] || CORE_BIN="../../../core/target/debug/rise-core"
 if [ -x "$CORE_BIN" ]; then
-  "$CORE_BIN" sign "$OUT" --device "$DEV_NAME" --out "${OUT%.jpg}.manifest.json" \
+  "$CORE_BIN" sign "$OUT" --device "$DEV_NAME" --capture-source "$CAPTURE_SOURCE" \
+    --out "${OUT%.jpg}.manifest.json" \
     || echo "WARN: manifest could not be generated (core error)"
 else
   echo "Note: core CLI is not built (core/target/debug/rise-core), manifest skipped."
