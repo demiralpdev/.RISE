@@ -2,6 +2,24 @@
   "usage": "Persist this file inside your repositories as .codescene/code-health-rules.json. Keep only the rules you want to override. A weight of 1.0 is the default, 0.5 keeps the rule active at 50% impact, 0.0 disables it. Rule sets are evaluated top-to-bottom; the first matching rule set wins and later sets are ignored (they do not merge).",
   "rule_sets": [
     {
+      "matching_content_path": "bindings/**",
+      "matching_content_path_doc": "Thin OS-binding shells (capture/attest/daemon shims for android, ios, macos, windows, linux, obs). These files are intentionally flat, string- and primitive-heavy passthroughs to core/ - their whole job is to gather a frame, a device name and a few scalars and hand them to core/, with no protocol logic of their own. The three module-aggregate structural metrics below are not meaningful signal for such a shell, so they are disabled for this path only. Every per-function risk rule (Complex Method, Bumpy Road Ahead, Large Method, Excess Number of Function Arguments, ...) stays active and still gates these files.",
+      "rules": [
+        {
+          "name": "Overall Code Complexity",
+          "weight": 0.0
+        },
+        {
+          "name": "Primitive Obsession",
+          "weight": 0.0
+        },
+        {
+          "name": "String Heavy Function Arguments",
+          "weight": 0.0
+        }
+      ]
+    },
+    {
       "matching_content_path": "**/*",
       "matching_content_path_doc": "Repository-wide test-code tuning. 'Large Assertion Blocks' and 'Duplicated Assertion Blocks' are only emitted for unit-test code (their thresholds are unit_test_*), so down-weighting them never weakens application-code gating; it only reduces the weight of assertion-block noise inside the Rust inline #[cfg(test)] modules.",
       "rules": [
