@@ -3,8 +3,8 @@
 
 use clap::{Parser, Subcommand};
 use rise_core::{
-    create_manifest_v1, manifest_from_json, manifest_to_json, sha256_stream, verify_manifest_v1,
-    verify_signature, SigAlg,
+    create_manifest_v1, manifest_from_json, manifest_to_json, non_camera_note, sha256_stream,
+    verify_manifest_v1, verify_signature, SigAlg,
 };
 use std::fs;
 use std::fs::File;
@@ -56,6 +56,12 @@ enum Cmd {
         /// ML-DSA-65 seed file for post-quantum dual-signing.
         #[arg(long)]
         pqc_key: Option<String>,
+        /// Capture-source class recorded in the manifest:
+        /// camera|screen|obs|virtual|external_usb. Non-camera classes are
+        /// recorded so the verifier never treats the seal as camera evidence.
+        /// Omitted = camera/file seal (legacy default).
+        #[arg(long, value_parser = rise_core::normalize_capture_source)]
+        capture_source: Option<String>,
     },
     /// Verifies a manifest v1 against the frame; checks the signature with --pubkey.
     Verify {
@@ -129,6 +135,10 @@ enum Cmd {
         /// RFC 3161 TSA to stamp the manifest with before signing.
         #[arg(long)]
         tsa: Option<String>,
+        /// Capture-source class recorded in the manifest (see `sign`):
+        /// camera|screen|obs|virtual|external_usb. Omitted = camera/file seal.
+        #[arg(long, value_parser = rise_core::normalize_capture_source)]
+        capture_source: Option<String>,
     },
     /// Seals a screenshot from the REAL OS framebuffer: captures via the
     /// OS screen-capture API, hashes immediately, signs with
@@ -176,10 +186,58 @@ enum Cmd {
 }
 
 fn main() {
-    let cli = Cli::parse();
     // exit codes: 0 valid, 2 read/parse error, 3 verification failed
-    let kod = match cli.cmd {
-        Cmd::Hash { file } => hash_cmd(&file),
+    std::process::exit(dispatch(&Cli::parse().cmd));
+}
+
+fn dispatch(cmd: &Cmd) -> i32 {
+    match cmd {
+        Cmd::Sign { .. } => cmd_sign(cmd),
+        Cmd::Video { .. } => cmd_video(cmd),
+        Cmd::ScreenRecord { .. } => cmd_screen_record(cmd),
+        other => dispatch_leaf(other),
+    }
+}
+
+fn dispatch_leaf(cmd: &Cmd) -> i32 {
+    match cmd {
+        Cmd::Hash { file } => hash_cmd(file),
+        Cmd::Unpack { file } => unpack_cmd(file),
+        Cmd::Keygen { out, alg } => keygen_cmd(out, alg),
+        other => dispatch_doc(other),
+    }
+}
+
+fn dispatch_doc(cmd: &Cmd) -> i32 {
+    match cmd {
+        Cmd::Verify {
+            manifest,
+            file,
+            pubkey,
+            pqc_pub,
+        } => verify_cmd(manifest, file, pubkey.as_deref(), pqc_pub.as_deref()),
+        Cmd::Pack {
+            file,
+            manifest,
+            out,
+        } => pack_cmd(file, manifest, out),
+        Cmd::Stamp {
+            manifest,
+            tsa,
+            tsa2,
+        } => stamp_cmd(manifest, tsa, tsa2.as_deref()),
+        Cmd::Screen {
+            device,
+            key,
+            alg,
+            out,
+        } => screen_cmd(device, key.as_deref(), alg, out.as_deref()),
+        _ => 2,
+    }
+}
+
+fn cmd_sign(cmd: &Cmd) -> i32 {
+    match cmd {
         Cmd::Sign {
             file,
             device,
@@ -189,34 +247,24 @@ fn main() {
             tsa,
             tsa2,
             pqc_key,
+            capture_source,
         } => sign_cmd(&SignArgs {
-            file: &file,
-            device: &device,
+            file,
+            device,
             key: key.as_deref(),
-            alg: &alg,
+            alg,
             out: out.as_deref(),
             tsa: tsa.as_deref(),
             tsa2: tsa2.as_deref(),
             pqc_key: pqc_key.as_deref(),
+            capture_source: capture_source.as_deref(),
         }),
-        Cmd::Verify {
-            manifest,
-            file,
-            pubkey,
-            pqc_pub,
-        } => verify_cmd(&manifest, &file, pubkey.as_deref(), pqc_pub.as_deref()),
-        Cmd::Keygen { out, alg } => keygen_cmd(&out, &alg),
-        Cmd::Pack {
-            file,
-            manifest,
-            out,
-        } => pack_cmd(&file, &manifest, &out),
-        Cmd::Unpack { file } => unpack_cmd(&file),
-        Cmd::Stamp {
-            manifest,
-            tsa,
-            tsa2,
-        } => stamp_cmd(&manifest, &tsa, tsa2.as_deref()),
+        _ => 2,
+    }
+}
+
+fn cmd_video(cmd: &Cmd) -> i32 {
+    match cmd {
         Cmd::Video {
             input,
             device,
@@ -225,21 +273,23 @@ fn main() {
             alg,
             out,
             tsa,
-        } => video_cmd(
-            &input,
-            &device,
-            fps,
-            key.as_deref(),
-            &alg,
-            out.as_deref(),
-            tsa.as_deref(),
-        ),
-        Cmd::Screen {
+            capture_source,
+        } => video_cmd(&VideoArgs {
+            input,
             device,
-            key,
+            fps: *fps,
+            key: key.as_deref(),
             alg,
-            out,
-        } => screen_cmd(&device, key.as_deref(), &alg, out.as_deref()),
+            out: out.as_deref(),
+            tsa: tsa.as_deref(),
+            capture_source: capture_source.as_deref(),
+        }),
+        _ => 2,
+    }
+}
+
+fn cmd_screen_record(cmd: &Cmd) -> i32 {
+    match cmd {
         Cmd::ScreenRecord {
             start,
             stop,
@@ -249,16 +299,16 @@ fn main() {
             alg,
             tsa,
         } => screen_record_cmd(
-            start,
-            stop,
-            &out,
+            *start,
+            *stop,
+            out,
             key.as_deref(),
-            &device,
-            &alg,
+            device,
+            alg,
             tsa.as_deref(),
         ),
-    };
-    std::process::exit(kod);
+        _ => 2,
+    }
 }
 
 /// Returns the current time in milliseconds.
@@ -302,6 +352,18 @@ fn load_signer(alg: &str, key: &str) -> Result<Box<dyn rise_core::signer::Signer
     }
 }
 
+/// Parses `--alg` into a `SigAlg`; an unknown value exits 2 (fail-closed).
+fn require_alg(alg: &str) -> SigAlg {
+    match alg {
+        "es256" => SigAlg::Es256,
+        "ed25519" => SigAlg::Ed25519,
+        other => {
+            eprintln!("unknown alg: {other} (es256|ed25519)");
+            std::process::exit(2);
+        }
+    }
+}
+
 /// sign command: build manifest v1; stamp-then-sign when --tsa is given,
 /// sign when --key is given. Without both flags the unsigned path is
 /// byte-identical to before (capture.sh relies on it).
@@ -314,6 +376,7 @@ struct SignArgs<'a> {
     tsa: Option<&'a str>,
     tsa2: Option<&'a str>,
     pqc_key: Option<&'a str>,
+    capture_source: Option<&'a str>,
 }
 
 fn sign_cmd(a: &SignArgs) -> i32 {
@@ -326,22 +389,19 @@ fn sign_cmd(a: &SignArgs) -> i32 {
         tsa,
         tsa2,
         pqc_key,
+        capture_source,
     } = *a;
     // MS1 flow is single-frame: read the file
     let Ok(b) = fs::read(file) else {
         eprintln!("read error: {file}");
         return 2;
     };
-    let sig_alg = match alg {
-        "es256" => SigAlg::Es256,
-        "ed25519" => SigAlg::Ed25519,
-        _ => {
-            eprintln!("unknown alg: {alg} (es256|ed25519)");
-            return 2;
-        }
-    };
+    let sig_alg = require_alg(alg);
     // build manifest v1
     let mut m = create_manifest_v1(&[&b], device, now_ms(), sig_alg, "silver");
+    // Record a non-camera capture class BEFORE stamping/signing so the field is
+    // covered by the signature (validated at parse time, fail-closed).
+    m.capture_source = capture_source.map(str::to_string);
     // production order is stamp-then-sign: the token must be attached
     // BEFORE signing so the signature covers the token field.
     // Without --tsa this block is skipped and the manifest stays
@@ -495,12 +555,8 @@ fn verify_cmd(manifest_path: &str, file: &str, pubkey: Option<&str>, pqc_pub: Op
             };
             match verify_signature(&m, verifier.as_ref()) {
                 Ok(()) => {
-                    // Screen captures attest the capture, never the screen
-                    // content's origin — disclose it on every VALID verdict.
-                    if m.capture_source.as_deref() == Some("screen") {
-                        println!(
-                            "note: screen capture — the capture is attested, but the screen content's origin (camera, edited, or AI-generated) is NOT verified"
-                        );
+                    if let Some(note) = non_camera_note(m.capture_source.as_deref()) {
+                        println!("note: {note}");
                     }
                     // PQC verification if a verification key is provided
                     if let Some(pqc_path) = pqc_pub {
@@ -727,15 +783,28 @@ fn stamp_cmd(manifest_path: &str, tsa: &str, tsa2: Option<&str>) -> i32 {
 /// video command: extract frames with ffmpeg, hash each frame, and build
 /// a multi-frame manifest v1. Tile hashes cover ALL frames combined, in
 /// frame order (via create_manifest_v1). Signs when --key is given.
-fn video_cmd(
-    input: &str,
-    device: &str,
+struct VideoArgs<'a> {
+    input: &'a str,
+    device: &'a str,
     fps: u32,
-    key: Option<&str>,
-    alg: &str,
-    out: Option<&str>,
-    tsa: Option<&str>,
-) -> i32 {
+    key: Option<&'a str>,
+    alg: &'a str,
+    out: Option<&'a str>,
+    tsa: Option<&'a str>,
+    capture_source: Option<&'a str>,
+}
+
+fn video_cmd(a: &VideoArgs) -> i32 {
+    let VideoArgs {
+        input,
+        device,
+        fps,
+        key,
+        alg,
+        out,
+        tsa,
+        capture_source,
+    } = *a;
     // ffmpeg must be on PATH; shell out via std::process::Command
     if Command::new("ffmpeg").arg("-version").output().is_err() {
         eprintln!("ffmpeg not found: install ffmpeg to seal videos (e.g. `brew install ffmpeg`)");
@@ -749,14 +818,7 @@ fn video_cmd(
         eprintln!("--fps must be >= 1");
         return 2;
     }
-    let sig_alg = match alg {
-        "es256" => SigAlg::Es256,
-        "ed25519" => SigAlg::Ed25519,
-        _ => {
-            eprintln!("unknown alg: {alg} (es256|ed25519)");
-            return 2;
-        }
-    };
+    let sig_alg = require_alg(alg);
     // unique temp dir for the extracted frames
     let tmp = std::env::temp_dir().join(format!("rise-video-{}-{}", std::process::id(), now_ms()));
     if let Err(e) = fs::create_dir_all(&tmp) {
@@ -831,6 +893,9 @@ fn video_cmd(
     // build the multi-frame manifest (tiles span all frames)
     let refs: Vec<&[u8]> = frames.iter().map(|f| &f[..]).collect();
     let mut m = create_manifest_v1(&refs, device, now_ms(), sig_alg, "silver");
+    // Non-camera class (e.g. obs) is recorded before stamp/sign so the sealed
+    // manifest is covered by the signature (validated at parse time).
+    m.capture_source = capture_source.map(str::to_string);
     // stamp-then-sign when a TSA is given; a TSA outage downgrades the
     // evidence (no RFC 3161 token) but must not lose the sealed recording
     if let Some(tsa_url) = tsa {
@@ -922,14 +987,7 @@ fn video_cmd(
 /// which is the "real screen" proof: the pixels came from the OS
 /// compositor, not from a file or an AI generator.
 fn screen_cmd(device: &str, key: Option<&str>, alg: &str, out: Option<&str>) -> i32 {
-    let sig_alg = match alg {
-        "es256" => SigAlg::Es256,
-        "ed25519" => SigAlg::Ed25519,
-        _ => {
-            eprintln!("unknown alg: {alg} (es256|ed25519)");
-            return 2;
-        }
-    };
+    let sig_alg = require_alg(alg);
     // Unique temp dir for the raw capture plus the JPEG conversion.
     let tmp = std::env::temp_dir().join(format!("rise-screen-{}-{}", std::process::id(), now_ms()));
     if let Err(e) = fs::create_dir_all(&tmp) {
@@ -1074,6 +1132,19 @@ fn detect_avfoundation_screen() -> Option<u32> {
     None
 }
 
+/// Blocks until the recording's size stops growing (ffmpeg flush), capped at ~20s.
+fn wait_for_size_settle(path: &str) {
+    let mut prev: i64 = -1;
+    for _ in 0..20 {
+        std::thread::sleep(std::time::Duration::from_secs(1));
+        let sz = fs::metadata(path).map(|m| m.len() as i64).unwrap_or(prev);
+        if sz == prev {
+            return;
+        }
+        prev = sz;
+    }
+}
+
 /// screen-record command: --start spawns a background ffmpeg avfoundation
 /// capture into `<out>.part` (a crash never exposes a partial sealed file),
 /// stashing the seal parameters in the pid file. --stop kills ffmpeg,
@@ -1183,31 +1254,22 @@ fn screen_record_cmd(
             out_path.clone()
         };
         // Let ffmpeg flush and the file settle before hashing frames.
-        let mut prev: i64 = -1;
-        for _ in 0..20 {
-            std::thread::sleep(std::time::Duration::from_secs(1));
-            let sz = fs::metadata(&rec_path)
-                .map(|m| m.len() as i64)
-                .unwrap_or(prev);
-            if sz == prev {
-                break;
-            }
-            prev = sz;
-        }
+        wait_for_size_settle(&rec_path);
         let rvid_out = std::path::Path::new(&out_path)
             .with_extension("rvid")
             .to_string_lossy()
             .into_owned();
         eprintln!("sealing {rec_path} -> {rvid_out}");
-        let code = video_cmd(
-            &rec_path,
-            &stashed_device,
-            1,
-            stashed_key.as_deref(),
-            &stashed_alg,
-            Some(&rvid_out),
-            stashed_tsa.as_deref(),
-        );
+        let code = video_cmd(&VideoArgs {
+            input: &rec_path,
+            device: &stashed_device,
+            fps: 1,
+            key: stashed_key.as_deref(),
+            alg: &stashed_alg,
+            out: Some(&rvid_out),
+            tsa: stashed_tsa.as_deref(),
+            capture_source: Some("screen"),
+        });
         if code == 0 {
             let _ = fs::remove_file(&rec_path);
             eprintln!("done: {rvid_out}");

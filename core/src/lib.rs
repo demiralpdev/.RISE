@@ -818,3 +818,79 @@ mod tests {
         .unwrap();
     }
 }
+
+/// Capture-source classes accepted by the CLI `--capture-source` flag.
+/// Non-camera classes are recorded so no verifier treats the seal as camera
+/// evidence; an unknown value is rejected before signing (fail-closed).
+pub const CAPTURE_SOURCES: [&str; 5] = ["camera", "screen", "obs", "virtual", "external_usb"];
+
+/// Normalizes/validates a `--capture-source` value. Unknown => `Err` (the CLI
+/// exits 2 without sealing). Used as the clap `value_parser`, so validation
+/// happens before any command runs.
+pub fn normalize_capture_source(src: &str) -> Result<String, String> {
+    let v = src.trim().to_ascii_lowercase();
+    if CAPTURE_SOURCES.contains(&v.as_str()) {
+        Ok(v)
+    } else {
+        Err(format!(
+            "unknown --capture-source: {src} (camera|screen|obs|virtual|external_usb)"
+        ))
+    }
+}
+
+/// Origin disclaimer for a non-camera capture class, printed on every VALID
+/// verdict. Mirrors verify-web's `_NON_CAMERA_SOURCES` so no surface can present
+/// a non-camera seal as camera evidence. Returns `None` for `camera`, for no
+/// source (legacy camera/file seal), and for unknown values.
+pub fn non_camera_note(src: Option<&str>) -> Option<&'static str> {
+    match src {
+        Some("screen") => Some(
+            "screen capture — the capture is attested, but the screen content's origin (camera, edited, or AI-generated) is NOT verified",
+        ),
+        Some("obs") => Some(
+            "software/virtual-camera capture (OBS) — the recording is attested, but it does NOT prove the pixels came from a real camera sensor",
+        ),
+        Some("virtual") => Some(
+            "virtual camera — the frames come from a software device, not a real camera sensor; this is not camera evidence",
+        ),
+        Some("external_usb") => Some(
+            "external USB camera — the capture is attested, but an external source can be fed arbitrary video; camera evidence is capped",
+        ),
+        _ => None,
+    }
+}
+
+#[cfg(test)]
+mod capture_source_tests {
+    use super::*;
+
+    /// The 4 non-camera classes the verifiers must disclose.
+    const NON_CAMERA: [&str; 4] = ["screen", "obs", "virtual", "external_usb"];
+
+    #[test]
+    fn non_camera_classes_carry_a_disclaimer() {
+        for src in NON_CAMERA {
+            let note = non_camera_note(Some(src));
+            assert!(note.is_some(), "{src} must carry an origin disclaimer");
+            assert!(!note.unwrap().is_empty());
+        }
+    }
+
+    #[test]
+    fn camera_absent_and_unknown_carry_no_disclaimer() {
+        assert!(non_camera_note(Some("camera")).is_none());
+        assert!(non_camera_note(None).is_none());
+        assert!(non_camera_note(Some("bogus")).is_none());
+    }
+
+    #[test]
+    fn every_disclaimed_class_is_an_accepted_capture_source() {
+        for src in NON_CAMERA {
+            assert!(CAPTURE_SOURCES.contains(&src), "{src} must be accepted");
+            assert!(normalize_capture_source(src).is_ok());
+        }
+        for src in ["camera", "screen", "obs", "virtual", "external_usb"] {
+            assert_eq!(non_camera_note(Some(src)).is_some(), src != "camera");
+        }
+    }
+}
