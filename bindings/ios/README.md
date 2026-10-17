@@ -2,8 +2,10 @@
 
 > HONESTY HEADER — STUB, NOT device-tested.
 > - `capture/Capture.swift` (I-101): `swiftc -typecheck` PASS on this macOS
->   machine (2026-10-10). iOS-only device types (dual/triple camera) are
->   deliberately not listed so the check passes; noted in code.
+>   machine (2026-10-10). iOS-only device types (ultra-wide / telephoto) are
+>   listed inside `#if os(iOS)` guards (marked `// IOS-ONLY`) so the macOS
+>   typecheck still passes. Device selection accepts built-in lenses only;
+>   `.external`, `.continuityCamera` and any virtual camera are rejected.
 > - `attest/Attest.swift` (I-102): `swiftc -typecheck` PASS on this macOS
 >   machine (2026-10-10) via `canImport(DeviceCheck)` guard. Real App Attest
 >   receipt validation requires a physical iPhone + Apple servers — never run.
@@ -17,8 +19,9 @@ Responsibility: capture the frame, send it to `core/`. No signing logic here.
 
 ## Files
 
-- `capture/Capture.swift` — `RiseCapture.pickDevice()` (USB/UVC first, back
-  wide-angle default), `ensurePermission()`, `captureSingleFrame(to:)`.
+- `capture/Capture.swift` — `RiseCapture.pickDevice()` (built-in only: back
+  wide-angle, then front; external/virtual rejected by
+  `isAcceptableCameraSource()`), `ensurePermission()`, `captureSingleFrame(to:)`.
   Mirrors `bindings/macos/capture/capture.swift` (priority, permission wait,
   1s exposure settle, JPEG out, manifest via core CLI note).
 - `attest/Attest.swift` — Secure Enclave P-256 key holder (`RiseKeystore`) +

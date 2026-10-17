@@ -1,7 +1,9 @@
 # macOS Capture (minimal)
 
 Captures one frame -> `../../target/frame-001.jpg` (i.e. `bindings/target/`).
-Priority: **Rapoo USB** if present, otherwise FaceTime HD.
+Priority: the **built-in camera** only. External/virtual sources (Rapoo USB,
+OBS Virtual Camera) are rejected by `isAcceptableCameraSource()`; the system
+default video device is only used if it passes that gate.
 
 ## Run
 

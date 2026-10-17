@@ -1,8 +1,16 @@
 # Windows Binding (thin shell)
 
-> HONESTY HEADER: NOT compiled, NOT tested — STUB. No Windows toolchain on
-> this machine; static review only. Files: `capture/capture.cpp` (W-101),
-> `attest/attest.cpp` (W-102).
+> HONESTY HEADER: the C++ sources were compiled and run once on
+> DESKTOP-1LD8TK1 (2026-10-10, see `bindings/MATRIX.md`). There is no Windows
+> toolchain on this machine, so the 2026-10-17 Rank 1 source-gate edit below is
+> static-only: it has NOT been compiled or run. Files: `capture/capture.cpp`
+> (W-101), `attest/attest.cpp` (W-102).
+>
+> The `.ps1` files, by contrast, ARE syntax-verified here: PowerShell 7.6.7
+> (official `osx-arm64` tarball, sha256 checked against the release's own
+> `hashes.sha256`) parses `daemon/windows/auto-seal.ps1` and
+> `system-format/windows/install.ps1` with 0 errors. Syntax only — no line of
+> them has been executed.
 
 Responsibility: capture the frame, send it to `core/`. No signing logic here.
 
@@ -10,14 +18,17 @@ Responsibility: capture the frame, send it to `core/`. No signing logic here.
 - Task: camera frame -> core hash/attest call
 - Capture: `capture/capture.cpp` — MediaFoundation `IMFSourceReader` single
   frame, raw YUY2 path (1280x720 preferred, native-type fallback recorded in
-  `<output>.meta`); USB FriendlyName priority (external webcam); MJPEG/H264
-  never decoded before hashing.
+  `<output>.meta`); built-in camera priority, external USB second, a virtual
+  source (OBS/NDI/DroidCam or a ROOT/SWD-enumerated device) is rejected with
+  `ERR_VIRTUAL_CAMERA_REJECTED`; the sidecar records
+  `capture_source=camera|external_usb`; MJPEG/H264 never decoded before hashing.
 - Attest: `attest/attest.cpp` — platform key via NCrypt P-256 (key never
-  leaves TPM/Pluton) + VBS status check; prints `TIER=<...>` + reason.
+  leaves TPM/Pluton) + VBS enablement check (running state is NOT verified);
+  prints `TIER=<...>` + reason.
 
 ## Gold-gate checklist (wired to `attest/attest.cpp::DecideTier`)
 
-- No gold without a TPM 2.0 key + VBS confirmation.
+- No gold without a TPM 2.0 key + VBS enablement in the registry.
 - No TPM/VBS -> silver-only.
 - Weak attestation (no quote / key outside TPM) + clean chain = gold-L2 at
   most; silver for USB sources.

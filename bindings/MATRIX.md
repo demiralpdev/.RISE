@@ -3,7 +3,7 @@
 > Status document, not code. Every claim below is backed by an on-disk check
 > (`ls bindings/*/capture bindings/*/attest`, `ls bindings/target/`).
 > Anything not run on real hardware is marked **STUB** explicitly.
-> Date: 2026-10-14. Machine: macOS (author machine).
+> Date: 2026-10-14 (table), 2026-10-17 (Rank 1 update). Machine: macOS (author machine).
 
 ## Status table
 
@@ -15,7 +15,7 @@
 | iOS | CORE REAL - Rust core built for aarch64-apple-ios + aarch64-apple-ios-sim (Xcode 27.0; DEVELOPER_DIR + SDKROOT gotchas documented in XCFRAMEWORK.md); `ios_harness.swift` RAN in the iPhone 17e SIMULATOR: hash matches Mac byte-for-byte; XCFramework assembled (ios-arm64 + ios-arm64-simulator slices). `capture/Capture.swift` compiles, never ran | STUB - `attest/Attest.swift` exists, never ran (needs iPhone + Apple servers) | REAL for core in the SIMULATOR (hash match); NOT RUN on a real iPhone | real run (iOS simulator) + real build (XCFramework) | gold-L2/L4 candidate by design (SE + App Attest), unproven on device |
 | Linux | REAL on the Nobara laptop (2026-10-10): `cargo test` 33/33, real camera frame captured (HP True Vision, 5324-byte JPEG via ffmpeg v4l2), keygen+sign+live FreeTSA stamp, `VALID (signed)` exit 0 on-device; Docker container 33/33 earlier | REAL - TPM2 detected via `attest/detect.sh` (TPM2_PRESENT=yes, report-only) | REAL on-device - laptop-signed manifest verified on the laptop; cross-Mac check REAL: laptop-signed manifest pulled over SSH and verified on the Mac `VALID (signed)` (2026-10-10) (no sshd on Nobara yet) | real run (user-executed bringup on real hardware) | silver, always (gold path closed on Linux by policy; TPM2 present and detected) |
 | Android | CORE REAL — on-device SHA-256 matches Mac; device keygen+sign `VALID (signed)` (2026-10-10); JNI dlopen OK. PHOTO e2e REAL FULL CHAIN: 4K capture → JNI hash → KeyStore sign → Mac cross-verify CHAIN OK (2026-10-11). **VIDEO e2e REAL FULL CHAIN (2026-10-14)**: in-app Camera2+MediaRecorder 1080p H264 recording → 14 frames extracted+hashed on device → 56 tiles → Merkle root independently recomputed on Mac: **MATCH** → 14/14 frame hashes match manifest in order → ES256 signature openssl-verified `Verified OK` under device TEE key (raw r‖s → DER) → `.rvid` plays in ffprobe, uuid-box at tail (5145-byte overhead = manifest + box header) → `rise-core unpack` exit 0 (14 frames, 56 tiles) → timestamp real device millis (`...33867`, not rounded). StrongBox unavailable (Xiaomi) → TEE fallback works and logs the downgrade | STUB — `RiseKeystore.kt` real (TEE fallback proven in the video chain); RiseIntegrity.kt, RiseAssurance.kt never run | REAL e2e BOTH photo (`.rise`, 2026-10-11) and video (`.rvid`, 2026-10-14): full chain on-device, cross-verified on Mac | real run (adb device, release binary, openssl, ffprobe, rise-core) | capture/attest tiers still design-only: STRONG missing → L2/silver; BASIC+clean = L2 max; mock/GPS-off = silver; broken = red |
-| Windows | CORE+CAPTURE REAL - `cargo test` 33/33 green on DESKTOP-1LD8TK1 (192.168.111.7, SSH user `rise`); `capture.cpp` compiled+run on the PC (2026-10-10): MediaFoundation SourceReader, HP True Vision HD Camera (internal, usb=0), YUY2 1280x720, 1843200 bytes written + hashed by the PC rise-core (`3f651575...`) | REAL GOLD-L2 - `attest.cpp` compiled+run (2026-10-10): TPM present, `RISE-device-key-v2` P-256 created+finalized in TPM via NCrypt, VBS RUNNING (status 2, HVCI active; Secure Boot OFF -> relaxed requirement, noted) -> `TIER=gold-L2` | REAL e2e - `keygen -> sign --key --tsa (live FreeTSA) -> verify --pubkey` printed `VALID (signed)` exit 0 (2026-10-10) | real run (tests + attest + capture + e2e over SSH) | gold-L2 PROVEN (VBS running without Secure Boot - weaker boot chain, noted); L4 unreachable by design, PC-signed frame+manifest (live FreeTSA) pulled to Mac: hash matched byte-for-byte and verified `VALID (signed)` on the Mac (2026-10-10) |
+| Windows | CORE+CAPTURE REAL - `cargo test` 33/33 green on DESKTOP-1LD8TK1 (192.168.111.7, SSH user `rise`); `capture.cpp` compiled+run on the PC (2026-10-10): MediaFoundation SourceReader, HP True Vision HD Camera (internal, usb=0), YUY2 1280x720, 1843200 bytes written + hashed by the PC rise-core (`3f651575...`) | REAL GOLD-L2 - `attest.cpp` compiled+run (2026-10-10): TPM present, `RISE-device-key-v2` P-256 created+finalized in TPM via NCrypt, VBS enablement requested in the registry (`EnableVirtualizationBasedSecurity=1`). The probe does NOT verify the running/HVCI state (WMI `status==2` is an open TODO, see F7 in the source) and emits no TPM signature/quote -> `TIER=gold-L2` | REAL e2e - `keygen -> sign --key --tsa (live FreeTSA) -> verify --pubkey` printed `VALID (signed)` exit 0 (2026-10-10) | real run (tests + attest + capture + e2e over SSH) | gold-L2 on the strength of TPM key + VBS enablement request; L4 unreachable by design, PC-signed frame+manifest (live FreeTSA) pulled to Mac: hash matched byte-for-byte and verified `VALID (signed)` on the Mac (2026-10-10) |
 
 Proof-type legend: **real run** = artifacts on disk from an actual run;
 **static** = source exists + a static check is reported (typecheck / `bash -n`)
@@ -47,8 +47,10 @@ gold gate ("no gold without a Secure Enclave key") caps it at silver today.
 
 **iOS — STUB, static only.**
 Both Swift files exist and the README reports `swiftc --typecheck` PASS on
-macOS (2026-10-10, iOS-only camera types deliberately unlisted). No device run,
-no App Attest receipt validation, no frame verified with core — e2e is NOT RUN.
+macOS (2026-10-10). iOS-only camera types are now listed inside `#if os(iOS)`
+guards (`// IOS-ONLY`, see PLAN.md:188) and device selection accepts built-in
+lenses only. No device run, no App Attest receipt validation, no frame verified
+with core — e2e is NOT RUN.
 
 **Linux — REAL on the Nobara laptop (capture + full chain + cross-Mac).**
 The user ran bringup_nobara.sh on real hardware (Nobara, Fedora-based): 33/33
@@ -64,9 +66,13 @@ adb: on-device SHA-256 matched the Mac byte-for-byte, and a keypair generated +
 signed ON THE DEVICE verified as `VALID (signed)` on the Mac (cross-device proof).
 The JNI bridge (librise_jni.so) was NDK-compiled via CMake, symbol-verified with
 llvm-nm, and dlopen-loaded on the device (JNI_SYMBOL_OK); calling it is now PROVEN in an
-app process via the minimal APK (bindings/android/app/: HASH matches Mac, 2026-10-10). The Kotlin capture/attest files now compile against
-android-35 (kotlinc 2.0.21 + JDK 21, 20 classes, 0 errors) - Play Integrity
-gating and the capture flow still need a real app run.
+app process via the minimal APK (bindings/android/app/: HASH matches Mac, 2026-10-10).
+On 2026-10-17 the whole module (incl. the Rank 1 source gate) compiled against
+android-35 (kotlinc 2.3.20 + JRE 26.0.1, 31 classes, 0 errors), and that
+guard-inclusive APK was installed and its capture path was driven end-to-end on
+the phone: a photo seal and a 14-frame video seal, both `capture_source:"camera"`,
+independently re-verified on the Mac. Play Integrity / StrongBox gating
+(`RiseIntegrity.kt`, `RiseAssurance.kt`) is still never-run.
 
 **Windows — CORE+ATTEST REAL, capture STUB.**
 Rust core fully green on the real PC (33/33 tests, MSVC Build Tools installed,
@@ -79,6 +85,27 @@ frame (1280x720, 1843200 bytes) from the HP True Vision camera; the frame was
 signed on the PC (live FreeTSA stamp) and verified on the Mac as `VALID (signed)`
 with a byte-for-byte hash match - a full cross-platform evidence chain.
 After enabling VBS (3 reboots, Secure Boot relaxed because it is OFF in BIOS),
-the attest probe reached gold-L2: P-256 key in the TPM + HVCI running. The
-VBS transition orphaned the first TPM key (renamed to -v2).
+the attest probe reached gold-L2: P-256 key in the TPM plus a VBS enablement
+request in the registry. The probe verifies enablement, not running state, so
+"HVCI active" is not something this code can observe. The VBS transition
+orphaned the first TPM key (renamed to -v2).
 E_POINTER gotcha documented in the source (ReadSample out-params must be non-NULL).
+
+## Update 2026-10-17 — Rank 1 capture-source gate
+
+Threat closed: a virtual/loopback source (OBS Virtual Camera and friends) could
+previously be selected first and enter a camera-evidence flow. Every binding now
+gates the source, and non-camera classes carry an explicit disclaimer downstream.
+
+| OS | Change | Evidence |
+|---|---|---|
+| macOS | `isAcceptableCameraSource()` — built-in lens only; system default accepted only if it passes the gate; USB/FaceTime name preference removed | **real run on this Mac**: enumerated 2 devices -> `ACCEPT BuiltInWideAngleCamera (FaceTime HD)`, `REJECT External (OBS Virtual Camera)`; `swiftc -typecheck` rc 0 |
+| iOS | same predicate, back then front built-in priority; ultra-wide/telephoto inside `#if os(iOS)` | `swiftc -typecheck` rc 0 (static only, as before) |
+| Windows | `IsVirtualSource()` — OBS/NDI/DroidCam name match plus ROOT/SWD bus rejection; built-in preferred over USB; fails with `ERR_VIRTUAL_CAMERA_REJECTED`; sidecar now records `capture_source=camera|external_usb` | **static only** — no Windows toolchain on this machine, so this edit is NOT compiled or run by this session |
+| Android | `sourceRejection()` — external lens facing, legacy/external hardware level, absent physical sensor size, or no finite focal length fails closed with `VirtualCameraRejected` | device facts read over adb from the attached M2103K19C: 4 cameras, none LEGACY, back camera 0 is FULL/6.40x4.80/4.695 -> ACCEPTED, so the gate does not false-positive on this phone; the **whole Android module** (app + capture + attest) compile-verified against android-35 (kotlinc 2.3.20 + JRE 26.0.1, rc 0, 31 classes); a guard-inclusive APK was rebuilt, installed and launched on the attached phone — the installed `base.apk` sha256 equals the local build (`3cbe2d08…`) — and **the button-driven capture path WAS driven on-device**: it produced a photo seal (`frame-001.rise`) and a 14-frame video seal (`video-001.mp4.rvid`), both with `capture_source:"camera"` (the guard ACCEPTED cam0, as expected — this phone has no LEGACY/EXTERNAL camera, so the reject path is not exercisable here). The Mac independently re-derived the video chain: 14/14 frame hashes match in order, 56/56 tile hashes match, the Merkle root recomputes to `d898dffbe…`, and the ES256 signature verifies `Verified OK` with `video-001.pub` (openssl, the canonical form omits the `signature` key per `skip_serializing_if`). Note: `rise-core verify <MANIFEST> <FRAME>` is single-frame, so it reports `FrameMismatch` (rc 3) on a 14-frame manifest — the multi-frame chain is checked by recompute+openssl, not by that CLI path |
+| Linux | `cam_class.sh` + `capture.sh` wiring: built-in required, virtual refused with `ERR_VIRTUAL_CAMERA_REJECTED` (exit 10), external USB only as fallback | `test_cam_class.sh` 6/6 ok, rc 0 |
+
+Also on 2026-10-17: `core`/`verify.py`/`verify.js` tag non-camera capture
+(`--capture-source`) and every surface prints a matching disclaimer; gold now
+requires a hardware-backed key from the **pinned** registry, never from the
+manifest's own claim (`verify-web/tests/test_badge.py`, 82 tests pass).

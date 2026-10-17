@@ -111,7 +111,7 @@ Source of truth: [bindings/MATRIX.md](bindings/MATRIX.md). Summary as of 0.2.0:
 | OS | Capture | Attest | End to end | Tier ceiling |
 |---|---|---|---|---|
 | macOS | REAL (AVCapture frame on disk) | Stub (no Secure Enclave code yet) | REAL (capture to manifest) | Silver max until attest lands |
-| Windows | REAL (MediaFoundation frame, hashed on the PC) | REAL gold-L2 (TPM P-256 key, VBS running) | REAL (keygen, live FreeTSA stamp, `VALID (signed)`) | gold-L2 proven, L4 unreachable by design |
+| Windows | REAL (MediaFoundation frame, hashed on the PC) | REAL gold-L2 (TPM P-256 key, VBS enablement requested) | REAL (keygen, live FreeTSA stamp, `VALID (signed)`) | gold-L2 proven, L4 unreachable by design |
 | Android | REAL core on device (on-device SHA256 matches, JNI bridge loads in an APK) | Stub (StrongBox and Play Integrity not run) | REAL for core CLI and in-app hash | L2 max by design until STRONG verdict |
 | Linux | REAL on real hardware (camera frame, keygen, live stamp, `VALID (signed)`) | REAL report-only (TPM2 detected) | REAL on device plus cross-check on macOS | Silver always (gold path closed by policy) |
 | iOS | REAL core in simulator (hash matches byte for byte, XCFramework builds) | Stub (needs a real iPhone and Apple servers) | REAL in simulator, not run on a device | Unproven on device, L2/L4 candidate by design |
@@ -135,9 +135,15 @@ push (CI-based; enable via the SONAR_TOKEN secret).
 
 [CodeScene](https://codescene.io/projects/86246) tracks Code Health on every push. A local pre-commit gate
 (`.githooks/pre-commit`, enable once with `git config core.hooksPath .githooks`)
-blocks commits that lower Code Health via `cs delta --git-hook --staged`, and
-test-code-only assertion noise is down-weighted in
-[`.codescene/code-health-rules.json`](.codescene/code-health-rules.json). Install the
+blocks commits that lower Code Health via `cs delta --git-hook --staged`. Two
+path-scoped tunings live in
+[`.codescene/code-health-rules.json`](.codescene/code-health-rules.json): test-code-only
+assertion noise is down-weighted repo-wide, and the thin OS-binding shells under
+`bindings/**` are exempt from the three module-aggregate structural metrics
+(Overall Code Complexity, Primitive Obsession, String Heavy Function Arguments) —
+those describe a whole file and carry no signal for a flat capture/attest
+passthrough, while every per-function risk rule (Complex Method, Bumpy Road,
+Large Method, Excess Function Arguments) stays active there. Install the
 CLI with `curl https://downloads.codescene.io/enterprise/cli/install-cs-tool.sh | sh -s -- -y`,
 then sign in with `cs auth login`.
 

@@ -1,8 +1,20 @@
 # Android Binding (thin shell)
 
-> STUB — NOT compiled/tested. No Android SDK on this machine, so none of the
-> Kotlin below has been typechecked or run. Code compiles by inspection only.
-> Status: draft shell for review, not a working binding.
+> Compile-verified AND run on a device (capture path only). The whole module
+> (app + `capture/` + `attest/` + `com/rise/core/RiseCore.kt`) compiles against
+> android-35 with kotlinc 2.3.20 (Android Studio's bundled compiler) + JRE 26.0.1,
+> `rc 0`, 31 classes (2026-10-17). The app is framework-only, so a bare
+> `android.jar` classpath is enough — no AndroidX. That run caught and fixed an
+> `isNullOrEmpty()` misuse on `FloatArray?` in the Rank 1 source gate, which would
+> otherwise have failed to compile. The guard-inclusive build then RAN on the
+> attached M2103K19C: the button-driven capture path produced a photo seal and a
+> 14-frame video seal, both `capture_source:"camera"`, cross-verified on the Mac
+> (see `app/README.md`). The Kotlin glue was afterwards refactored for code
+> health (pure extraction — the Rank 1 source gate split into small helpers, no
+> behavior change); this revision recompiles `rc 0`, 31 classes, but the
+> device-run binary predates that refactor. `attest/` (Play Integrity, StrongBox) is still never-run;
+> the reject path is unexercised because this phone exposes no virtual/external
+> camera.
 
 Responsibility: capture the frame, send it to `core/`. No signing logic here.
 
@@ -14,7 +26,11 @@ Responsibility: capture the frame, send it to `core/`. No signing logic here.
 ## Files
 
 - `capture/RiseCapture.kt` (A-101): Camera2 single-frame, raw YUV_420_888
-  path, back-camera preferred, one-shot session then close.
+  path, back-camera preferred, one-shot session then close. Rank 1 source gate:
+  a camera is only selected when it passes `sourceRejection()` — an external
+  lens facing, a legacy/external hardware level, an absent physical sensor size
+  or no finite focal length fails closed with
+  `CaptureError.VirtualCameraRejected` (`ERR_VIRTUAL_CAMERA_REJECTED`).
 - `capture/RiseCameraPermission.kt` (A-101): CAMERA check -> rationale ->
   system request -> app-settings deep-link
   (`ACTION_APPLICATION_DETAILS_SETTINGS`).
