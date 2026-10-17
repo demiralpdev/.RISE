@@ -1,0 +1,14 @@
+#!/bin/sh
+# CodeScene Code Health gate for staged changes.
+#
+# Blocks the commit when the staged delta lowers Code Health or introduces new
+# unhealthy code; exits 0 (and stays silent) when everything is fine.
+#
+# Enable once per clone (hooks are not tracked under .git/):
+#   git config core.hooksPath .githooks
+#
+# Skips silently when the CodeScene CLI is not installed, so contributors
+# without it are not blocked.
+if command -v cs > /dev/null 2>&1; then
+    cs delta --git-hook --staged
+fi

@@ -6,6 +6,7 @@
 [![Rust tests](https://img.shields.io/badge/rust_tests-36_passed_3_ignored-blue)](https://github.com/demiralpdev/.RISE/tree/main/core)
 [![License](https://img.shields.io/badge/license-Apache--2.0-green)](LICENSE)
 [![Release](https://img.shields.io/github/v/release/demiralpdev/.RISE)](https://github.com/demiralpdev/.RISE/releases)
+[![CodeScene Average Code Health](https://codescene.io/projects/86246/status-badges/average-code-health)](https://codescene.io/projects/86246)
 
 .rise is an open source photo and video authenticity protocol. It hashes each camera frame at shutter time, signs the hash with the device key, stamps it with an independent timestamp, and seals the result into the file itself, so anyone can later check whether a picture is original or has been altered.
 
@@ -130,6 +131,14 @@ full history), a 3-target cross-compile matrix, Rust+Python coverage, and a
 deterministic replay of the committed fuzz corpus. SonarCloud analyzes every
 push (CI-based; enable via the SONAR_TOKEN secret).
 
+[CodeScene](https://codescene.io/projects/86246) tracks Code Health on every push. A local pre-commit gate
+(`.githooks/pre-commit`, enable once with `git config core.hooksPath .githooks`)
+blocks commits that lower Code Health via `cs delta --git-hook --staged`, and
+test-code-only assertion noise is down-weighted in
+[`.codescene/code-health-rules.json`](.codescene/code-health-rules.json). Install the
+CLI with `curl https://downloads.codescene.io/enterprise/cli/install-cs-tool.sh | sh -s -- -y`,
+then sign in with `cs auth login`.
+
 The format's untrusted-input parsers are continuously fuzzed
 (`cargo +nightly fuzz run parsers`, ASan; 1.25M executions clean) and
 mutation-tested — the signature-verification paths in `core/src/signer.rs`
@@ -147,6 +156,8 @@ phantom-box mechanism (F1).
   verify-web/      Verifier and badge API (FastAPI) plus trust, report, and attack tests
   spec/            Protocol specs: RISE-01, threat model, assurance levels, solutions
   package/         npm wrapper (@univerisr-ai/rise-cli)
+  .codescene/      CodeScene Code Health rules and quality gates
+  .githooks/       Tracked git hooks (CodeScene pre-commit gate)
   PLAN.md          Unified build plan with milestones and acceptance gates
   ROADMAP.md       Phase 0 to 6 roadmap
 ```

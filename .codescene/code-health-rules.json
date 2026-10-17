@@ -1,0 +1,19 @@
+{
+  "usage": "Persist this file inside your repositories as .codescene/code-health-rules.json. Keep only the rules you want to override. A weight of 1.0 is the default, 0.5 keeps the rule active at 50% impact, 0.0 disables it. Rule sets are evaluated top-to-bottom; the first matching rule set wins and later sets are ignored (they do not merge).",
+  "rule_sets": [
+    {
+      "matching_content_path": "**/*",
+      "matching_content_path_doc": "Repository-wide test-code tuning. 'Large Assertion Blocks' and 'Duplicated Assertion Blocks' are only emitted for unit-test code (their thresholds are unit_test_*), so down-weighting them never weakens application-code gating; it only reduces the weight of assertion-block noise inside the Rust inline #[cfg(test)] modules.",
+      "rules": [
+        {
+          "name": "Large Assertion Blocks",
+          "weight": 0.5
+        },
+        {
+          "name": "Duplicated Assertion Blocks",
+          "weight": 0.5
+        }
+      ]
+    }
+  ]
+}
