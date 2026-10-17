@@ -15,8 +15,10 @@
 // Run:
 //   capture.exe [output-path]   (default: ..\..\target\frame-001.yuy2)
 //
-// Device priority: FriendlyName containing USB/UVC/Rapoo first (external
-// webcam = silver tier by default), else the first video source.
+// Source policy (Rank 1): a virtual/software source is REJECTED, never
+// captured — OBS Virtual Camera can replay any file, so it must not enter a
+// capture flow. An integrated camera is preferred over an external USB one;
+// an external source stays silver-capped.
 // Preferred type YUY2 1280x720; on rejection the device's native type is
 // used and the actual subtype/stride recorded in the sidecar. MJPEG/H264
 // are NOT decoded — hash the raw bytes at shutter, no re-encode before hashing.
@@ -26,6 +28,7 @@
 #include <mfidl.h>
 #include <mfreadwrite.h>
 
+#include <algorithm>
 #include <cstdint>
 #include <cstdio>
 #include <cstring>
@@ -68,6 +71,34 @@ bool IsUsbSource(const std::string& friendly_name) {
          ContainsCi(friendly_name, "Rapoo");
 }
 
+// True when the FriendlyName matches a known virtual/software capture product.
+// Deliberately name-based rather than driver-based: it over-rejects rather than
+// trusting a loopback feed.
+bool IsVirtualName(const std::string& friendly_name) {
+  static const char* const kVirtualNames[] = {
+      "obs virtual camera", "virtual camera",   "droidcam",      "iriun",
+      "epoccam",            "manycam",         "screen capture", "snap camera",
+      "ndi"};
+  return std::any_of(std::begin(kVirtualNames), std::end(kVirtualNames),
+                     [&](const char* needle) {
+                       return ContainsCi(friendly_name, needle);
+                     });
+}
+
+// True when the symbolic link enumerates on a loopback bus (ROOT/SWD) rather
+// than a hardware bus. Fail closed only when the link is actually present.
+bool IsLoopbackLink(const std::string& symbolic_link) {
+  if (symbolic_link.empty()) return false;
+  return _strnicmp(symbolic_link.c_str(), "\\\\?\\root#", 9) == 0 ||
+         _strnicmp(symbolic_link.c_str(), "\\\\?\\swd#", 9) == 0;
+}
+
+// True when the source is a software/loopback device rather than hardware.
+bool IsVirtualSource(const std::string& friendly_name,
+                     const std::string& symbolic_link) {
+  return IsVirtualName(friendly_name) || IsLoopbackLink(symbolic_link);
+}
+
 std::string Narrow(const wchar_t* w) {
   if (w == nullptr) return std::string();
   int n = WideCharToMultiByte(CP_UTF8, 0, w, -1, nullptr, 0, nullptr, nullptr);
@@ -84,11 +115,18 @@ const char* SubtypeName(const GUID& g) {
   return "other";
 }
 
+struct FrameMeta {
+  const char* subtype;
+  uint32_t width;
+  uint32_t height;
+  uint32_t stride;
+  bool usb;
+};
+
 // Writes raw bytes + a <path>.meta sidecar (subtype, size, source info).
 // core/ hashes the raw file only; the sidecar is informational.
 bool WriteFrame(const char* path, const uint8_t* bytes, size_t len,
-                const char* subtype, uint32_t width, uint32_t height,
-                uint32_t stride, const std::string& source, bool usb) {
+                const FrameMeta& meta, const std::string& source) {
   FILE* f = std::fopen(path, "wb");
   if (f == nullptr) return false;
   const size_t n = std::fwrite(bytes, 1, len, f);
@@ -98,11 +136,85 @@ bool WriteFrame(const char* path, const uint8_t* bytes, size_t len,
   FILE* m = std::fopen(meta_path.c_str(), "w");
   if (m != nullptr) {
     std::fprintf(m, "subtype=%s\nwidth=%u\nheight=%u\nstride=%u\nbytes=%zu\n",
-                 subtype, width, height, stride, len);
-    std::fprintf(m, "source=%s\nusb=%d\n", source.c_str(), usb ? 1 : 0);
+                 meta.subtype, meta.width, meta.height, meta.stride, len);
+    std::fprintf(m, "source=%s\ncapture_source=%s\n", source.c_str(),
+                 meta.usb ? "external_usb" : "camera");
     std::fclose(m);
   }
   return true;
+}
+
+struct SourceChoice {
+  UINT32 index = 0;
+  std::string name;
+  bool found = false;
+  bool usb = false;
+  bool saw_virtual = false;
+};
+
+std::string DeviceName(IMFActivate* act) {
+  LPWSTR wname = nullptr;
+  UINT32 wlen = 0;
+  if (FAILED(act->GetAllocatedString(MF_DEVSOURCE_ATTRIBUTE_FRIENDLY_NAME,
+                                     &wname, &wlen))) {
+    return std::string();
+  }
+  std::string name = Narrow(wname);
+  CoTaskMemFree(wname);
+  return name;
+}
+
+std::string DeviceLink(IMFActivate* act) {
+  LPWSTR wlink = nullptr;
+  UINT32 llen = 0;
+  if (FAILED(act->GetAllocatedString(
+          MF_DEVSOURCE_ATTRIBUTE_SOURCE_TYPE_VIDCAP_SYMBOLIC_LINK, &wlink,
+          &llen))) {
+    return std::string();
+  }
+  std::string link = Narrow(wlink);
+  CoTaskMemFree(wlink);
+  return link;
+}
+
+enum class DeviceKind { kSkip, kIntegrated, kUsb, kVirtual };
+
+// Classifies one enumerated device (name + bus) for the source gate.
+DeviceKind ConsiderDevice(IMFActivate* act, UINT32 index, std::string* name) {
+  *name = DeviceName(act);
+  if (name->empty()) return DeviceKind::kSkip;
+  if (IsVirtualSource(*name, DeviceLink(act))) {
+    std::fprintf(stderr, "camera[%u]=%s REJECTED virtual/software source\n",
+                 index, name->c_str());
+    return DeviceKind::kVirtual;
+  }
+  const bool usb = IsUsbSource(*name);
+  std::fprintf(stderr, "camera[%u]=%s usb=%d\n", index, name->c_str(),
+               usb ? 1 : 0);
+  return usb ? DeviceKind::kUsb : DeviceKind::kIntegrated;
+}
+
+// Source gate: integrated camera first, external USB second, virtual never.
+SourceChoice ChooseSource(IMFActivate** acts, UINT32 count) {
+  SourceChoice choice;
+  for (UINT32 i = 0; i < count; ++i) {
+    std::string name;
+    const DeviceKind kind = ConsiderDevice(acts[i], i, &name);
+    if (kind == DeviceKind::kVirtual) choice.saw_virtual = true;
+    if (kind == DeviceKind::kIntegrated) {
+      choice.index = i;
+      choice.name = name;
+      choice.found = true;
+      break;
+    }
+    if (kind == DeviceKind::kUsb && !choice.found) {
+      choice.index = i;
+      choice.name = name;
+      choice.found = true;
+      choice.usb = true;
+    }
+  }
+  return choice;
 }
 
 }  // namespace
@@ -136,39 +248,24 @@ int main(int argc, char** argv) {
     return 2;
   }
 
-  // Device priority: USB-friendly-name first, else the first source.
-  UINT32 pick = count;
-  std::string pick_name;
-  for (UINT32 i = 0; i < count; ++i) {
-    LPWSTR wname = nullptr;
-    UINT32 wlen = 0;
-    if (FAILED(acts[i]->GetAllocatedString(
-            MF_DEVSOURCE_ATTRIBUTE_FRIENDLY_NAME, &wname, &wlen))) {
-      continue;
+  // Source gate: integrated camera first, external USB second, virtual never.
+  SourceChoice choice = ChooseSource(acts, count);
+  if (!choice.found) {
+    if (choice.saw_virtual) {
+      std::fprintf(stderr,
+                   "ERR_VIRTUAL_CAMERA_REJECTED: only virtual sources found\n");
+    } else {
+      std::fprintf(stderr, "NO_CAMERA: devices enumerated but none usable\n");
     }
-    std::string name = Narrow(wname);
-    CoTaskMemFree(wname);
-    std::fprintf(stderr, "camera[%u]=%s\n", i, name.c_str());
-    if (IsUsbSource(name)) {
-      pick = i;
-      pick_name = name;
-      break;
-    }
-    if (pick == count) {
-      pick = i;
-      pick_name = name;
-    }
-  }
-  if (pick == count) {
-    std::fprintf(stderr, "NO_CAMERA: devices enumerated but none usable\n");
     CoTaskMemFree(acts);
     attrs->Release();
     MFShutdown();
     CoUninitialize();
     return 2;
   }
-  const bool usb_source = IsUsbSource(pick_name);
-  std::fprintf(stderr, "picked=%u (%s) usb=%d\n", pick, pick_name.c_str(),
+  const UINT32 pick = choice.index;
+  const bool usb_source = choice.usb;
+  std::fprintf(stderr, "picked=%u (%s) usb=%d\n", pick, choice.name.c_str(),
                usb_source ? 1 : 0);
 
   // Activate the source and open a reader (stage-logged for diagnosis).
@@ -244,8 +341,8 @@ int main(int argc, char** argv) {
           DWORD maxb = 0;
           DWORD cur = 0;
           if (SUCCEEDED(buf->Lock(&ptr, &maxb, &cur))) {
-            written = WriteFrame(out, ptr, cur, SubtypeName(sub), w, h,
-                                 stride, pick_name, usb_source);
+            const FrameMeta meta{SubtypeName(sub), w, h, stride, usb_source};
+            written = WriteFrame(out, ptr, cur, meta, choice.name);
             std::fprintf(stderr, "write=%d bytes=%lu\n", written ? 1 : 0,
                          (unsigned long)cur);
             buf->Unlock();
