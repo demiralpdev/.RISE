@@ -10,10 +10,11 @@ function Seal($file) {
     $ts = Get-Date -Format "yyyy-MM-dd HH:mm:ss"
     Add-Content $log "$ts SEAL $file"
     if ($ext -in ".mp4",".mkv",".mov",".avi") {
-        & $bin video $file --device auto --key $key --out $out 2>>$log
+        # Fail-closed: folder drops are not camera captures.
+        & $bin video $file --device auto --key $key --capture-source screen --out $out 2>>$log
     } elseif ($ext -in ".jpg",".jpeg",".png") {
         $tmp = "C:\Users\rise\.rise\tmp-manifest.json"
-        & $bin sign $file --device auto --key $key --out $tmp 2>>$log
+        & $bin sign $file --device auto --key $key --capture-source screen --out $tmp 2>>$log
         & $bin pack $file $tmp --out $out 2>>$log
         Remove-Item $tmp -ErrorAction SilentlyContinue
     }

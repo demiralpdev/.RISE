@@ -121,7 +121,8 @@ def seal_recording(recording_path):
     sealed = recording_path + (".rvid" if ext in (".mp4", ".m4v", ".mov")
                                else ".rise")
     cmd = [binary, "video", recording_path,
-           "--device", "obs", "--key", key, "--out", sealed]
+           "--device", "obs", "--capture-source", "obs",
+           "--key", key, "--out", sealed]
     log("RISE: sealing %s ..." % recording_path)
     try:
         proc = subprocess.run(cmd, capture_output=True, text=True,

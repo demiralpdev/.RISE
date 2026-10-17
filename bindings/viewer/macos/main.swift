@@ -17,6 +17,20 @@ struct RiseManifest: Decodable {
     let device_id: String?
     let assurance: String?
     let signing_key_id: String?
+    let capture_source: String?
+}
+
+/// Origin disclaimers for non-camera capture classes (mirrors core's
+/// `non_camera_note` and verify-web's `_NON_CAMERA_SOURCES`). The viewer must
+/// never show a non-camera seal as camera evidence.
+func nonCameraNote(_ src: String?) -> String? {
+    switch src {
+    case "screen": return "SCREEN/IMPORTED CAPTURE — the seal is real, the origin is NOT verified"
+    case "obs": return "OBS/SOFTWARE CAPTURE — not from a real camera sensor"
+    case "virtual": return "VIRTUAL CAMERA — software source, not camera evidence"
+    case "external_usb": return "EXTERNAL USB CAMERA — camera evidence is capped"
+    default: return nil
+    }
 }
 
 enum RiseResult {
@@ -255,12 +269,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             let root = manifest.merkle_root ?? "—"
             let rootShort = root.count > 20 ? String(root.prefix(20)) + "…" : root
 
+            let source = manifest.capture_source ?? "camera"
             infoField.stringValue =
                 "device: \(device)   sealed: \(dateStr)   alg: \(alg)   assurance: \(assurance)\n" +
-                "key: \(keyId)   merkle: \(rootShort)   frames: \(frames)\n" +
+                "key: \(keyId)   origin: \(source)   merkle: \(rootShort)   frames: \(frames)\n" +
                 "signature check + badge: riseproof.me"
 
-            if frames > 1 {
+            if let note = nonCameraNote(manifest.capture_source) {
+                statusField.stringValue = "◈ " + note
+                statusField.textColor = NSColor(red: 1.0, green: 0.72, blue: 0.1, alpha: 1)
+            } else if frames > 1 {
                 statusField.stringValue = "◈ SEALED VIDEO — \(frames) frames, verify per frame on riseproof.me"
                 statusField.textColor = NSColor(red: 1.0, green: 0.72, blue: 0.1, alpha: 1)
             } else if matches {
@@ -296,11 +314,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             print("SELFTEST-FAIL: \(reason)"); exit(1)
         case .ok(_, let manifest, let matches):
             let frames = manifest.frame_hashes.count
+            let origin = manifest.capture_source ?? "camera"
             if frames == 1 {
-                print(matches ? "SELFTEST-OK: UNALTERED single-frame, device=\(manifest.device_id ?? "?")"
-                             : "SELFTEST-ALTERED: hash mismatch, device=\(manifest.device_id ?? "?")")
+                print(matches ? "SELFTEST-OK: UNALTERED single-frame, device=\(manifest.device_id ?? "?"), origin=\(origin)"
+                             : "SELFTEST-ALTERED: hash mismatch, device=\(manifest.device_id ?? "?"), origin=\(origin)")
             } else {
-                print("SELFTEST-OK: video manifest, frames=\(frames), device=\(manifest.device_id ?? "?")")
+                print("SELFTEST-OK: video manifest, frames=\(frames), device=\(manifest.device_id ?? "?"), origin=\(origin)")
             }
         }
     }

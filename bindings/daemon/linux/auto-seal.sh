@@ -105,7 +105,8 @@ seal_video() {
   local f="$1"
   local out="${f}.rvid"
   log "SEAL-VIDEO start $f"
-  if "$RISE_BIN" video "$f" --device auto --key "$KEY_FILE" --out "$out" >> "$LOG_FILE" 2>&1; then
+  # Fail-closed: folder drops are not camera captures (see macos daemon note).
+  if "$RISE_BIN" video "$f" --device auto --key "$KEY_FILE" --capture-source screen --out "$out" >> "$LOG_FILE" 2>&1; then
     log "SEAL-VIDEO ok $f -> $out"
   else
     log "ERROR seal-video failed for $f"
@@ -118,7 +119,7 @@ seal_image() {
   local manifest="${f}.manifest.json"
   local out="${f}.rise"
   log "SEAL-IMAGE start $f"
-  if ! "$RISE_BIN" sign "$f" --device auto --key "$KEY_FILE" --out "$manifest" >> "$LOG_FILE" 2>&1; then
+  if ! "$RISE_BIN" sign "$f" --device auto --key "$KEY_FILE" --capture-source screen --out "$manifest" >> "$LOG_FILE" 2>&1; then
     log "ERROR sign failed for $f"
     rm -f "$manifest"
     return
