@@ -22,41 +22,56 @@ import Foundation
 /// Single-frame capture helper. Thin shell: frame bytes out, trust in core.
 public enum RiseCapture {
 
-    /// Device priority: USB/UVC external first, else back wide-angle default.
-    /// Mirrors the macOS pickDevice() priority (Rapoo/UVC/USB first).
+    /// Rank 1 source gate. SECURITY INVARIANT: only a built-in lens may enter a
+    /// camera flow. A virtual/loopback camera (OBS Virtual Camera, a CoreMediaIO
+    /// DAL plugin) is reported as an EXTERNAL device, so every type that is not
+    /// a known built-in fails closed here instead of being trusted downstream.
+    public static func isAcceptableCameraSource(_ device: AVCaptureDevice) -> Bool {
+        switch device.deviceType {
+        case .builtInWideAngleCamera:
+            return true
+        #if os(iOS)
+        // IOS-ONLY
+        case .builtInUltraWideCamera, .builtInTelephotoCamera:
+            return true
+        #endif
+        default:
+            return false
+        }
+    }
+
+    /// Device priority: built-in wide-angle back, then built-in wide-angle
+    /// front, then the first accepted built-in device. Mirrors the macOS
+    /// pickDevice() priority; an external/USB/virtual source is never selected.
     public static func pickDevice() -> AVCaptureDevice? {
+        #if os(iOS)
+        // IOS-ONLY
+        let kinds: [AVCaptureDevice.DeviceType] = [
+            .builtInWideAngleCamera,
+            .builtInUltraWideCamera,
+            .builtInTelephotoCamera,
+        ]
+        #else
+        let kinds: [AVCaptureDevice.DeviceType] = [.builtInWideAngleCamera]
+        #endif
+
+        // 1. Back wide-angle (primary rear camera).
+        if let back = AVCaptureDevice.default(
+            .builtInWideAngleCamera, for: .video, position: .back
+        ), isAcceptableCameraSource(back) { return back }
+
+        // 2. Front wide-angle.
+        if let front = AVCaptureDevice.default(
+            .builtInWideAngleCamera, for: .video, position: .front
+        ), isAcceptableCameraSource(front) { return front }
+
+        // 3. First discovered device that passes the source gate.
         let discovery = AVCaptureDevice.DiscoverySession(
-            // Cross-platform subset so `swiftc -typecheck` passes on macOS.
-            // On iOS this session also covers dual/triple rear cameras behind
-            // .builtInWideAngleCamera; the back default below picks the rear.
-            // IOS-ONLY note: .builtInDualCamera / .builtInTripleCamera exist
-            // on iOS 10.2+/13+ but are API_UNAVAILABLE on macOS, so they are
-            // deliberately NOT listed here.
-            deviceTypes: [
-                .builtInWideAngleCamera,
-                .external
-            ],
+            deviceTypes: kinds,
             mediaType: .video,
             position: .unspecified
         )
-        let devices = discovery.devices
-        if devices.isEmpty { return nil }
-
-        // 1. USB / UVC external camera first (silver tier: external source).
-        //    Name match mirrors macOS ("Rapoo"/"UVC"/"USB").
-        if let usb = devices.first(where: {
-            $0.localizedName.localizedCaseInsensitiveContains("UVC")
-                || $0.localizedName.localizedCaseInsensitiveContains("USB")
-                || $0.localizedName.localizedCaseInsensitiveContains("Rapoo")
-        }) { return usb }
-
-        // 2. Back wide-angle default (primary iPhone rear camera).
-        if let back = AVCaptureDevice.default(
-            .builtInWideAngleCamera, for: .video, position: .back
-        ) { return back }
-
-        // 3. Last resort: first available device.
-        return devices.first
+        return discovery.devices.first(where: isAcceptableCameraSource)
     }
 
     /// Camera permission state. Call before capture; presents system prompt

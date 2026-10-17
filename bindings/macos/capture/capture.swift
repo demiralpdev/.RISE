@@ -1,7 +1,7 @@
 // capture.swift — captures a single frame via AVCapture, writes a JPEG.
 // Build: swiftc capture.swift -o capture-swift
 // Run: ./capture-swift [output-path]
-// Priority: a device whose name contains "Rapoo"/"UVC", else the default video device.
+// Priority: built-in camera only; a virtual/external source is rejected.
 import AVFoundation
 import AppKit
 
@@ -9,22 +9,28 @@ let outPath = CommandLine.arguments.count > 1
     ? CommandLine.arguments[1]
     : "../../target/frame-001.jpg"
 
+// SECURITY INVARIANT: only a built-in lens may be captured. A virtual camera
+// (OBS Virtual Camera, a CoreMediaIO DAL plugin) is reported as an EXTERNAL
+// device, and it can also be set as the system default video device, so every
+// non-built-in type fails closed here.
+func isAcceptableCameraSource(_ device: AVCaptureDevice) -> Bool {
+    switch device.deviceType {
+    case .builtInWideAngleCamera:
+        return true
+    default:
+        return false
+    }
+}
+
 func pickDevice() -> AVCaptureDevice? {
     let session = AVCaptureDevice.DiscoverySession(
-        deviceTypes: [.builtInWideAngleCamera, .external],
+        deviceTypes: [.builtInWideAngleCamera],
         mediaType: .video, position: .unspecified)
-    let devs = session.devices
-    if devs.isEmpty { return nil }
-    // Rapoo / USB UVC first (silver tier: external camera)
-    if let usb = devs.first(where: {
-        $0.localizedName.localizedCaseInsensitiveContains("Rapoo")
-        || $0.localizedName.localizedCaseInsensitiveContains("UVC")
-        || $0.localizedName.localizedCaseInsensitiveContains("USB")
-    }) { return usb }
-    // else FaceTime HD, last resort the first found
-    return devs.first(where: {
-        $0.localizedName.localizedCaseInsensitiveContains("FaceTime")
-    }) ?? devs.first
+    // 1. The system default video device, if it passes the source gate.
+    if let def = AVCaptureDevice.default(for: .video),
+       isAcceptableCameraSource(def) { return def }
+    // 2. First discovered device that passes the source gate.
+    return session.devices.first(where: isAcceptableCameraSource)
 }
 
 switch AVCaptureDevice.authorizationStatus(for: .video) {
